@@ -118,6 +118,11 @@ export function BranchToolbarBranchSelector({
   onComposerFocusRequest,
 }: BranchToolbarBranchSelectorProps) {
   const composerFloatingLayerProps = useComposerMenuProps();
+  // The popup anchors to the whole context strip so its width follows the composer, not the chip.
+  const [contextStrip, setContextStrip] = useState<HTMLElement | null>(null);
+  const captureContextStrip = useCallback((element: HTMLElement | null) => {
+    setContextStrip(element?.closest<HTMLElement>('[data-slot="composer-context-strip"]') ?? null);
+  }, []);
   const startFromOriginSwitchId = useId();
   const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, "thread session stop");
   const updateThreadMetadata = useAtomCommand(
@@ -784,6 +789,7 @@ export function BranchToolbarBranchSelector({
       value={resolvedActiveBranch}
     >
       <div
+        ref={captureContextStrip}
         className={cn("flex min-w-0 items-center gap-1", className)}
         data-composer-context-control
       >
@@ -831,7 +837,8 @@ export function BranchToolbarBranchSelector({
       <ComboboxPopup
         align="end"
         side="top"
-        className="flex w-80 flex-col"
+        anchor={contextStrip}
+        className="flex w-(--anchor-width) min-w-0 flex-col"
         {...composerFloatingLayerProps}
       >
         <ComboboxSearchInput
