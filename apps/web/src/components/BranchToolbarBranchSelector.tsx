@@ -117,6 +117,11 @@ export function BranchToolbarBranchSelector({
   const composerFloatingLayerProps = useComposerMenuProps();
   const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
+  // The popup anchors to the whole context strip so its width follows the composer, not the chip.
+  const [contextStrip, setContextStrip] = useState<HTMLElement | null>(null);
+  const captureContextStrip = useCallback((element: HTMLElement | null) => {
+    setContextStrip(element?.closest<HTMLElement>('[data-slot="composer-context-strip"]') ?? null);
+  }, []);
   const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, "thread session stop");
   const updateThreadMetadata = useAtomCommand(
     threadEnvironment.updateMetadata,
@@ -727,11 +732,16 @@ export function BranchToolbarBranchSelector({
       popupProps={{
         align: displayMode === "panel" ? "start" : "end",
         side: displayMode === "panel" ? "bottom" : "top",
-        className: cn("flex flex-col", displayMode === "panel" ? "w-(--anchor-width)" : "w-80"),
+        className: cn(
+          "flex flex-col",
+          displayMode === "panel" || contextStrip ? "w-(--anchor-width) min-w-0" : "w-80",
+        ),
         ...(displayMode === "toolbar" ? composerFloatingLayerProps : {}),
+        ...(displayMode === "toolbar" && contextStrip ? { anchor: contextStrip } : {}),
       }}
     >
       <div
+        ref={displayMode === "toolbar" ? captureContextStrip : undefined}
         className={cn(
           "flex min-w-0",
           displayMode === "panel" ? "w-full flex-col items-stretch" : "items-center gap-1",
