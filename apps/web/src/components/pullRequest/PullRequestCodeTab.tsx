@@ -19,6 +19,7 @@ import {
   MessageSquareOffIcon,
   PilcrowIcon,
   Rows3Icon,
+  SearchIcon,
   Settings2Icon,
   TextWrapIcon,
   TriangleAlertIcon,
@@ -61,7 +62,9 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { DiffPanelLoadingState } from "../DiffPanelShell";
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
+import { DiffSearchBar } from "../diffs/DiffSearchBar";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
+import { useDiffSearch } from "../diffs/useDiffSearch";
 import { diffFileTreeEntries } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
@@ -682,6 +685,8 @@ function PullRequestCodeTab({
     [effectiveFoldOverride, setViewed],
   );
 
+  const diffSearch = useDiffSearch({ items, viewer, expandFile: toggleFile });
+
   const requestTreeReveal = useCodeViewFileReveal(viewer, scopeKey);
   const revealFile = useCallback(
     (path: string) => {
@@ -902,8 +907,18 @@ function PullRequestCodeTab({
       // wired.
       onGutterUtilityClick: beginComment,
       onLineSelectionEnd: beginComment,
+      onPostRender: diffSearch.onPostRender,
     }),
-    [diffLayout, wordWrap, resolvedTheme, loadDiffFiles, canCommentOnLines, draft, beginComment],
+    [
+      diffLayout,
+      wordWrap,
+      resolvedTheme,
+      loadDiffFiles,
+      canCommentOnLines,
+      draft,
+      beginComment,
+      diffSearch.onPostRender,
+    ],
   );
 
   const runThreadCommand = useCallback(
@@ -1347,6 +1362,29 @@ function PullRequestCodeTab({
           <Tooltip>
             <TooltipTrigger
               render={
+                <Toggle
+                  aria-label={diffSearch.open ? "Close find in diff" : "Find in diff"}
+                  variant="ghost"
+                  size="sm"
+                  pressed={diffSearch.open}
+                  onPressedChange={(pressed) => {
+                    if (pressed) diffSearch.openSearch();
+                    else diffSearch.close();
+                  }}
+                />
+              }
+            >
+              <SearchIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {diffSearch.open ? "Close find" : "Find in diff"}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
+        {fileKeys.length > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
                 <Button
                   type="button"
                   size="icon-sm"
@@ -1537,6 +1575,7 @@ function PullRequestCodeTab({
             up; the viewer inside still owns its own scrolling. */}
         <div
           className="relative min-h-0 min-w-0 flex-1"
+          onKeyDownCapture={diffSearch.onKeyDownCapture}
           // The chevron answers this too, but the whole header row is the target a reader
           // actually aims for. The header lives in the viewer's shadow tree, so the capture
           // listener walks `composedPath` — the only way to see through the shadow boundary.
@@ -1565,6 +1604,21 @@ function PullRequestCodeTab({
             }
           }}
         >
+          {diffSearch.open ? (
+            <div className="absolute top-1 right-3 z-10">
+              <DiffSearchBar
+                query={diffSearch.query}
+                onQueryChange={diffSearch.setQuery}
+                focusToken={diffSearch.focusToken}
+                matchCount={diffSearch.matchCount}
+                activeIndex={diffSearch.activeIndex}
+                truncated={diffSearch.truncated}
+                onNext={diffSearch.next}
+                onPrevious={diffSearch.previous}
+                onClose={diffSearch.close}
+              />
+            </div>
+          ) : null}
           {/* The viewer virtualizes against the element it is told is scrolling and places its
               rows absolutely, so it has to own that element — the thread diff panel hands it the
               same one. Scrolling from a parent instead leaves it painting over its neighbours. */}
