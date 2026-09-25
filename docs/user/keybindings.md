@@ -127,10 +127,13 @@ Join modifiers and a key with `+`, such as `mod+shift+d` or `ctrl+l`.
 ## When conditions
 
 Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
-`previewOpen`, `rightPanelOpen`, `modelPickerOpen`, `usagePageOpen`, `composerFocus`,
-`draftThreadRoute`, `turnRunning`, `composerEmpty`, `editableFocus`, `isWeb`, and `isDesktop`.
+`previewOpen`, `rightPanelOpen`, `diffFocus`, `modelPickerOpen`, `usagePageOpen`,
+`composerFocus`, `composerDraft`, `draftThreadRoute`, `turnRunning`, `composerEmpty`,
+`editableFocus`, `isWeb`, and `isDesktop`.
 In a thread, `rightPanelOpen` is true while its right panel is open; the default
 `mod+t` uses it to open the panel's new-tab menu.
+`diffFocus` is true while the keyboard is inside a diff viewer, where `mod+f`
+searches the diff instead of the page.
 `draftThreadRoute` is true on a draft thread, including a restored draft, until it is first sent.
 `composerEmpty` is true while the composer has no text, attachments, or context, and is not
 editing a queued message or answering a question.

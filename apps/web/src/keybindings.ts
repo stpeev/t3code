@@ -5,8 +5,10 @@ import {
   type ResolvedKeybindingRule,
   MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
   type ResolvedKeybindingsConfig,
+  SIDEBAR_ENVIRONMENT_KEYBINDING_COMMANDS,
   THREAD_JUMP_KEYBINDING_COMMANDS,
   type ModelPickerJumpKeybindingCommand,
+  type SidebarEnvironmentKeybindingCommand,
   type ThreadJumpKeybindingCommand,
 } from "@t3tools/contracts";
 import {
@@ -278,6 +280,19 @@ export function threadJumpIndexFromCommand(command: string): number | null {
   return index === -1 ? null : index;
 }
 
+export function sidebarEnvironmentCommandForIndex(
+  index: number,
+): SidebarEnvironmentKeybindingCommand | null {
+  return SIDEBAR_ENVIRONMENT_KEYBINDING_COMMANDS[index] ?? null;
+}
+
+export function sidebarEnvironmentIndexFromCommand(command: string): number | null {
+  const index = SIDEBAR_ENVIRONMENT_KEYBINDING_COMMANDS.indexOf(
+    command as SidebarEnvironmentKeybindingCommand,
+  );
+  return index === -1 ? null : index;
+}
+
 export function threadTraversalDirectionFromCommand(
   command: string | null,
 ): "previous" | "next" | null {
@@ -382,14 +397,20 @@ export function isDiffToggleShortcut(
   return matchesCommandShortcut(event, keybindings, "diff.toggle", options);
 }
 
-export function isSidebarToggleShortcut(
+/** Any matching `diff.find` binding counts: startup backfill can append same-key `thread.find` after it. */
+export function isDiffFindShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
 ): boolean {
-  // A focused terminal owns Ctrl chords, such as tmux's Ctrl+B prefix; Cmd never reaches it.
-  if (event.ctrlKey && options?.context?.terminalFocus) return false;
-  return matchesCommandShortcut(event, keybindings, "sidebar.toggle", options);
+  const platform = resolvePlatform(options);
+  const context = resolveContext(options);
+  return keybindings.some(
+    (binding) =>
+      binding.command === "diff.find" &&
+      matchesWhenClause(binding.whenAst, context) &&
+      matchesKeybindingShortcut(event, binding.shortcut, platform),
+  );
 }
 
 export function isOpenFavoriteEditorShortcut(

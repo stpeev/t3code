@@ -19,7 +19,7 @@ import type {
   FileDiffMetadata,
   SelectedLineRange,
 } from "@pierre/diffs";
-import type { CodeViewAnnotationArgs, CodeViewDiffItem } from "@pierre/diffs/react";
+import type { CodeViewAnnotationArgs, CodeViewDiffItem, CodeViewHandle } from "@pierre/diffs/react";
 import type {
   EnvironmentId,
   PullRequestDetailView,
@@ -42,6 +42,7 @@ import {
   MessageSquareOffIcon,
   PilcrowIcon,
   Rows3Icon,
+  SearchIcon,
   Settings2Icon,
   TextWrapIcon,
   TriangleAlertIcon,
@@ -67,8 +68,10 @@ import { m, type MessageResolver } from "~/i18n/messages";
 
 import { observeIntersection } from "~/lib/observeIntersection";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { useClientSettings, updateClientSettings } from "~/hooks/useSettings";
 import { useRenderedAppearance } from "~/hooks/useTheme";
+import { asElement } from "~/lib/crossWindowElement";
 import { areAllDiffFilesCollapsed } from "~/lib/diffCollapse";
 import {
   pullRequestFindingKey,
@@ -81,8 +84,8 @@ import {
 } from "@t3tools/client-runtime/pull-request-editing";
 import { fileDiffRows } from "@t3tools/client-runtime/review-guide-tour";
 import { isTestChangedFile } from "@t3tools/shared/changedFileKind";
-import { orderDiffFilesForReview } from "@t3tools/client-runtime/diff-file-order";
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/mediaPreview";
+import { orderDiffFiles } from "./pullRequestFileOrder.logic";
 import {
   buildFileDiffIdentityKey,
   buildFileDiffRenderKey,
@@ -114,9 +117,11 @@ import { useDiffWorkerPool, useDiffWorkerPoolReady } from "../DiffWorkerPoolProv
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
 import { FileExplorerPane } from "../files/FileExplorerPane";
+import { DiffSearchBar } from "../diffs/DiffSearchBar";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
 import { useHideTestFiles } from "../diffs/useHideTestFiles";
-import { diffFileTreeEntries } from "../diffs/diffFileTree.logic";
+import { useDiffSearch } from "../diffs/useDiffSearch";
+import { diffFileTreeEntries, orderDiffFilesLikeTree } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -261,9 +266,10 @@ function diffModel(
   });
   const model: DiffModel = {
     parsedSlices,
-    loadedFiles: orderDiffFilesForReview(
-      parsedSlices.flatMap((parsed) => (parsed?.kind === "files" ? parsed.files : [])),
-      resolveFileDiffPath,
+    loadedFiles: orderDiffFilesLikeTree(
+      parsedSlices.flatMap((parsed) =>
+        parsed?.kind === "files" ? orderDiffFiles(parsed.files) : [],
+      ),
     ),
     sourceFileStats: new Map(
       parsedSlices.flatMap((parsed) =>
@@ -660,6 +666,9 @@ function PullRequestCodeTab({
   }, [backgroundRefreshToken, refreshFirstDiffPage, refreshFilesViewed]);
 
   const codeViewReveal = useCodeViewFileReveal();
+  const [viewer, setViewer] = useState<CodeViewHandle<ReviewAnnotationGroup, undefined> | null>(
+    null,
+  );
   const answeredRevealNonce = useRef<number | null>(null);
 
   const loadDiffFiles = createPullRequestDiffFileContentsLoader(getDiffFileContents, {
@@ -1045,6 +1054,30 @@ function PullRequestCodeTab({
     setFileViewed,
   };
 
+  const diffSearch = useDiffSearch({ items, viewer, expandFile: toggleFile });
+  const attachViewer = useStableCallback(
+    (handle: CodeViewHandle<ReviewAnnotationGroup, undefined> | null) => {
+      codeViewReveal.attach(handle);
+      setViewer(handle);
+    },
+  );
+  const onViewerPostRender = useStableCallback(
+    (...args: Parameters<typeof diffSearch.onPostRender>) => {
+      codeViewReveal.flush();
+      const [fileContainer, instance] = args;
+      // Containers are reused across files, so the flag is set or cleared on every render.
+      fileContainer.toggleAttribute(
+        "data-cut-lines",
+        typeof instance === "object" &&
+          instance !== null &&
+          "fileDiff" in instance &&
+          cutFiles.has(instance.fileDiff),
+      );
+      if (withheldFiles.size > 0) markCutLineNotes(fileContainer);
+      diffSearch.onPostRender(...args);
+    },
+  );
+
   const revealFile = (path: string, range?: SelectedLineRange) => {
     const item = items.find((candidate) => resolveFileDiffPath(candidate.fileDiff) === path);
     if (item === undefined) return;
@@ -1115,7 +1148,6 @@ function PullRequestCodeTab({
         : buildDiffReviewComment({
             id: `pull-request-selection:${diffReviewSelectionId(anchor.fileKey, anchor.range)}`,
             sectionId: `pull-request:${detail.number}`,
-            // oxlint-disable-next-line t3code/no-untranslated-copy -- context title sent to the agent
             sectionTitle: `PR #${detail.number} review`,
             filePath: anchor.path,
             fileDiff: file,
@@ -1214,15 +1246,10 @@ function PullRequestCodeTab({
     enableLineSelection: canSelectLines && draft === null && !withheldRefetching,
     onGutterUtilityClick: beginComment,
     onLineSelectionEnd: beginComment,
-    onPostRender: (fileContainer: HTMLElement, instance: object) => {
-      codeViewReveal.flush();
-      // Containers are reused across files, so the flag is set or cleared on every render.
-      fileContainer.toggleAttribute(
-        "data-cut-lines",
-        "fileDiff" in instance && cutFiles.has(instance.fileDiff),
-      );
-      if (withheldFiles.size > 0) markCutLineNotes(fileContainer);
-    },
+    onPostRender: onViewerPostRender,
+    // Find may repeat requests before render; only unfold, never toggle.
+    onRevealSearchMatch: (item: CodeViewItem<ReviewAnnotationGroup>) =>
+      setFoldChoices(item.id, (current) => withFileDiffFold(current, item.id, false)),
     onItemCollapsedChange: (
       _item: CodeViewItem<ReviewAnnotationGroup>,
       nextItem: CodeViewItem<ReviewAnnotationGroup>,
@@ -1691,6 +1718,29 @@ function PullRequestCodeTab({
           <Tooltip>
             <TooltipTrigger
               render={
+                <Toggle
+                  aria-label={diffSearch.open ? "Close find in diff" : "Find in diff"}
+                  variant="ghost"
+                  size="sm"
+                  pressed={diffSearch.open}
+                  onPressedChange={(pressed) => {
+                    if (pressed) diffSearch.openSearch();
+                    else diffSearch.close();
+                  }}
+                />
+              }
+            >
+              <SearchIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {diffSearch.open ? "Close find" : "Find in diff"}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
+        {fileKeys.length > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
                 <Button
                   type="button"
                   size="icon-sm"
@@ -1959,13 +2009,14 @@ function PullRequestCodeTab({
           onWheelCapture={codeViewReveal.cancel}
           onTouchStartCapture={codeViewReveal.cancel}
           onPointerDownCapture={codeViewReveal.cancel}
-          onKeyDownCapture={codeViewReveal.cancel}
+          onKeyDownCapture={diffSearch.onKeyDownCapture}
           // Headers live in shadow DOM; composedPath crosses that boundary.
           onClickCapture={(event) => {
             const composedPath = event.nativeEvent.composedPath?.() ?? [];
-            for (const node of composedPath) {
-              if (!(node instanceof HTMLElement)) continue;
-              if (node instanceof HTMLButtonElement || node instanceof HTMLAnchorElement) {
+            for (const target of composedPath) {
+              const node = asElement(target);
+              if (!node) continue;
+              if (node.tagName === "BUTTON" || node.tagName === "A") {
                 return;
               }
               if (node.hasAttribute("data-viewed-toggle")) return;
@@ -1981,6 +2032,23 @@ function PullRequestCodeTab({
             }
           }}
         >
+          {diffSearch.open ? (
+            <div className="absolute top-1 right-3 z-10">
+              <DiffSearchBar
+                query={diffSearch.query}
+                onQueryChange={diffSearch.setQuery}
+                history={diffSearch.history}
+                onClearHistory={diffSearch.clearHistory}
+                focusToken={diffSearch.focusToken}
+                matchCount={diffSearch.matchCount}
+                activeIndex={diffSearch.activeIndex}
+                truncated={diffSearch.truncated}
+                onNext={diffSearch.next}
+                onPrevious={diffSearch.previous}
+                onClose={diffSearch.close}
+              />
+            </div>
+          ) : null}
           {/* The viewer must own its scroll element to position virtual rows within it. */}
           <FileViewedToggleContext value={fileViewedToggle}>
             <StyledDiffCodeView<ReviewAnnotationGroup>
@@ -1990,7 +2058,7 @@ function PullRequestCodeTab({
                 node?.setAttribute("data-workspace-focus-default", "");
                 scrollerRef(node);
               }}
-              viewerRef={codeViewReveal.attach}
+              viewerRef={attachViewer}
               items={items}
               selectedLines={selectedLines}
               onSelectedLinesChange={setSelectedLines}
