@@ -1600,6 +1600,8 @@ function PullRequestCodeTab({
               <DiffSearchBar
                 query={diffSearch.query}
                 onQueryChange={diffSearch.setQuery}
+                history={diffSearch.history}
+                onClearHistory={diffSearch.clearHistory}
                 focusToken={diffSearch.focusToken}
                 matchCount={diffSearch.matchCount}
                 activeIndex={diffSearch.activeIndex}

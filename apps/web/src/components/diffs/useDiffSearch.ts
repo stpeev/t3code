@@ -11,9 +11,16 @@ import {
   useState,
 } from "react";
 
+import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { isDiffFindShortcut } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { findDiffMatches, firstMatchIndexFrom, indexDiffMatchesByLine } from "./diffSearch";
+import {
+  DIFF_SEARCH_HISTORY_KEY,
+  DiffSearchHistorySchema,
+  EMPTY_DIFF_SEARCH_HISTORY,
+  rememberDiffSearchTerm,
+} from "./diffSearchHistory";
 import { createDiffSearchHighlighter } from "./diffSearchHighlights";
 
 export interface DiffSearchItem {
@@ -136,8 +143,21 @@ export function useDiffSearch<LAnnotation>({
     [highlighter],
   );
 
+  const [history, setHistory] = useLocalStorage(
+    DIFF_SEARCH_HISTORY_KEY,
+    EMPTY_DIFF_SEARCH_HISTORY,
+    DiffSearchHistorySchema,
+  );
+  // A term counts as used once the reader steps through its matches or closes the bar on it.
+  const rememberQuery = useCallback(() => {
+    if (rememberDiffSearchTerm(history, query) === history) return;
+    setHistory((current) => rememberDiffSearchTerm(current, query));
+  }, [history, query, setHistory]);
+  const clearHistory = useCallback(() => setHistory(EMPTY_DIFF_SEARCH_HISTORY), [setHistory]);
+
   const step = useCallback(
     (delta: 1 | -1) => {
+      rememberQuery();
       const count = result.matches.length;
       if (count === 0) return;
       const from = activeIndex < 0 ? (delta > 0 ? -1 : 0) : activeIndex;
@@ -145,7 +165,7 @@ export function useDiffSearch<LAnnotation>({
       pendingReveal.current = { index, expand: true };
       setActive({ query: searchedQuery, index });
     },
-    [activeIndex, result.matches.length, searchedQuery],
+    [activeIndex, rememberQuery, result.matches.length, searchedQuery],
   );
 
   const openSearch = useCallback(() => {
@@ -154,9 +174,10 @@ export function useDiffSearch<LAnnotation>({
   }, []);
 
   const close = useCallback(() => {
+    rememberQuery();
     setOpen(false);
     viewer?.getInstance()?.getContainerElement()?.focus({ preventScroll: true });
-  }, [viewer]);
+  }, [rememberQuery, viewer]);
 
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   // Attach to the element wrapping the viewer and the bar; inside it, find searches the diff.
@@ -174,6 +195,8 @@ export function useDiffSearch<LAnnotation>({
     open,
     query,
     setQuery,
+    history,
+    clearHistory,
     focusToken,
     matchCount: result.matches.length,
     truncated: result.truncated,
