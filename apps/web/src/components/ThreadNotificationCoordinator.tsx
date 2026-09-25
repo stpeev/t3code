@@ -60,6 +60,19 @@ export function startThreadNotifications(
 ): () => void {
   const pending = new Map<string, { environmentId: EnvironmentId; notification: Notification }>();
   const watched = new Map<EnvironmentId, WatchedEnvironment>();
+  /** Kind of the thread toast currently shown per toast id, so stale ones can be closed. */
+  const openToasts = new Map<string, ThreadNotificationKind>();
+  const closeThreadToast = (environmentId: EnvironmentId, threadId: string) => {
+    const toastId = threadToastId(environmentId, threadId);
+    if (!openToasts.delete(toastId)) return;
+    toastManager.close(toastId);
+  };
+  const closeActiveThreadToast = () => {
+    const active = activeRouteParams(router);
+    if (active.environmentId && active.threadId) {
+      closeThreadToast(active.environmentId as EnvironmentId, active.threadId);
+    }
+  };
 
   const trackNotification = (environmentId: EnvironmentId, notification: Notification) => {
     pending.get(notification.tag)?.notification.close();
@@ -79,11 +92,12 @@ export function startThreadNotifications(
     kind: ThreadNotificationKind,
   ) => {
     const { thread, status } = state;
-    const { notificationMode: mode, inAppNotificationsEnabled } = getClientSettings();
-    const active = (router.state.matches.at(-1)?.params ?? {}) as {
-      environmentId?: string;
-      threadId?: string;
-    };
+    const {
+      notificationMode: mode,
+      inAppNotificationsEnabled,
+      inAppNotificationsPersistent,
+    } = getClientSettings();
+    const active = activeRouteParams(router);
     const title =
       kind === "completion"
         ? "Thread completed"
@@ -107,7 +121,10 @@ export function startThreadNotifications(
       document.hasFocus() &&
       (active.environmentId !== environmentId || active.threadId !== thread.id)
     ) {
-      const toastId = toastManager.add({
+      openToasts.set(threadToastId(environmentId, thread.id), kind);
+      toastManager.add({
+        id: threadToastId(environmentId, thread.id),
+        ...(inAppNotificationsPersistent ? { timeout: 0 } : {}),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
         description: thread.title,
@@ -127,7 +144,7 @@ export function startThreadNotifications(
         actionProps: {
           children: "Open thread",
           onClick: () => {
-            toastManager.close(toastId);
+            closeThreadToast(environmentId, thread.id);
             void router.navigate({
               to: "/$environmentId/$threadId",
               params: { environmentId, threadId: thread.id },
@@ -224,6 +241,13 @@ export function startThreadNotifications(
     entry.previous = next;
     entry.gate.retain(new Set(next.keys()));
     for (const [prior, state] of changed) {
+      if (
+        state.thread.archivedAt !== null ||
+        (state.attention === null &&
+          openToasts.get(threadToastId(environmentId, state.thread.id)) === "input")
+      ) {
+        closeThreadToast(environmentId, state.thread.id);
+      }
       entry.gate.observe(state.thread.id, prior, state, {
         archived: state.thread.archivedAt !== null,
         quiet: state.raw.latestRunStopRequested === true,
@@ -273,6 +297,7 @@ export function startThreadNotifications(
       unsubscribeRequests();
       unsubscribeDelegated();
       entry.gate.clear();
+      for (const threadId of entry.previous.keys()) closeThreadToast(environmentId, threadId);
     };
     return entry;
   };
@@ -347,13 +372,26 @@ export function startThreadNotifications(
       syncEnvironments();
     },
   );
+  const unsubscribeRoute = router.subscribe("onResolved", closeActiveThreadToast);
   onSettings();
 
   return () => {
     unsubscribeSettings();
     unsubscribeEnvironmentIds();
+    unsubscribeRoute();
     for (const entry of watched.values()) entry.unsubscribe();
     watched.clear();
     stopModeListeners();
   };
+}
+
+function activeRouteParams(router: AnyRouter) {
+  return (router.state.matches.at(-1)?.params ?? {}) as {
+    environmentId?: string;
+    threadId?: string;
+  };
+}
+
+function threadToastId(environmentId: EnvironmentId, threadId: string) {
+  return `thread-notification:${environmentId}:${threadId}`;
 }
