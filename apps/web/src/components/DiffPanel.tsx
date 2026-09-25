@@ -16,6 +16,7 @@ import {
   FolderTreeIcon,
   PilcrowIcon,
   Rows3Icon,
+  SearchIcon,
   TextWrapIcon,
 } from "lucide-react";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide";
@@ -65,9 +66,11 @@ import { formatRelativeTimeLabel, formatShortTimestamp } from "../timestampForma
 import { DiffFilePathCopyButton } from "./DiffFilePathCopyButton";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
 import { DiffStatLabel } from "./chat/DiffStatLabel";
-import { AnnotatableCodeView } from "./diffs/AnnotatableCodeView";
+import { AnnotatableCodeView, type AnnotatableCodeViewHandle } from "./diffs/AnnotatableCodeView";
 import { DiffFileTree } from "./diffs/DiffFileTree";
 import { FileExplorerPane } from "./files/FileExplorerPane";
+import { DiffSearchBar } from "./diffs/DiffSearchBar";
+import { useDiffSearch } from "./diffs/useDiffSearch";
 import { diffFileTreeEntries } from "./diffs/diffFileTree.logic";
 import { Button } from "./ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
@@ -690,6 +693,7 @@ export default function DiffPanel({
   const diffLineStat = sourceLineStat ?? getDiffLineStat(renderableFiles);
   const fileTreeEntries = diffFileTreeEntries(renderableFiles.filter(isFileShown));
   const codeViewReveal = useCodeViewFileReveal();
+  const [codeView, setCodeView] = useState<AnnotatableCodeViewHandle | null>(null);
   const revealDiffFile = (filePath: string) => {
     const index = renderableFileEntries.findIndex(
       (candidate) => resolveFileDiffPath(candidate.fileDiff) === filePath,
@@ -770,6 +774,26 @@ export default function DiffPanel({
       return next;
     });
   });
+
+  const diffSearch = useDiffSearch({
+    items: codeViewFiles.map(({ fileKey, fileDiff, collapsed }) => ({
+      id: fileKey,
+      fileDiff,
+      collapsed,
+    })),
+    viewer: codeView,
+    expandFile: unfoldDiffFile,
+  });
+  const attachCodeView = useStableCallback((handle: AnnotatableCodeViewHandle | null) => {
+    codeViewReveal.attach(handle);
+    setCodeView(handle);
+  });
+  const onCodeViewPostRender = useStableCallback(
+    (...args: Parameters<typeof diffSearch.onPostRender>) => {
+      codeViewReveal.flush();
+      diffSearch.onPostRender(...args);
+    },
+  );
 
   const toggleDiffFileCollapse = () => {
     setCodeViewRevision((current) => current + 1);
@@ -1188,6 +1212,29 @@ export default function DiffPanel({
             <Columns2Icon className="size-3.5" />
           </Toggle>
         </ToggleGroup>
+        {diffFileKeys.length > 0 && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Toggle
+                  aria-label={diffSearch.open ? "Close find in diff" : "Find in diff"}
+                  variant="ghost"
+                  size="sm"
+                  pressed={diffSearch.open}
+                  onPressedChange={(pressed) => {
+                    if (pressed) diffSearch.openSearch();
+                    else diffSearch.close();
+                  }}
+                />
+              }
+            >
+              <SearchIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {diffSearch.open ? "Close find" : "Find in diff"}
+            </TooltipPopup>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger
             render={
@@ -1373,7 +1420,8 @@ export default function DiffPanel({
             ) : lazySource || renderablePatch?.kind === "files" ? (
               <div className="flex min-h-0 flex-1 overflow-hidden">
                 <div
-                  className="min-h-0 min-w-0 flex-1"
+                  className="relative min-h-0 min-w-0 flex-1"
+                  onKeyDownCapture={diffSearch.onKeyDownCapture}
                   onClickCapture={(event) => {
                     const composedPath = event.nativeEvent.composedPath?.() ?? [];
                     for (const node of composedPath) {
@@ -1423,12 +1471,27 @@ export default function DiffPanel({
                     );
                   }}
                 >
+                  {diffSearch.open ? (
+                    <div className="absolute top-1 right-3 z-10">
+                      <DiffSearchBar
+                        query={diffSearch.query}
+                        onQueryChange={diffSearch.setQuery}
+                        focusToken={diffSearch.focusToken}
+                        matchCount={diffSearch.matchCount}
+                        activeIndex={diffSearch.activeIndex}
+                        truncated={diffSearch.truncated}
+                        onNext={diffSearch.next}
+                        onPrevious={diffSearch.previous}
+                        onClose={diffSearch.close}
+                      />
+                    </div>
+                  ) : null}
                   <AnnotatableCodeView
                     key={collapseScopeKey ?? reviewSectionId}
                     environmentId={activeThread?.environmentId}
                     projectId={activeThread?.projectId}
-                    viewerRef={codeViewReveal.attach}
-                    codeViewKey={codeViewMountKey}
+                    viewerRef={attachCodeView}
+                    codeViewKey={`${codeViewMountKey}:${lazySource ? filePatchScope : "preview"}`}
                     className="h-full min-h-0 overflow-auto"
                     files={codeViewFiles}
                     pendingFiles={pendingFiles}
@@ -1489,7 +1552,7 @@ export default function DiffPanel({
                       preferredHighlighter: PREFERRED_HIGHLIGHTER,
                       themeType: resolvedTheme as DiffThemeType,
                       stickyHeaders: true,
-                      onPostRender: codeViewReveal.flush,
+                      onPostRender: onCodeViewPostRender,
                       ...(currentLoadDiffFiles ? { loadDiffFiles } : {}),
                     }}
                   />
