@@ -311,6 +311,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["notification toast popup completion input approval failure"],
   },
   {
+    id: "keep-in-app-notifications",
+    title: "Keep until dismissed",
+    to: "/settings/general",
+    targetId: "in-app-notifications",
+    searchTerms: ["notification toast popup persistent sticky dismiss timeout hide"],
+  },
+  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",

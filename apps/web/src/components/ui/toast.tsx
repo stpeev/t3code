@@ -529,9 +529,14 @@ function ThreadToastVisibleAutoDismiss({
   return null;
 }
 
-function ToastProvider({ children, position = "top-right", ...props }: ToastProviderProps) {
+function ToastProvider({
+  children,
+  position = "top-right",
+  limit = 5,
+  ...props
+}: ToastProviderProps) {
   return (
-    <Toast.Provider toastManager={toastManager} {...props}>
+    <Toast.Provider toastManager={toastManager} limit={limit} {...props}>
       {children}
       <Toasts position={position} />
     </Toast.Provider>
