@@ -777,6 +777,11 @@ export const SETTINGS_SEARCH_ITEMS = [
         "locale translation english deutsch german español spanish français french português portuguese brasil brazilian chinese 中文 japanese 日本語 korean 한국어 russian русский swedish svenska sprache idioma langue 语言 言語 언어 язык",
       ),
     ],
+    id: "keep-in-app-notifications",
+    title: "Keep until dismissed",
+    to: "/settings/general",
+    targetId: "in-app-notifications",
+    searchTerms: ["notification toast popup persistent sticky dismiss timeout hide"],
   },
   {
     id: "time-format",
