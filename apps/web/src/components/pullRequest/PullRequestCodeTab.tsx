@@ -23,6 +23,7 @@ import {
   MessageSquareOffIcon,
   PilcrowIcon,
   Rows3Icon,
+  SearchIcon,
   Settings2Icon,
   TextWrapIcon,
   TriangleAlertIcon,
@@ -73,7 +74,9 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { DiffPanelLoadingState } from "../DiffPanelShell";
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
+import { DiffSearchBar } from "../diffs/DiffSearchBar";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
+import { useDiffSearch } from "../diffs/useDiffSearch";
 import { diffFileTreeEntries } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
@@ -698,6 +701,8 @@ function PullRequestCodeTab({
     setFileViewed,
   };
 
+  const diffSearch = useDiffSearch({ items, viewer, expandFile: toggleFile });
+
   const revealFile = (path: string) => {
     const item = items.find((candidate) => resolveFileDiffPath(candidate.fileDiff) === path);
     if (item === undefined) return;
@@ -847,6 +852,7 @@ function PullRequestCodeTab({
     enableLineSelection: canSelectLines && draft === null,
     onGutterUtilityClick: beginComment,
     onLineSelectionEnd: beginComment,
+    onPostRender: diffSearch.onPostRender,
   };
 
   const runThreadCommand = async (
@@ -1248,6 +1254,29 @@ function PullRequestCodeTab({
           <Tooltip>
             <TooltipTrigger
               render={
+                <Toggle
+                  aria-label={diffSearch.open ? "Close find in diff" : "Find in diff"}
+                  variant="ghost"
+                  size="sm"
+                  pressed={diffSearch.open}
+                  onPressedChange={(pressed) => {
+                    if (pressed) diffSearch.openSearch();
+                    else diffSearch.close();
+                  }}
+                />
+              }
+            >
+              <SearchIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {diffSearch.open ? "Close find" : "Find in diff"}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
+        {fileKeys.length > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
                 <Button
                   type="button"
                   size="icon-sm"
@@ -1426,6 +1455,7 @@ function PullRequestCodeTab({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
           className="relative min-h-0 min-w-0 flex-1"
+          onKeyDownCapture={diffSearch.onKeyDownCapture}
           // The header lives in the viewer's shadow tree, so the capture listener walks
           // `composedPath` — the only way to see through the shadow boundary.
           onClickCapture={(event) => {
@@ -1451,6 +1481,21 @@ function PullRequestCodeTab({
             }
           }}
         >
+          {diffSearch.open ? (
+            <div className="absolute top-1 right-3 z-10">
+              <DiffSearchBar
+                query={diffSearch.query}
+                onQueryChange={diffSearch.setQuery}
+                focusToken={diffSearch.focusToken}
+                matchCount={diffSearch.matchCount}
+                activeIndex={diffSearch.activeIndex}
+                truncated={diffSearch.truncated}
+                onNext={diffSearch.next}
+                onPrevious={diffSearch.previous}
+                onClose={diffSearch.close}
+              />
+            </div>
+          ) : null}
           {/* The viewer virtualizes against the element it is told is scrolling and places its
               rows absolutely, so it has to own that element — the thread diff panel hands it the
               same one. Scrolling from a parent instead leaves it painting over its neighbours. */}
