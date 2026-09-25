@@ -5,7 +5,10 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
 
+import { ProjectId } from "@t3tools/contracts";
+
 import * as ServerConfig from "../config.ts";
+import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
@@ -14,11 +17,28 @@ import * as ReviewService from "./ReviewService.ts";
 function layer(input: {
   readonly workspaceRoot: string;
   readonly baseDir: string;
+  readonly projectRoots?: ReadonlyArray<string>;
   readonly detectCalls?: Array<{ readonly cwd: string }>;
   readonly worktreesDirectory?: string;
   readonly previousWorktreesDirectories?: ReadonlyArray<string>;
 }) {
   return ReviewService.layer.pipe(
+    Layer.provide(
+      Layer.mock(ProjectStore.ProjectStoreV2)({
+        listShells: () =>
+          Effect.succeed(
+            (input.projectRoots ?? []).map((workspaceRoot, index) => ({
+              id: ProjectId.make(`project-${index}`),
+              title: `Project ${index}`,
+              workspaceRoot,
+              defaultModelSelection: null,
+              scripts: [],
+              createdAt: "1970-01-01T00:00:00.000Z",
+              updatedAt: "1970-01-01T00:00:00.000Z",
+            })),
+          ),
+      }),
+    ),
     Layer.provide(
       Layer.mock(VcsDriverRegistry.VcsDriverRegistry)({
         get: () => Effect.die("unexpected VCS registry get"),
@@ -60,7 +80,7 @@ describe("ReviewService", () => {
       assert.strictEqual(error.operation, "ReviewService.getDiffPreview");
       assert.match(
         "detail" in error ? error.detail : "",
-        /must stay within the configured workspace root/,
+        /must stay within a project or the configured workspace root/,
       );
       assert.deepStrictEqual(detectCalls, []);
     }).pipe(Effect.provide(NodeServices.layer)),
@@ -93,7 +113,7 @@ describe("ReviewService", () => {
       assert.strictEqual(error.operation, "ReviewService.getDiffFileContents");
       assert.match(
         "detail" in error ? error.detail : "",
-        /must stay within the configured workspace root/,
+        /must stay within a project or the configured workspace root/,
       );
       assert.deepStrictEqual(detectCalls, []);
     }).pipe(Effect.provide(NodeServices.layer)),
@@ -149,6 +169,28 @@ describe("ReviewService", () => {
       assert.strictEqual(result.cwd, workspaceRoot);
       assert.deepStrictEqual(result.sources, []);
       assert.deepStrictEqual(detectCalls, [{ cwd: workspaceRoot }]);
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("allows diff preview cwd inside a project outside the configured workspace root", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const workspaceRoot = yield* fs.makeTempDirectoryScoped({ prefix: "t3-review-workspace-" });
+      const projectRoot = yield* fs.makeTempDirectoryScoped({ prefix: "t3-review-project-" });
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-review-base-" });
+      const projectWorktree = `${projectRoot}/.claude/worktrees/feature`;
+      yield* fs.makeDirectory(projectWorktree, { recursive: true });
+      const detectCalls: Array<{ readonly cwd: string }> = [];
+
+      const result = yield* Effect.gen(function* () {
+        const review = yield* ReviewService.ReviewService;
+        return yield* review.getDiffPreview({ cwd: projectWorktree });
+      }).pipe(
+        Effect.provide(layer({ workspaceRoot, baseDir, projectRoots: [projectRoot], detectCalls })),
+      );
+
+      assert.strictEqual(result.cwd, projectWorktree);
+      assert.deepStrictEqual(detectCalls, [{ cwd: projectWorktree }]);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 

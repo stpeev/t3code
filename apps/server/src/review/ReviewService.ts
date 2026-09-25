@@ -16,6 +16,7 @@ import {
 } from "@t3tools/contracts";
 
 import * as ServerConfig from "../config.ts";
+import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -40,6 +41,7 @@ export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const vcsRegistry = yield* VcsDriverRegistry.VcsDriverRegistry;
+  const projectStore = yield* ProjectStore.ProjectStoreV2;
   const git = yield* GitVcsDriver.GitVcsDriver;
   const settings = yield* ServerSettings.ServerSettingsService;
 
@@ -97,13 +99,31 @@ export const make = Effect.gen(function* () {
       return;
     }
 
+    const projects = yield* projectStore.listShells().pipe(
+      Effect.mapError(
+        (cause) =>
+          new VcsRepositoryDetectionError({
+            operation,
+            cwd,
+            detail: "Failed to read projects while validating the review workspace.",
+            cause,
+          }),
+      ),
+    );
+    const projectRoots = yield* Effect.forEach(projects, (project) =>
+      canonicalizePath(project.workspaceRoot),
+    );
+    if (projectRoots.some((projectRoot) => isWithinRoot(candidate, projectRoot))) {
+      return;
+    }
+
     return yield* new VcsRepositoryDetectionError({
       operation,
       cwd,
       detail:
         operation === "ReviewService.getDiffPreview"
-          ? "Review diff preview cwd must stay within the configured workspace root."
-          : "Review diff file contents cwd must stay within the configured workspace root.",
+          ? "Review diff preview cwd must stay within a project or the configured workspace root."
+          : "Review diff file contents cwd must stay within a project or the configured workspace root.",
     });
   });
 
