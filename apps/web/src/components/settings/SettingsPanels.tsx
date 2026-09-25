@@ -523,6 +523,10 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.inAppNotificationsEnabled !== DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled
       ? [gt("In-app notifications")]
       : []),
+    ...(settings.inAppNotificationsPersistent !==
+    DEFAULT_UNIFIED_SETTINGS.inAppNotificationsPersistent
+      ? ["Keep until dismissed"]
+      : []),
     ...(settings.sidebarProjectGroupingMode !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode
       ? [gt("Project Grouping")]
       : []),
@@ -703,6 +707,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
       inAppNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled,
+      inAppNotificationsPersistent: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsPersistent,
       wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       persistComposerContextStrip: DEFAULT_UNIFIED_SETTINGS.persistComposerContextStrip,
       diffFilesCollapsed: DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed,
@@ -860,6 +865,21 @@ export function GeneralSettingsPanel() {
             />
           }
         />
+        {settings.inAppNotificationsEnabled ? (
+          <SettingsRow
+            title={searchableSetting("keep-in-app-notifications").title}
+            description="Thread toasts stay until you close them or open the thread."
+            control={
+              <Switch
+                checked={settings.inAppNotificationsPersistent}
+                onCheckedChange={(checked) =>
+                  updateSettings({ inAppNotificationsPersistent: checked })
+                }
+                aria-label="Keep in-app notifications until dismissed"
+              />
+            }
+          />
+        ) : null}
       </SettingsSection>
 
       <SettingsSection id="sidebar" title={gt("Sidebar")}>
