@@ -67,6 +67,19 @@ export function startThreadNotifications(
     { environmentId: EnvironmentId; threadId: ThreadId; notification: Notification }
   >();
   const watched = new Map<EnvironmentId, WatchedEnvironment>();
+  /** Kind of the thread toast currently shown per toast id, so stale ones can be closed. */
+  const openToasts = new Map<string, ThreadNotificationKind>();
+  const closeThreadToast = (environmentId: EnvironmentId, threadId: string) => {
+    const toastId = threadToastId(environmentId, threadId);
+    if (!openToasts.delete(toastId)) return;
+    toastManager.close(toastId);
+  };
+  const closeActiveThreadToast = () => {
+    const active = activeRouteParams(router);
+    if (active.environmentId && active.threadId) {
+      closeThreadToast(active.environmentId as EnvironmentId, active.threadId);
+    }
+  };
 
   const trackNotification = (
     environmentId: EnvironmentId,
@@ -77,13 +90,6 @@ export function startThreadNotifications(
     pending.set(notification.tag, { environmentId, threadId, notification });
     setNotificationBadge(pending.size);
   };
-  // Toast ids by thread key, so hiding a thread can close its open toasts.
-  const openToasts = new Map<string, Array<ToastId>>();
-  const forgetToast = (key: string, toastId: ToastId) => {
-    const remaining = (openToasts.get(key) ?? []).filter((id) => id !== toastId);
-    if (remaining.length === 0) openToasts.delete(key);
-    else openToasts.set(key, remaining);
-  };
   // A notification shown before the tag filter turned on must not stay on screen. While hiding,
   // one whose thread left the live list (archived) cannot be judged, so it closes too.
   const closeHiddenPending = () => {
@@ -92,9 +98,9 @@ export function startThreadNotifications(
       ? new Set(registry.get(environmentThreadShells.threadRefsAtom).map(threadKey))
       : null;
     const shouldClose = (key: string) => hidden.has(key) || (live !== null && !live.has(key));
-    for (const [key, toastIds] of openToasts) {
+    for (const [key] of openToasts) {
       if (!shouldClose(key)) continue;
-      for (const toastId of toastIds) toastManager.close(toastId);
+      toastManager.close(key);
       openToasts.delete(key);
     }
     const count = pending.size;
@@ -123,11 +129,12 @@ export function startThreadNotifications(
         .has(threadKey({ environmentId, threadId: thread.id }))
     )
       return;
-    const { notificationMode: mode, inAppNotificationsEnabled } = getClientSettings();
-    const active = (router.state.matches.at(-1)?.params ?? {}) as {
-      environmentId?: string;
-      threadId?: string;
-    };
+    const {
+      notificationMode: mode,
+      inAppNotificationsEnabled,
+      inAppNotificationsPersistent,
+    } = getClientSettings();
+    const active = activeRouteParams(router);
     const title =
       kind === "completion"
         ? "Thread completed"
@@ -151,9 +158,14 @@ export function startThreadNotifications(
       document.hasFocus() &&
       (active.environmentId !== environmentId || active.threadId !== thread.id)
     ) {
-      const toastKey = threadKey({ environmentId, threadId: thread.id });
-      const toastId: ToastId = toastManager.add({
-        onRemove: (): void => forgetToast(toastKey, toastId),
+      const toastId = threadToastId(environmentId, thread.id);
+      openToasts.set(toastId, kind);
+      toastManager.add({
+        id: toastId,
+        onRemove: (): void => {
+          openToasts.delete(toastId);
+        },
+        ...(inAppNotificationsPersistent ? { timeout: 0 } : {}),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
         description: thread.title,
@@ -175,7 +187,7 @@ export function startThreadNotifications(
         actionProps: {
           children: "Open thread",
           onClick: () => {
-            toastManager.close(toastId);
+            closeThreadToast(environmentId, thread.id);
             void router.navigate({
               to: "/$environmentId/$threadId",
               params: { environmentId, threadId: thread.id },
@@ -183,7 +195,6 @@ export function startThreadNotifications(
           },
         },
       });
-      openToasts.set(toastKey, [...(openToasts.get(toastKey) ?? []), toastId]);
       return;
     }
     if (
@@ -278,6 +289,13 @@ export function startThreadNotifications(
     entry.previous = next;
     entry.gate.retain(new Set(next.keys()));
     for (const [prior, state] of changed) {
+      if (
+        state.thread.archivedAt !== null ||
+        (state.attention === null &&
+          openToasts.get(threadToastId(environmentId, state.thread.id)) === "input")
+      ) {
+        closeThreadToast(environmentId, state.thread.id);
+      }
       entry.gate.observe(state.thread.id, prior, state, {
         archived: state.thread.archivedAt !== null,
         quiet: state.raw.latestRunStopRequested === true,
@@ -327,6 +345,7 @@ export function startThreadNotifications(
       unsubscribeRequests();
       unsubscribeDelegated();
       entry.gate.clear();
+      for (const threadId of entry.previous.keys()) closeThreadToast(environmentId, threadId);
     };
     return entry;
   };
@@ -406,14 +425,27 @@ export function startThreadNotifications(
     registry.subscribe(environmentThreadShells.anyEnvironmentHidingAtom, closeHiddenPending),
     registry.subscribe(environmentThreadShells.threadRefsAtom, closeHiddenPending),
   ];
+  const unsubscribeRoute = router.subscribe("onResolved", closeActiveThreadToast);
   onSettings();
 
   return () => {
     unsubscribeSettings();
     unsubscribeEnvironmentIds();
     for (const unsubscribe of unsubscribeHidden) unsubscribe();
+    unsubscribeRoute();
     for (const entry of watched.values()) entry.unsubscribe();
     watched.clear();
     stopModeListeners();
   };
+}
+
+function activeRouteParams(router: AnyRouter) {
+  return (router.state.matches.at(-1)?.params ?? {}) as {
+    environmentId?: string;
+    threadId?: string;
+  };
+}
+
+function threadToastId(environmentId: EnvironmentId, threadId: string) {
+  return `thread-notification:${environmentId}:${threadId}`;
 }
