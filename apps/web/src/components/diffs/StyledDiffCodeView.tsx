@@ -11,6 +11,7 @@ import type { Ref } from "react";
 
 import { DIFF_SURFACE_THEME_UNSAFE_CSS } from "~/lib/diffRendering";
 import { DiffWorkerPoolProvider } from "../DiffWorkerPoolProvider";
+import { DIFF_SEARCH_UNSAFE_CSS } from "./diffSearchHighlights";
 
 export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 /* A 1fr track's automatic minimum grows with the currently mounted lines. In split
@@ -31,6 +32,7 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   --diffs-fg-search-match-override: currentColor;
 }
 
+${DIFF_SEARCH_UNSAFE_CSS}
 :is(
   [data-line],
   [data-line-annotation],
