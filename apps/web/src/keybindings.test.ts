@@ -13,6 +13,7 @@ import {
 } from "@t3tools/contracts";
 import {
   formatShortcutLabel,
+  isDiffFindShortcut,
   isDiffToggleShortcut,
   isRichTextBoldShortcut,
   modelPickerJumpCommandForIndex,
@@ -202,6 +203,20 @@ describe("isTerminalToggleShortcut", () => {
         context: { terminalFocus: true },
       }),
     );
+  });
+});
+
+describe("diff find shortcut", () => {
+  it("claims mod+f only while a diff viewer has the keyboard", () => {
+    const find = event({ key: "f", metaKey: true });
+    const options = { platform: "MacIntel" } as const;
+    assert.isTrue(
+      isDiffFindShortcut(find, DEFAULT_RESOLVED_KEYBINDINGS, {
+        ...options,
+        context: { diffFocus: true },
+      }),
+    );
+    assert.isFalse(isDiffFindShortcut(find, DEFAULT_RESOLVED_KEYBINDINGS, options));
   });
 });
 

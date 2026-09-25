@@ -407,6 +407,14 @@ export function isDiffToggleShortcut(
   return matchesCommandShortcut(event, keybindings, "diff.toggle", options);
 }
 
+export function isDiffFindShortcut(
+  event: ShortcutEventLike,
+  keybindings: ResolvedKeybindingsConfig,
+  options?: ShortcutMatchOptions,
+): boolean {
+  return matchesCommandShortcut(event, keybindings, "diff.find", options);
+}
+
 export function isOpenFavoriteEditorShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
