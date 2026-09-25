@@ -3,7 +3,7 @@ import {
   sourceControlClients,
 } from "@t3tools/client-runtime/source-control-clients";
 import type { CodeViewItem, DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
-import type { CodeViewAnnotationArgs, CodeViewDiffItem } from "@pierre/diffs/react";
+import type { CodeViewAnnotationArgs, CodeViewDiffItem, CodeViewHandle } from "@pierre/diffs/react";
 import type {
   EnvironmentId,
   PullRequestDetailView,
@@ -25,6 +25,7 @@ import {
   MessageSquareOffIcon,
   PilcrowIcon,
   Rows3Icon,
+  SearchIcon,
   Settings2Icon,
   TextWrapIcon,
   TriangleAlertIcon,
@@ -44,6 +45,7 @@ import {
 
 import { observeIntersection } from "~/lib/observeIntersection";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { useClientSettings, updateClientSettings } from "~/hooks/useSettings";
 import { useRenderedAppearance } from "~/hooks/useTheme";
 import { areAllDiffFilesCollapsed } from "~/lib/diffCollapse";
@@ -81,8 +83,10 @@ import { DiffPanelLoadingState } from "../DiffPanelShell";
 import { useDiffWorkerPool } from "../DiffWorkerPoolProvider";
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
+import { DiffSearchBar } from "../diffs/DiffSearchBar";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
 import { useHideTestFiles } from "../diffs/useHideTestFiles";
+import { useDiffSearch } from "../diffs/useDiffSearch";
 import { diffFileTreeEntries, orderDiffFilesLikeTree } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
@@ -471,6 +475,9 @@ function PullRequestCodeTab({
   }, [backgroundRefreshToken, refreshFirstDiffPage, refreshFilesViewed]);
 
   const codeViewReveal = useCodeViewFileReveal();
+  const [viewer, setViewer] = useState<CodeViewHandle<ReviewAnnotationGroup, undefined> | null>(
+    null,
+  );
   const answeredRevealNonce = useRef<number | null>(null);
 
   const loadDiffFiles = createPullRequestDiffFileContentsLoader(getDiffFileContents, {
@@ -738,6 +745,20 @@ function PullRequestCodeTab({
     setFileViewed,
   };
 
+  const diffSearch = useDiffSearch({ items, viewer, expandFile: toggleFile });
+  const attachViewer = useStableCallback(
+    (handle: CodeViewHandle<ReviewAnnotationGroup, undefined> | null) => {
+      codeViewReveal.attach(handle);
+      setViewer(handle);
+    },
+  );
+  const onViewerPostRender = useStableCallback(
+    (...args: Parameters<typeof diffSearch.onPostRender>) => {
+      codeViewReveal.flush();
+      diffSearch.onPostRender(...args);
+    },
+  );
+
   const revealFile = (path: string) => {
     const item = items.find((candidate) => resolveFileDiffPath(candidate.fileDiff) === path);
     if (item === undefined) return;
@@ -887,7 +908,7 @@ function PullRequestCodeTab({
     enableLineSelection: canSelectLines && draft === null,
     onGutterUtilityClick: beginComment,
     onLineSelectionEnd: beginComment,
-    onPostRender: codeViewReveal.flush,
+    onPostRender: onViewerPostRender,
   };
 
   const runThreadCommand = async (
@@ -1286,6 +1307,29 @@ function PullRequestCodeTab({
           <Tooltip>
             <TooltipTrigger
               render={
+                <Toggle
+                  aria-label={diffSearch.open ? "Close find in diff" : "Find in diff"}
+                  variant="ghost"
+                  size="sm"
+                  pressed={diffSearch.open}
+                  onPressedChange={(pressed) => {
+                    if (pressed) diffSearch.openSearch();
+                    else diffSearch.close();
+                  }}
+                />
+              }
+            >
+              <SearchIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {diffSearch.open ? "Close find" : "Find in diff"}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
+        {fileKeys.length > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
                 <Button
                   type="button"
                   size="icon-sm"
@@ -1469,6 +1513,7 @@ function PullRequestCodeTab({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
           className="relative min-h-0 min-w-0 flex-1"
+          onKeyDownCapture={diffSearch.onKeyDownCapture}
           // Headers live in shadow DOM; composedPath crosses that boundary.
           onClickCapture={(event) => {
             const composedPath = event.nativeEvent.composedPath?.() ?? [];
@@ -1490,12 +1535,27 @@ function PullRequestCodeTab({
             }
           }}
         >
+          {diffSearch.open ? (
+            <div className="absolute top-1 right-3 z-10">
+              <DiffSearchBar
+                query={diffSearch.query}
+                onQueryChange={diffSearch.setQuery}
+                focusToken={diffSearch.focusToken}
+                matchCount={diffSearch.matchCount}
+                activeIndex={diffSearch.activeIndex}
+                truncated={diffSearch.truncated}
+                onNext={diffSearch.next}
+                onPrevious={diffSearch.previous}
+                onClose={diffSearch.close}
+              />
+            </div>
+          ) : null}
           {/* The viewer must own its scroll element to position virtual rows within it. */}
           <FileViewedToggleContext value={fileViewedToggle}>
             <StyledDiffCodeView<ReviewAnnotationGroup>
               className="@container h-full overflow-auto [scrollbar-gutter:stable]"
               containerRef={scrollerRef}
-              viewerRef={codeViewReveal.attach}
+              viewerRef={attachViewer}
               items={items}
               selectedLines={selectedLines}
               onSelectedLinesChange={setSelectedLines}
