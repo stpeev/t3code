@@ -20,7 +20,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => state.navigate,
   useParams: () => ({}),
 }));
-vi.mock("./ui/toast", () => ({ toastManager: { add: state.toast } }));
+vi.mock("./ui/toast", () => ({ toastManager: { add: state.toast, close: vi.fn() } }));
 vi.mock("../state/shell", () => ({ environmentShell: { stateValueAtom: (id: string) => id } }));
 vi.mock("../state/environments", () => ({
   useEnvironmentIds: () => state.environmentIds,
