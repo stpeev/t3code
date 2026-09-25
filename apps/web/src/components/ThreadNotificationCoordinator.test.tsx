@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 const state = vi.hoisted(() => ({
   mode: "off" as ClientSettings["notificationMode"],
   inApp: true,
+  persistent: false,
   active: { environmentId: "env-1", threadId: "other-thread" },
   focused: true,
   visible: "visible",
@@ -22,8 +23,13 @@ const state = vi.hoisted(() => ({
   subagent: false,
   background: [] as Array<{ taskId: string; kind: "command" | "monitor" }>,
   add: vi.fn(
-    (_toast: { title: string; description: string; actionProps: { onClick: () => void } }) =>
-      "toast-1",
+    (_toast: {
+      id: string;
+      timeout?: number;
+      title: string;
+      description: string;
+      actionProps: { onClick: () => void };
+    }) => _toast.id,
   ),
   close: vi.fn(),
   navigate: vi.fn(),
@@ -100,9 +106,17 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("../hooks/useSettings", () => ({
   useClientSettings: (
     select: (
-      settings: Pick<ClientSettings, "notificationMode" | "inAppNotificationsEnabled">,
+      settings: Pick<
+        ClientSettings,
+        "notificationMode" | "inAppNotificationsEnabled" | "inAppNotificationsPersistent"
+      >,
     ) => unknown,
-  ) => select({ notificationMode: state.mode, inAppNotificationsEnabled: state.inApp }),
+  ) =>
+    select({
+      notificationMode: state.mode,
+      inAppNotificationsEnabled: state.inApp,
+      inAppNotificationsPersistent: state.persistent,
+    }),
   getClientSettings: () => ({ notificationMode: state.mode }),
 }));
 vi.mock("../state/environments", () => ({
@@ -121,6 +135,8 @@ vi.mock("./ui/toast", () => ({
 }));
 
 import { ThreadNotificationCoordinator } from "./ThreadNotificationCoordinator";
+
+const TOAST_ID = "thread-notification:env-1:thread-1";
 
 let renderer: ReactTestRenderer | undefined;
 
@@ -141,6 +157,7 @@ beforeEach(() => {
   Object.assign(state, {
     mode: "off",
     inApp: true,
+    persistent: false,
     active: { environmentId: "env-1", threadId: "other-thread" },
     focused: true,
     visible: "visible",
@@ -197,7 +214,7 @@ describe("thread notifications", () => {
     expect(toast?.title).toBe("Thread completed");
     expect(toast?.description).toBe("Fix the login form");
     toast?.actionProps.onClick();
-    expect(state.close).toHaveBeenCalledWith("toast-1");
+    expect(state.close).toHaveBeenCalledWith(TOAST_ID);
     expect(state.navigate).toHaveBeenCalledWith({
       to: "/$environmentId/$threadId",
       params: { environmentId: "env-1", threadId: "thread-1" },
@@ -309,6 +326,38 @@ describe("thread notifications", () => {
     expect(state.sound).toHaveBeenCalledWith("completion", expect.any(Function));
     expect(state.add).toHaveBeenCalledTimes(1);
     expect(state.notification).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [false, undefined],
+    [true, 0],
+  ])("keeps the toast until dismissed only when persistent is %s", async (persistent, timeout) => {
+    state.persistent = persistent;
+    await render();
+    await complete();
+    expect(state.add).toHaveBeenCalledTimes(1);
+    const toast = state.add.mock.calls[0]?.[0];
+    expect(toast?.id).toBe(TOAST_ID);
+    expect(toast?.timeout).toBe(timeout);
+  });
+
+  it("closes the thread's toast once that thread is opened", async () => {
+    await render();
+    await complete();
+    expect(state.close).not.toHaveBeenCalled();
+    state.active = { environmentId: "env-1", threadId: "thread-1" };
+    await render();
+    expect(state.close).toHaveBeenCalledWith(TOAST_ID);
+  });
+
+  it("closes an input toast once the input is answered elsewhere", async () => {
+    await render();
+    state.input = true;
+    await render();
+    expect(state.add).toHaveBeenCalledTimes(1);
+    state.input = false;
+    await render();
+    expect(state.close).toHaveBeenCalledWith(TOAST_ID);
   });
 
   it("keeps system alerts when the app is in the background", async () => {

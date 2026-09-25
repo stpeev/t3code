@@ -110,11 +110,34 @@ function EnvironmentNotifications({
   const inAppNotificationsEnabled = useClientSettings(
     (settings) => settings.inAppNotificationsEnabled,
   );
+  const inAppNotificationsPersistent = useClientSettings(
+    (settings) => settings.inAppNotificationsPersistent,
+  );
   const navigate = useNavigate();
   const { environmentId: activeEnvironmentId, threadId: activeThreadId } = useParams({
     strict: false,
   });
   const previous = useRef(new Map<ThreadId, NotificationState>());
+  /** Kind of the thread toast currently shown per thread, so stale ones can be closed. */
+  const openToasts = useRef(new Map<string, "input" | "completion">());
+  const closeThreadToast = useCallback(
+    (threadId: string) => {
+      if (!openToasts.current.delete(threadId)) return;
+      toastManager.close(threadToastId(environmentId, threadId));
+    },
+    [environmentId],
+  );
+
+  useEffect(() => {
+    if (activeEnvironmentId === environmentId && activeThreadId) closeThreadToast(activeThreadId);
+  }, [activeEnvironmentId, activeThreadId, closeThreadToast, environmentId]);
+
+  useEffect(
+    () => () => {
+      for (const threadId of openToasts.current.keys()) closeThreadToast(threadId);
+    },
+    [closeThreadToast],
+  );
 
   useEffect(() => {
     if (threads === null) {
@@ -146,6 +169,12 @@ function EnvironmentNotifications({
           ? completedAt
           : (prior?.completion ?? null);
       next.set(thread.id, { raw: rawThread, attention, completion });
+      if (
+        thread.archivedAt !== null ||
+        (attention === null && openToasts.current.get(thread.id) === "input")
+      ) {
+        closeThreadToast(thread.id);
+      }
       if (!prior || thread.archivedAt !== null) continue;
       const kind =
         attention && attention !== prior.attention
@@ -175,7 +204,10 @@ function EnvironmentNotifications({
         document.hasFocus() &&
         (activeEnvironmentId !== environmentId || activeThreadId !== thread.id)
       ) {
-        const toastId = toastManager.add({
+        openToasts.current.set(thread.id, kind);
+        toastManager.add({
+          id: threadToastId(environmentId, thread.id),
+          ...(inAppNotificationsPersistent ? { timeout: 0 } : {}),
           type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
           title,
           description: thread.title,
@@ -195,7 +227,7 @@ function EnvironmentNotifications({
           actionProps: {
             children: "Open thread",
             onClick: () => {
-              toastManager.close(toastId);
+              closeThreadToast(thread.id);
               void navigate({
                 to: "/$environmentId/$threadId",
                 params: { environmentId, threadId: thread.id },
@@ -235,8 +267,10 @@ function EnvironmentNotifications({
   }, [
     activeEnvironmentId,
     activeThreadId,
+    closeThreadToast,
     environmentId,
     inAppNotificationsEnabled,
+    inAppNotificationsPersistent,
     mode,
     navigate,
     onNotification,
@@ -244,4 +278,8 @@ function EnvironmentNotifications({
   ]);
 
   return null;
+}
+
+function threadToastId(environmentId: EnvironmentId, threadId: string) {
+  return `thread-notification:${environmentId}:${threadId}`;
 }
