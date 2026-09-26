@@ -9,7 +9,11 @@ import {
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { threadSearchMatchKey } from "@t3tools/client-runtime/state/thread-search";
 import type { ContextMenuItem, EnvironmentId, ThreadId } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import type {
+  SidebarProjectSortOrder,
+  SidebarThreadSortOrder,
+  AttentionHighlight,
+} from "@t3tools/contracts/settings";
 import type { AsyncResult } from "effect/reactivity";
 import { planPinnedReorder } from "@t3tools/client-runtime/state/thread-sort";
 import {
@@ -635,6 +639,16 @@ export interface ThreadStatusPill {
   colorClass: string;
   dotClass: string;
   pulse: boolean;
+}
+
+/** A sweep cannot read on a 9px dot, so "slide" falls back to the soft pulse there. */
+export function attentionHighlightClass(
+  animation: AttentionHighlight,
+  shape: "text" | "dot",
+): string {
+  if (animation === "none") return "";
+  if (animation === "blink") return "motion-safe:animate-status-blink";
+  return shape === "text" ? "status-sheen" : "motion-safe:animate-status-pulse";
 }
 
 const THREAD_STATUS_PRIORITY: Record<ThreadStatusPill["label"], number> = {
