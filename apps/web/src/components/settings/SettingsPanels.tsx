@@ -44,6 +44,7 @@ import {
   MIN_PROMPT_FONT_SIZE,
   MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
   type ResponseStreamingMode,
+  type AttentionHighlight,
   MIN_TERMINAL_FONT_SIZE,
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
@@ -174,6 +175,12 @@ import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: "Artwork",
   pill: "Version pill",
+  none: "None",
+};
+
+const ATTENTION_HIGHLIGHT_LABELS: Record<AttentionHighlight, string> = {
+  slide: "Slide",
+  blink: "Blink",
   none: "None",
 };
 
@@ -548,6 +555,9 @@ export function useSettingsRestore(onRestored?: () => void) {
         ? ["Diff colors"]
         : []),
       ...(settings.chatWidth !== DEFAULT_UNIFIED_SETTINGS.chatWidth ? ["Chat width"] : []),
+      ...(settings.attentionHighlight !== DEFAULT_UNIFIED_SETTINGS.attentionHighlight
+        ? ["Attention highlight"]
+        : []),
       ...(settings.panelAnimationDurationMs !== DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs
         ? ["Panel animations"]
         : []),
@@ -679,6 +689,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.appearanceContrast,
       settings.diffColorScheme,
       settings.chatWidth,
+      settings.attentionHighlight,
       settings.enableAgentBrowserAccess,
       settings.confirmQuit,
       settings.confirmThreadArchive,
@@ -797,6 +808,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       appearanceContrast: DEFAULT_UNIFIED_SETTINGS.appearanceContrast,
       diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme,
       chatWidth: DEFAULT_UNIFIED_SETTINGS.chatWidth,
+      attentionHighlight: DEFAULT_UNIFIED_SETTINGS.attentionHighlight,
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
       inAppNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled,
@@ -1431,6 +1443,50 @@ export function AppearanceSettingsPanel() {
           }
         />
 
+        <SettingsRow
+          {...searchableSetting("attention-highlight")}
+          description="Animate the titles of sidebar threads waiting on you: finished and unseen, needing input, or failed."
+          resetAction={
+            settings.attentionHighlight !== DEFAULT_UNIFIED_SETTINGS.attentionHighlight ? (
+              <SettingResetButton
+                label="attention highlight"
+                onClick={() =>
+                  updateSettings({
+                    attentionHighlight: DEFAULT_UNIFIED_SETTINGS.attentionHighlight,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="w-full sm:w-40">
+              <Select
+                value={settings.attentionHighlight}
+                onValueChange={(value) => {
+                  if (value === "slide" || value === "blink" || value === "none")
+                    updateSettings({ attentionHighlight: value });
+                }}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="w-full min-w-0"
+                  aria-label="Attention highlight"
+                >
+                  <SelectValue>
+                    {ATTENTION_HIGHLIGHT_LABELS[settings.attentionHighlight]}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  {Object.entries(ATTENTION_HIGHLIGHT_LABELS).map(([value, label]) => (
+                    <SelectItem hideIndicator key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
+            </div>
+          }
+        />
         <SettingsRow
           {...searchableSetting("chat-width")}
           description="Set how wide messages and the composer can grow on large screens."

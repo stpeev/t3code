@@ -218,6 +218,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
      compositor updates discrete frames instead of every vsync. */
   --animate-status-pulse: status-pulse 2s infinite;
   --animate-status-ping: status-ping 2s infinite;
+  --animate-status-blink: status-blink 1.2s infinite;
   --color-warning-foreground: var(--warning-foreground);
   --color-warning: var(--warning);
   --color-warning-surface: var(--warning-surface);
@@ -312,6 +313,17 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     }
     100% {
       opacity: 1;
+    }
+  }
+  @keyframes status-blink {
+    0%,
+    100% {
+      opacity: 1;
+      animation-timing-function: step-end;
+    }
+    50% {
+      opacity: 0.15;
+      animation-timing-function: step-end;
     }
   }
   @keyframes status-ping {
@@ -544,6 +556,34 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     background-clip: text;
     animation: live-tool-shine 2.2s steps(30) infinite;
     animation-play-state: var(--visible-animation-state, paused);
+  }
+}
+
+/* Bright band over a dimmed base, swept by the mask so icon and text light up together. */
+@keyframes status-sheen {
+  from {
+    mask-position:
+      -3rem 0,
+      0 0;
+  }
+  70%,
+  to {
+    mask-position:
+      calc(100% + 3rem) 0,
+      0 0;
+  }
+}
+
+@utility status-sheen {
+  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    mask-image:
+      linear-gradient(to right, transparent, black 35%, black 65%, transparent),
+      linear-gradient(rgb(0 0 0 / 15%), rgb(0 0 0 / 15%));
+    mask-size:
+      3rem 100%,
+      100% 100%;
+    mask-repeat: no-repeat;
+    animation: status-sheen 2.6s steps(40) infinite;
   }
 }
 

@@ -220,6 +220,7 @@ import {
   sortThreadsForSidebar,
   sortWorkingThreadsBySend,
   useThreadJumpHintVisibility,
+  attentionHighlightClass,
   useRetainedValue,
   useSidebarRowSubscriptionLease,
   type SidebarListItem,
@@ -1262,6 +1263,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
   // Same semantics as the legacy sidebar (never-visited counts as read):
   // switching sidebars must not light up every historical thread as unread.
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
+  const attentionHighlight = useClientSettings((s) => s.attentionHighlight);
   const status = resolveSidebarThreadStatus(thread);
   const isInFlight =
     status === "working" || status === "waiting" || status === "approval" || status === "input";
@@ -1288,6 +1290,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
     isActive: props.isActive,
     isSelected,
   });
+  // Bold rows other than the one you are looking at are the ones waiting on you.
+  const needsAttention = !shouldRecede && !props.isActive && !isSelected;
   // Status hues follow the system-wide convention set by sidebar v1 and the
   // mobile Live Activity/widgets (amber approval, indigo input, sky working)
   // so a thread reads the same color everywhere it surfaces.
@@ -1668,6 +1672,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
         className={cn(
           "min-w-0 flex-1 text-sm transition-opacity motion-reduce:transition-none",
           shouldRecede ? "font-normal" : "font-medium",
+          needsAttention && attentionHighlightClass(attentionHighlight, "text"),
           variant === "card"
             ? cn(
                 "truncate",

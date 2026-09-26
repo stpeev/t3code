@@ -38,7 +38,9 @@ import { useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { vcsEnvironment } from "../state/vcs";
 import { useUiStateStore } from "../uiStateStore";
 import { resolveChangeRequestPresentation } from "../sourceControlPresentation";
+import { useClientSettings } from "../hooks/useSettings";
 import {
+  attentionHighlightClass,
   resolveThreadLastVisitedAt,
   resolveThreadStatusPill,
   type ThreadStatusPill,
@@ -826,6 +828,10 @@ export function ThreadStatusLabel({
   status: ThreadStatusPill;
   compact?: boolean;
 }) {
+  const unseenAnimationClass = useClientSettings((settings) =>
+    status.label === "Completed" ? attentionHighlightClass(settings.attentionHighlight, "dot") : "",
+  );
+  const dotAnimationClass = status.pulse ? "animate-status-pulse" : unseenAnimationClass;
   if (compact) {
     return (
       <Tooltip>
@@ -838,11 +844,7 @@ export function ThreadStatusLabel({
             />
           }
         >
-          <span
-            className={`size-[9px] rounded-full ${status.dotClass} ${
-              status.pulse ? "animate-status-pulse" : ""
-            }`}
-          />
+          <span className={`size-[9px] rounded-full ${status.dotClass} ${dotAnimationClass}`} />
         </TooltipTrigger>
         <TooltipPopup side="top">{status.label}</TooltipPopup>
       </Tooltip>
@@ -860,11 +862,7 @@ export function ThreadStatusLabel({
           />
         }
       >
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${status.dotClass} ${
-            status.pulse ? "animate-status-pulse" : ""
-          }`}
-        />
+        <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass} ${dotAnimationClass}`} />
         <span className="hidden md:inline">{status.label}</span>
       </TooltipTrigger>
       <TooltipPopup side="top">{status.label}</TooltipPopup>
