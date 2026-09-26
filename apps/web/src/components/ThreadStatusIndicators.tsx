@@ -50,7 +50,9 @@ import { useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { vcsEnvironment } from "../state/vcs";
 import { useUiStateStore } from "../uiStateStore";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
+import { useClientSettings } from "../hooks/useSettings";
 import {
+  attentionHighlightClass,
   pullRequestMatchesSearchQuery,
   resolveThreadLastVisitedAt,
   resolveThreadStatusPill,
@@ -867,6 +869,12 @@ function ThreadStatusLabel({
 }) {
   const m = useMessages();
   const label = m(status.label);
+  const unseenAnimationClass = useClientSettings((settings) =>
+    status.label === "Completed" ? attentionHighlightClass(settings.attentionHighlight, "dot") : "",
+  );
+  const dotAnimationClass = status.pulse
+    ? "motion-safe:animate-status-pulse"
+    : unseenAnimationClass;
   if (compact) {
     return (
       <SharedTooltipTrigger
@@ -879,11 +887,7 @@ function ThreadStatusLabel({
         }
         label={label}
       >
-        <span
-          className={`size-[9px] rounded-full ${status.dotClass} ${
-            status.pulse ? "motion-safe:animate-status-pulse" : ""
-          }`}
-        />
+        <span className={`size-[9px] rounded-full ${status.dotClass} ${dotAnimationClass}`} />
       </SharedTooltipTrigger>
     );
   }
@@ -899,11 +903,7 @@ function ThreadStatusLabel({
       }
       label={label}
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${status.dotClass} ${
-          status.pulse ? "motion-safe:animate-status-pulse" : ""
-        }`}
-      />
+      <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass} ${dotAnimationClass}`} />
       <span className="hidden md:inline">{label}</span>
     </SharedTooltipTrigger>
   );

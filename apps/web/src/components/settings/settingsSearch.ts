@@ -375,6 +375,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "attention-highlight",
+    title: "Attention highlight",
+    to: "/settings/appearance",
+    searchTerms: [
+      "unseen unread done finished completed input failed sidebar bold title blink slide shimmer animation",
+    ],
+  },
+  {
     id: "chat-width",
     title: msg("Chat width"),
     to: "/settings/appearance",
