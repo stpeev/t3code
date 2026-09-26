@@ -128,7 +128,10 @@ function toV2ThreadShell(input: typeof thread) {
 function shell(overrides: Partial<typeof thread> = {}) {
   return {
     status: "live",
-    snapshot: Option.some({ threads: [toV2ThreadShell({ ...thread, ...overrides })] }),
+    snapshot: Option.some({
+      projects: [],
+      threads: [toV2ThreadShell({ ...thread, ...overrides })],
+    }),
   };
 }
 function complete(environment = "one", completedAt = "2026-09-13T08:00:00Z") {

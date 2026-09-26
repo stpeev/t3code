@@ -111,6 +111,8 @@ function EnvironmentNotifications({
   // stable, so this only rescans when a thread actually changed.
   const threads =
     shell.status === "live" && Option.isSome(shell.snapshot) ? shell.snapshot.value.threads : null;
+  const projects =
+    shell.status === "live" && Option.isSome(shell.snapshot) ? shell.snapshot.value.projects : null;
   const mode = useClientSettings((settings) => settings.notificationMode);
   const inAppNotificationsEnabled = useClientSettings(
     (settings) => settings.inAppNotificationsEnabled,
@@ -152,6 +154,7 @@ function EnvironmentNotifications({
     const next = new Map<ThreadId, NotificationState>();
     // Subagents are skipped below, so their requests notify through the thread above them.
     const subagentRequests = pendingSubagentRequestsByThread(threads);
+    const projectTitles = new Map((projects ?? []).map((project) => [project.id, project.title]));
     for (const rawThread of threads) {
       if (rawThread.lineage.relationshipToParent === "subagent") continue;
       const prior = previous.current.get(rawThread.id);
@@ -201,6 +204,8 @@ function EnvironmentNotifications({
               : status === "failed"
                 ? "Thread failed"
                 : "Input needed";
+      const projectTitle = projectTitles.get(thread.projectId);
+      const body = projectTitle ? `${projectTitle} · ${thread.title}` : thread.title;
       if (hasNotificationSound(mode)) {
         void playNotificationSound(kind, () =>
           hasNotificationSound(getClientSettings().notificationMode),
@@ -218,7 +223,7 @@ function EnvironmentNotifications({
           ...(inAppNotificationsPersistent ? { timeout: 0 } : {}),
           type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
           title,
-          description: thread.title,
+          description: body,
           data: {
             hideCopyButton: true,
             leadingIcon:
@@ -254,7 +259,7 @@ function EnvironmentNotifications({
         continue;
       try {
         const notification = new Notification(title, {
-          body: thread.title,
+          body,
           tag: `${environmentId}:${thread.id}`,
           silent: true,
         });
@@ -282,6 +287,7 @@ function EnvironmentNotifications({
     mode,
     navigate,
     onNotification,
+    projects,
     threads,
   ]);
 
