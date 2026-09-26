@@ -172,6 +172,7 @@ function shell(overrides: Partial<typeof thread> = {}, ...others: Partial<typeof
   return {
     status: "live",
     snapshot: Option.some({
+      projects: [],
       threads: [overrides, ...others].map((override) =>
         toV2ThreadShell({ ...thread, ...override }),
       ),

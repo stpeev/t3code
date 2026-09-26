@@ -129,6 +129,11 @@ export function startThreadNotifications(
         .has(threadKey({ environmentId, threadId: thread.id }))
     )
       return;
+    const shell = registry.get(environmentShell.stateValueAtom(environmentId));
+    const projectTitle = Option.isSome(shell.snapshot)
+      ? shell.snapshot.value.projects.find((project) => project.id === thread.projectId)?.title
+      : undefined;
+    const body = projectTitle ? `${projectTitle} · ${thread.title}` : thread.title;
     const {
       notificationMode: mode,
       inAppNotificationsEnabled,
@@ -168,7 +173,7 @@ export function startThreadNotifications(
         ...(inAppNotificationsPersistent ? { timeout: 0 } : {}),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
-        description: thread.title,
+        description: body,
         data: {
           hideCopyButton: true,
           leadingIcon:
@@ -206,7 +211,7 @@ export function startThreadNotifications(
       return;
     try {
       const notification = new Notification(title, {
-        body: thread.title,
+        body,
         tag: threadNotificationTag(environmentId, thread.id),
         silent: true,
         // Windows drops clicks after a toast moves into Notification Center.
