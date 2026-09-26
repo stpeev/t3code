@@ -24,7 +24,11 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import type {
+  SidebarProjectSortOrder,
+  SidebarThreadSortOrder,
+  AttentionHighlight,
+} from "@t3tools/contracts/settings";
 import type { AsyncResult } from "effect/reactivity";
 import {
   effectiveSnoozed,
@@ -671,6 +675,28 @@ export interface ThreadStatusPill {
   dotClass: string;
   pulse: boolean;
 }
+
+/** A sweep cannot read on a 9px dot, so "slide" falls back to the soft pulse there. */
+export function attentionHighlightClass(
+  animation: AttentionHighlight,
+  shape: "text" | "dot",
+): string {
+  if (animation === "none") return "";
+  if (animation === "blink") return "motion-safe:animate-status-blink";
+  return shape === "text" ? "status-sheen" : "motion-safe:animate-status-pulse";
+}
+
+const THREAD_STATUS_PRIORITY: Record<ThreadStatusPill["label"], number> = {
+  "Pending Approval": 5,
+  "Awaiting Input": 4,
+  "Guest Request": 3.75,
+  Failed: 3.5,
+  Working: 3,
+  Connecting: 3,
+  Waiting: 2.5,
+  "Plan Ready": 2,
+  Completed: 1,
+};
 
 type ThreadStatusInput = Pick<
   SidebarThreadSummary,
