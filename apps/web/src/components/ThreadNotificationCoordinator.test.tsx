@@ -96,7 +96,10 @@ function mockThreadShell() {
 vi.mock("@effect/atom-react", () => ({
   useAtomValue: () => ({
     status: state.live ? "live" : "disconnected",
-    snapshot: Option.some({ threads: [mockThreadShell()] }),
+    snapshot: Option.some({
+      projects: [{ id: "project-1", title: "Web app" }],
+      threads: [mockThreadShell()],
+    }),
   }),
 }));
 vi.mock("@tanstack/react-router", () => ({
@@ -212,7 +215,7 @@ describe("thread notifications", () => {
     expect(state.add).toHaveBeenCalledTimes(1);
     const toast = state.add.mock.calls[0]?.[0];
     expect(toast?.title).toBe("Thread completed");
-    expect(toast?.description).toBe("Fix the login form");
+    expect(toast?.description).toBe("Web app · Fix the login form");
     toast?.actionProps.onClick();
     expect(state.close).toHaveBeenCalledWith(TOAST_ID);
     expect(state.navigate).toHaveBeenCalledWith({
@@ -262,7 +265,7 @@ describe("thread notifications", () => {
     expect(state.add).toHaveBeenCalledTimes(1);
     expect(state.notification).toHaveBeenCalledTimes(1);
     expect(state.notification).toHaveBeenCalledWith(title, {
-      body: "Fix the login form",
+      body: "Web app · Fix the login form",
       tag: "env-1:thread-1",
       silent: true,
     });
@@ -367,7 +370,7 @@ describe("thread notifications", () => {
     await complete();
     expect(state.add).not.toHaveBeenCalled();
     expect(state.notification).toHaveBeenCalledWith("Thread completed", {
-      body: "Fix the login form",
+      body: "Web app · Fix the login form",
       tag: "env-1:thread-1",
       silent: true,
     });
