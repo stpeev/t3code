@@ -136,6 +136,9 @@ function EnvironmentNotifications({
       return;
     }
     const next = new Map<ThreadId, { attention: string | null; completion: number | null }>();
+    const projectTitles = new Map(
+      shell.snapshot.value.projects.map((project) => [project.id, project.title]),
+    );
     for (const thread of shell.snapshot.value.threads) {
       let status = resolveSidebarThreadStatus(thread);
       if (status === "ready" && thread.latestTurn?.state === "error") status = "failed";
@@ -174,6 +177,8 @@ function EnvironmentNotifications({
             : status === "failed"
               ? "Thread failed"
               : "Input needed";
+      const projectTitle = projectTitles.get(thread.projectId);
+      const body = projectTitle ? `${projectTitle} · ${thread.title}` : thread.title;
       if (hasNotificationSound(mode)) {
         void playNotificationSound(kind, () =>
           hasNotificationSound(getClientSettings().notificationMode),
@@ -191,7 +196,7 @@ function EnvironmentNotifications({
           ...(inAppNotificationsPersistent ? { timeout: 0 } : {}),
           type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
           title,
-          description: thread.title,
+          description: body,
           data: {
             hideCopyButton: true,
             leadingIcon:
@@ -227,7 +232,7 @@ function EnvironmentNotifications({
         continue;
       try {
         const notification = new Notification(title, {
-          body: thread.title,
+          body,
           tag: `${environmentId}:${thread.id}`,
           silent: true,
         });
