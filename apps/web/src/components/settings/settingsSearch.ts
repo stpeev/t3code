@@ -212,6 +212,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["red green blue orange additions deletions changes counts palette colorblind"],
   },
   {
+    id: "attention-highlight",
+    title: "Attention highlight",
+    to: "/settings/appearance",
+    searchTerms: [
+      "unseen unread done finished completed input failed sidebar bold title blink slide shimmer animation",
+    ],
+  },
+  {
     id: "chat-width",
     title: "Chat width",
     to: "/settings/appearance",
