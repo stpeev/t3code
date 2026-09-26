@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
   DEFAULT_UNIFIED_SETTINGS,
+  type AttentionHighlight,
   type ChatWidth,
   type EnvironmentIdentificationMode,
   MAX_APPEARANCE_CONTRAST,
@@ -42,6 +43,12 @@ const CHAT_WIDTH_LABELS: Record<ChatWidth, string> = {
   comfortable: "Comfortable",
   wide: "Wide",
   full: "Full",
+};
+
+const ATTENTION_HIGHLIGHT_LABELS: Record<AttentionHighlight, string> = {
+  slide: "Slide",
+  blink: "Blink",
+  none: "None",
 };
 
 export function AppearanceSettingsPanel() {
@@ -319,6 +326,50 @@ export function AppearanceSettingsPanel() {
           }
         />
 
+        <SettingsRow
+          {...searchableSetting("attention-highlight")}
+          description="Animate the titles of sidebar threads waiting on you: finished and unseen, needing input, or failed."
+          resetAction={
+            settings.attentionHighlight !== DEFAULT_UNIFIED_SETTINGS.attentionHighlight ? (
+              <SettingResetButton
+                label="attention highlight"
+                onClick={() =>
+                  updateSettings({
+                    attentionHighlight: DEFAULT_UNIFIED_SETTINGS.attentionHighlight,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="w-full sm:w-40">
+              <Select
+                value={settings.attentionHighlight}
+                onValueChange={(value) => {
+                  if (value === "slide" || value === "blink" || value === "none")
+                    updateSettings({ attentionHighlight: value });
+                }}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="w-full min-w-0"
+                  aria-label="Attention highlight"
+                >
+                  <SelectValue>
+                    {ATTENTION_HIGHLIGHT_LABELS[settings.attentionHighlight]}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  {Object.entries(ATTENTION_HIGHLIGHT_LABELS).map(([value, label]) => (
+                    <SelectItem hideIndicator key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
+            </div>
+          }
+        />
         <SettingsRow
           {...searchableSetting("chat-width")}
           description="Set how wide messages and the composer can grow on large screens."

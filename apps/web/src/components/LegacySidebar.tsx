@@ -194,6 +194,7 @@ import {
   resolveProjectStatusIndicator,
   resolveThreadLastVisitedAt,
   resolveThreadStatusPill,
+  attentionHighlightClass,
   orderItemsByPreferredIds,
   shouldClearThreadSelectionOnMouseDown,
   sortProjectsForSidebar,
@@ -1273,6 +1274,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     : project.allRemoteMembersAreDesktopLocal
       ? "laptop"
       : "cloud";
+  const attentionHighlight = useClientSettings((settings) => settings.attentionHighlight);
   const appSettingsConfirmThreadDelete = useClientSettings<boolean>(
     (settings) => settings.confirmThreadDelete,
   );
@@ -2293,7 +2295,11 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                 <span className="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover/project-header:opacity-0">
                   <span
                     className={`size-[9px] rounded-full ${projectStatus.dotClass} ${
-                      projectStatus.pulse ? "motion-safe:animate-status-pulse" : ""
+                      projectStatus.pulse
+                        ? "motion-safe:animate-status-pulse"
+                        : projectStatus.label === "Completed"
+                          ? attentionHighlightClass(attentionHighlight, "dot")
+                          : ""
                     }`}
                   />
                 </span>

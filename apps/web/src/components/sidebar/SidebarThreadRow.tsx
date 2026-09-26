@@ -62,6 +62,7 @@ import { useOpenPrLink } from "../../lib/openPullRequestLink";
 import { useUiStateStore } from "../../uiStateStore";
 import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { useNowMinute } from "../../hooks/useNowMinute";
+import { useClientSettings } from "../../hooks/useSettings";
 import { useNowSecond } from "../../hooks/useNowSecond";
 import { vcsEnvironment } from "../../state/vcs";
 import { useEnvironmentQuery } from "../../state/query";
@@ -74,6 +75,7 @@ import { textDirection } from "~/textDirection";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import {
   animateSidebarLayoutChanges,
+  attentionHighlightClass,
   hasUnseenCompletion,
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
@@ -634,6 +636,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     : null;
 
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
+  const attentionHighlight = useClientSettings((s) => s.attentionHighlight);
   const status = resolveSidebarThreadStatus(thread);
   const lastVisitedDate = lastVisitedAt === undefined ? null : parseTimestampDate(lastVisitedAt);
   const wokeAtDate = props.wokeAt === null ? null : parseTimestampDate(props.wokeAt);
@@ -648,6 +651,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     isActive: props.isActive,
     isSelected,
   });
+  // Bold rows other than the one you are looking at are the ones waiting on you.
+  const needsAttention = !shouldRecede && !props.isActive && !isSelected;
   const topStatus =
     status === "working"
       ? {
@@ -963,6 +968,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         className={cn(
           "min-w-0 flex-1 text-start text-sm transition-opacity motion-reduce:transition-none",
           shouldRecede ? "font-normal" : "font-medium",
+          needsAttention && attentionHighlightClass(attentionHighlight, "text"),
           variant === "card"
             ? cn(
                 "truncate",
