@@ -32,7 +32,7 @@ const PACE_LABEL = { ahead: "ahead of pace", on: "on pace", under: "under pace" 
 type Driver = ServerProvider["driver"];
 
 /** The series colour the usage chart uses for this driver, so the two views read as one. */
-function useBarColor(driver: Driver): string | null {
+export function useBarColor(driver: Driver | null): string | null {
   const colors = useProviderColors();
   const kind: UsageProviderKind | null =
     driver === "codex" ? "codex" : driver === "claudeAgent" ? "claude" : null;

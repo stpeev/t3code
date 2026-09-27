@@ -9,6 +9,7 @@ import {
 } from "@t3tools/shared/usageLimits";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { usageLimitsBannerItem } from "./chat/ComposerUsageLimits";
+import { contextUsageBannerItem } from "./chat/ComposerContextUsage";
 import { derivePendingRequests } from "@t3tools/client-runtime/pending-requests";
 import {
   questionAttachmentDraftId,
@@ -406,7 +407,11 @@ import {
   hasDismissedResumeCompaction,
   shouldOfferResumeCompaction,
 } from "./chat/ContextWindowMeter.logic";
-import { deriveLatestContextWindowSnapshot, formatContextWindowTokens } from "../lib/contextWindow";
+import {
+  deriveLatestContextWindowSnapshot,
+  formatContextWindowTokens,
+  isContextUsageCommand,
+} from "@t3tools/client-runtime/context-window";
 import {
   DRAFT_HERO_TRANSITION_ANIMATION_ID,
   DRAFT_HERO_TRANSITION_EASING,
@@ -6419,6 +6424,69 @@ export default function ChatView(props: ChatViewProps) {
         ? "Compaction is unavailable for this provider"
         : "Compacting is unavailable right now"
     : null;
+  const compactBannerAction = useMemo(() => {
+    const button = (
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={compactDisabled}
+        onClick={() => {
+          if (compactDisabled) return;
+          composerRef.current?.compactContext();
+        }}
+      >
+        Compact
+      </Button>
+    );
+    return compactDisabledReason ? (
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex">{button}</span>} />
+        <TooltipPopup side="top">{compactDisabledReason}</TooltipPopup>
+      </Tooltip>
+    ) : (
+      button
+    );
+  }, [compactDisabled, compactDisabledReason, composerRef]);
+  // The open /context-usage banner. Only the opening is stored, so the rows follow the live
+  // snapshot; it closes on dismiss or when the thread changes, not on a new turn.
+  const [contextUsagePanel, setContextUsagePanel] = useState<{
+    readonly threadKey: string;
+    readonly openedAt: number;
+  } | null>(null);
+  if (contextUsagePanel !== null && contextUsagePanel.threadKey !== routeThreadKey) {
+    setContextUsagePanel(null);
+  }
+  const openContextUsage = useCallback(() => {
+    if (!activeContextWindow) {
+      toastManager.add({ type: "info", title: "No context usage reported for this thread yet" });
+      return false;
+    }
+    setContextUsagePanel({ threadKey: routeThreadKey, openedAt: Date.now() });
+    return true;
+  }, [activeContextWindow, routeThreadKey]);
+  const contextUsageBanner = useMemo(
+    () =>
+      contextUsagePanel !== null &&
+      contextUsagePanel.threadKey === routeThreadKey &&
+      activeContextWindow
+        ? // A fresh id per opening: the stack keeps the last dismissed id as "exiting".
+          contextUsageBannerItem(
+            `context-usage:${contextUsagePanel.threadKey}:${contextUsagePanel.openedAt}`,
+            activeContextWindow,
+            selectedProvider,
+            manualCompactionProviderAvailable ? compactBannerAction : null,
+            () => setContextUsagePanel(null),
+          )
+        : null,
+    [
+      activeContextWindow,
+      compactBannerAction,
+      contextUsagePanel,
+      manualCompactionProviderAvailable,
+      routeThreadKey,
+      selectedProvider,
+    ],
+  );
   const resumeCompactionBannerItem = useMemo<ComposerBannerStackItem | null>(() => {
     if (
       !activeThread ||
@@ -6441,42 +6509,20 @@ export default function ChatView(props: ChatViewProps) {
 
     const dismiss = () =>
       setDismissedResumeCompactionKeys((keys) => new Set(keys).add(resumeCompactionKey));
-    const compactAction = (
-      <Button
-        size="xs"
-        variant="ghost"
-        disabled={compactDisabled}
-        onClick={() => {
-          if (compactDisabled) return;
-          composerRef.current?.compactContext();
-        }}
-      >
-        Compact
-      </Button>
-    );
     return {
       id: `resume-compaction:${resumeCompactionKey}`,
       variant: "info",
       icon: <Minimize2Icon />,
       title: "Resume with less context",
       description: `${formatContextWindowTokens(activeContextWindow.usedTokens)} tokens from earlier`,
-      actions: compactDisabledReason ? (
-        <Tooltip>
-          <TooltipTrigger render={<span className="inline-flex">{compactAction}</span>} />
-          <TooltipPopup side="top">{compactDisabledReason}</TooltipPopup>
-        </Tooltip>
-      ) : (
-        compactAction
-      ),
+      actions: compactBannerAction,
       dismissLabel: "Keep full history",
       onDismiss: dismiss,
     };
   }, [
     activeContextWindow,
     activeThread,
-    compactDisabled,
-    compactDisabledReason,
-    composerRef,
+    compactBannerAction,
     dismissedResumeCompactionKeys,
     nativeResumeCompactionDismissed,
     nowMinute,
@@ -6515,13 +6561,13 @@ export default function ChatView(props: ChatViewProps) {
       resumeCompactionBannerItem === null ? [] : [resumeCompactionBannerItem];
     const wokeThreadItems = wokeThreadBannerItem === null ? [] : [wokeThreadBannerItem];
     const parkedThreadItems = parkedThreadBannerItem === null ? [] : [parkedThreadBannerItem];
-    // The user asked for this one, so it leads the notice tier instead of trailing it.
-    const usageLimitsItems = usageLimitsBanner === null ? [] : [usageLimitsBanner];
+    // The user asked for these, so they lead the notice tier instead of trailing it.
+    const requestedItems = [usageLimitsBanner, contextUsageBanner].filter((item) => item !== null);
     const projectCloneItems = projectCloneBannerItem === null ? [] : [projectCloneBannerItem];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {
       return [
         ...feedbackBannerItems,
-        ...usageLimitsItems,
+        ...requestedItems,
         ...projectCloneItems,
         ...systemComposerBannerItems,
         ...backgroundLivenessItems,
@@ -6532,7 +6578,7 @@ export default function ChatView(props: ChatViewProps) {
     }
     return [
       ...feedbackBannerItems,
-      ...usageLimitsItems,
+      ...requestedItems,
       ...projectCloneItems,
       ...systemComposerBannerItems,
       ...backgroundLivenessItems,
@@ -6581,6 +6627,7 @@ export default function ChatView(props: ChatViewProps) {
   }, [
     activeBranchMismatchKey,
     backgroundLivenessBannerItem,
+    contextUsageBanner,
     feedbackBannerItems,
     handleRestoreThreadBranch,
     isRestoringThreadBranch,
@@ -7334,6 +7381,19 @@ export default function ChatView(props: ChatViewProps) {
       isUsageLimitsCommand(promptRef.current)
     ) {
       if (openUsageLimits()) {
+        promptRef.current = "";
+        setComposerDraftPrompt(composerDraftTarget, "");
+        composerRef.current?.resetCursorState();
+      }
+      return;
+    }
+    if (
+      !directAnnotation &&
+      !queuedMessage &&
+      !composerHasNonPromptContent &&
+      isContextUsageCommand(promptRef.current)
+    ) {
+      if (openContextUsage()) {
         promptRef.current = "";
         setComposerDraftPrompt(composerDraftTarget, "");
         composerRef.current?.resetCursorState();
@@ -10032,6 +10092,9 @@ export default function ChatView(props: ChatViewProps) {
                               !composerHasNonPromptContent
                                 ? openUsageLimits
                                 : undefined
+                            }
+                            onContextUsageCommand={
+                              composerHasNonPromptContent ? undefined : openContextUsage
                             }
                             environmentUnavailable={activeEnvironmentUnavailableState}
                             activePendingApproval={activePendingApproval}
