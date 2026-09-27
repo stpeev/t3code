@@ -7389,7 +7389,7 @@ export default function ChatView(props: ChatViewProps) {
     }
     if (
       !directAnnotation &&
-      !queuedMessage &&
+      queuedMessages.length === 0 &&
       !composerHasNonPromptContent &&
       isContextUsageCommand(promptRef.current)
     ) {
