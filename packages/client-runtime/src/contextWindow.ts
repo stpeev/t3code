@@ -111,58 +111,60 @@ export function isContextUsageCommand(prompt: string): boolean {
   return prompt.trim().toLowerCase() === `/${CONTEXT_USAGE_COMMAND.name}`;
 }
 
-export interface ContextUsageRow {
-  readonly label: string;
-  readonly value: string;
-}
-
 export interface ContextUsageSummary {
-  /** "34% · 68k/200k", or just the used tokens when the window size is unknown. */
-  readonly headline: string;
-  /** 0–100 for the bar, or null when the window size is unknown. */
+  /** "68k of 200k", or "68k tokens" when the window size is unknown. */
+  readonly tokens: string;
+  /** The bar's figures; all null when the window size is unknown. */
   readonly usedPercentage: number | null;
-  readonly rows: ReadonlyArray<ContextUsageRow>;
-  /** The token split of the most recent model request. */
-  readonly lastRequestRows: ReadonlyArray<ContextUsageRow>;
+  readonly percentage: string | null;
+  readonly remaining: string | null;
+  /** The most recent model request, such as "68k in · 40k cached · 500 out". */
+  readonly lastRequest: string | null;
+  readonly totalProcessed: string | null;
+  /** Occasional facts that ride along with `tokens`, such as "compacts in 99k". */
+  readonly notes: ReadonlyArray<string>;
 }
 
-function tokenRows(
-  entries: ReadonlyArray<readonly [label: string, value: number | null | undefined]>,
-): ContextUsageRow[] {
-  return entries.flatMap(([label, value]) =>
-    value == null ? [] : [{ label, value: formatContextWindowTokens(value) }],
+function joinTokenParts(
+  parts: ReadonlyArray<readonly [value: number | null | undefined, suffix: string]>,
+): string | null {
+  const present = parts.flatMap(([value, suffix]) =>
+    value == null ? [] : [`${formatContextWindowTokens(value)} ${suffix}`],
   );
+  return present.length > 0 ? present.join(" · ") : null;
 }
 
 export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextUsageSummary {
   const { autoCompactThreshold, maxTokens, toolUses, totalProcessedTokens } = snapshot;
-  const percentage = formatContextWindowPercentage(snapshot.usedPercentage);
+  const percentage =
+    maxTokens == null ? null : formatContextWindowPercentage(snapshot.usedPercentage);
   const used = formatContextWindowTokens(snapshot.usedTokens);
-  const rows = tokenRows([
-    ["Remaining", snapshot.remainingTokens],
-    [
-      "Until auto-compact",
-      autoCompactThreshold == null ? null : Math.max(0, autoCompactThreshold - snapshot.usedTokens),
-    ],
-    ["Total processed", totalProcessedTokens ? totalProcessedTokens : null],
-  ]);
+  const notes: string[] = [];
+  if (autoCompactThreshold != null) {
+    const untilCompact = Math.max(0, autoCompactThreshold - snapshot.usedTokens);
+    notes.push(`compacts in ${formatContextWindowTokens(untilCompact)}`);
+  }
   if (toolUses) {
-    rows.push({ label: "Tool uses", value: toolUses.toLocaleString("en-US") });
+    notes.push(`${toolUses.toLocaleString("en-US")} tool ${toolUses === 1 ? "use" : "uses"}`);
   }
 
   return {
-    headline:
-      maxTokens != null && percentage !== null
-        ? `${percentage} · ${used}/${formatContextWindowTokens(maxTokens)}`
-        : `${used} tokens`,
-    usedPercentage: maxTokens != null ? snapshot.usedPercentage : null,
-    rows,
+    tokens:
+      maxTokens == null ? `${used} tokens` : `${used} of ${formatContextWindowTokens(maxTokens)}`,
+    usedPercentage: percentage === null ? null : snapshot.usedPercentage,
+    percentage,
+    remaining:
+      percentage === null || snapshot.remainingTokens == null
+        ? null
+        : formatContextWindowTokens(snapshot.remainingTokens),
     // Adapters disagree on whether the unprefixed split is cumulative, so it only backs up `last*`.
-    lastRequestRows: tokenRows([
-      ["Input", snapshot.lastInputTokens ?? snapshot.inputTokens],
-      ["Cached input", snapshot.lastCachedInputTokens ?? snapshot.cachedInputTokens],
-      ["Output", snapshot.lastOutputTokens ?? snapshot.outputTokens],
-      ["Reasoning", snapshot.lastReasoningOutputTokens ?? snapshot.reasoningOutputTokens],
+    lastRequest: joinTokenParts([
+      [snapshot.lastInputTokens ?? snapshot.inputTokens, "in"],
+      [snapshot.lastCachedInputTokens ?? snapshot.cachedInputTokens, "cached"],
+      [snapshot.lastOutputTokens ?? snapshot.outputTokens, "out"],
+      [snapshot.lastReasoningOutputTokens ?? snapshot.reasoningOutputTokens, "reasoning"],
     ]),
+    totalProcessed: totalProcessedTokens ? formatContextWindowTokens(totalProcessedTokens) : null,
+    notes,
   };
 }

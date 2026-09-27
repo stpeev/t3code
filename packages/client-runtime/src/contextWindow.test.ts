@@ -111,18 +111,15 @@ describe("summarizeContextUsage", () => {
       toolUses: 12,
     });
 
-    expect(summary.headline).toBe("34% · 68k/200k");
-    expect(summary.usedPercentage).toBe(34);
-    expect(summary.rows).toEqual([
-      { label: "Remaining", value: "132k" },
-      { label: "Until auto-compact", value: "99k" },
-      { label: "Total processed", value: "420k" },
-      { label: "Tool uses", value: "12" },
-    ]);
-    expect(summary.lastRequestRows).toEqual([
-      { label: "Input", value: "68k" },
-      { label: "Output", value: "500" },
-    ]);
+    expect(summary).toEqual({
+      tokens: "68k of 200k",
+      usedPercentage: 34,
+      percentage: "34%",
+      remaining: "132k",
+      lastRequest: "68k in · 500 out",
+      totalProcessed: "420k",
+      notes: ["compacts in 99k", "12 tool uses"],
+    });
   });
 
   it("prefers the last-request split over the unprefixed one", () => {
@@ -137,21 +134,21 @@ describe("summarizeContextUsage", () => {
       lastReasoningOutputTokens: 0,
     });
 
-    expect(summary.lastRequestRows).toEqual([
-      { label: "Input", value: "29k" },
-      { label: "Cached input", value: "20k" },
-      { label: "Output", value: "1k" },
-      { label: "Reasoning", value: "0" },
-    ]);
+    expect(summary.lastRequest).toBe("29k in · 20k cached · 1k out · 0 reasoning");
   });
 
   it("falls back to used tokens when the window size is unknown", () => {
     const summary = summarize({ usedTokens: 4_200, totalProcessedTokens: 0 });
 
-    expect(summary.headline).toBe("4.2k tokens");
-    expect(summary.usedPercentage).toBeNull();
-    expect(summary.rows).toEqual([]);
-    expect(summary.lastRequestRows).toEqual([]);
+    expect(summary).toEqual({
+      tokens: "4.2k tokens",
+      usedPercentage: null,
+      percentage: null,
+      remaining: null,
+      lastRequest: null,
+      totalProcessed: null,
+      notes: [],
+    });
   });
 });
 
