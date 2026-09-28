@@ -40,6 +40,7 @@ import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSele
 import { openAddProjectToMachine } from "./AddProjectToMachineDialog";
 import { type AddProjectTarget, useAddProjectTargets } from "../hooks/useAddProjectTargets";
 import { BranchToolbarEnvModeSelector } from "./BranchToolbarEnvModeSelector";
+import { BranchToolbarMissingWorktree } from "./BranchToolbarMissingWorktree";
 import { PreviousWorktreeItemContent } from "./PreviousWorktreeItemContent";
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import {
@@ -85,6 +86,8 @@ interface BranchToolbarProps {
   worktreePath: string | null;
   isServerThread: boolean;
   showGitControls: boolean;
+  /** The started thread's worktree folder is gone, so recovery replaces the Git controls. */
+  worktreeMissing?: boolean;
   draftId?: DraftId;
   onEnvModeChange: (mode: EnvMode) => void;
   envMode: EnvMode;
@@ -603,6 +606,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   worktreePath,
   isServerThread,
   showGitControls,
+  worktreeMissing = false,
   draftId,
   onEnvModeChange,
   envMode,
@@ -825,6 +829,16 @@ export const BranchToolbar = memo(function BranchToolbar({
           onStartFromOriginChange={onStartFromOriginChange}
           {...(onCheckoutPullRequestRequest ? { onCheckoutPullRequestRequest } : {})}
           {...(onComposerFocusRequest ? { onComposerFocusRequest } : {})}
+        />
+      ) : null}
+      {worktreeMissing && serverThread?.worktreePath ? (
+        <BranchToolbarMissingWorktree
+          environmentId={environmentId}
+          threadId={threadId}
+          worktreePath={serverThread.worktreePath}
+          branch={serverThread.branch}
+          projectCwd={activeProject.workspaceRoot}
+          hasSession={serverThread.runtime !== null}
         />
       ) : null}
       {trailing}
