@@ -116,10 +116,21 @@ describe("summarizeContextUsage", () => {
       usedPercentage: 34,
       percentage: "34%",
       remaining: "132k",
-      lastRequest: "68k in · 500 out",
-      totalProcessed: "420k",
+      recent: { label: "Last request", tokens: "68k in · 500 out" },
       notes: ["compacts in 99k", "12 tool uses"],
     });
+  });
+
+  it("reports the turn's whole output next to the last request's input", () => {
+    const summary = summarize({
+      usedTokens: 203_015,
+      maxTokens: 1_000_000,
+      inputTokens: 202_941,
+      outputTokens: 74,
+      turnOutputTokens: 991,
+    });
+
+    expect(summary.recent).toEqual({ label: "Last turn", tokens: "203k in · 991 out" });
   });
 
   it("prefers the last-request split over the unprefixed one", () => {
@@ -134,7 +145,10 @@ describe("summarizeContextUsage", () => {
       lastReasoningOutputTokens: 0,
     });
 
-    expect(summary.lastRequest).toBe("29k in · 20k cached · 1k out · 0 reasoning");
+    expect(summary.recent).toEqual({
+      label: "Last request",
+      tokens: "29k in · 20k cached · 1k out · 0 reasoning",
+    });
   });
 
   it("falls back to used tokens when the window size is unknown", () => {
@@ -145,8 +159,7 @@ describe("summarizeContextUsage", () => {
       usedPercentage: null,
       percentage: null,
       remaining: null,
-      lastRequest: null,
-      totalProcessed: null,
+      recent: null,
       notes: [],
     });
   });

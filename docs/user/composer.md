@@ -211,7 +211,7 @@ Send `/compact` in an existing conversation to reduce context usage when the
 provider supports it. Web and desktop also offer compaction from the context meter.
 
 Send `/context-usage` in an existing thread to see how full its context window is, including what
-the last request used and how far it is from compacting automatically. The summary opens above the
+the last turn used and how far it is from compacting automatically. The summary opens above the
 composer and stays until you dismiss it or switch threads. It reads the usage the provider last
 reported, so it doesn't run the agent. Providers that don't report usage have nothing to show.
 
