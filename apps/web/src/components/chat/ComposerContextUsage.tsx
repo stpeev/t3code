@@ -24,11 +24,6 @@ export function contextUsageBannerItem(
   onDismiss: () => void,
 ): ComposerBannerStackItem {
   const summary = summarizeContextUsage(snapshot);
-  // Without a last-request row there is nowhere to trail the total, so it joins the heading.
-  const processedNote =
-    summary.lastRequest === null && summary.totalProcessed !== null
-      ? [`${summary.totalProcessed} processed`]
-      : [];
   const hasBar = summary.usedPercentage !== null && summary.percentage !== null;
   return {
     id,
@@ -36,12 +31,12 @@ export function contextUsageBannerItem(
     priority: "notice",
     icon: <GaugeIcon />,
     title: "Context usage",
-    description: [summary.tokens, ...summary.notes, ...processedNote].join(" · "),
+    description: [summary.tokens, ...summary.notes].join(" · "),
     actions,
     dismissLabel: "Dismiss context usage",
     onDismiss,
     children:
-      hasBar || summary.lastRequest !== null ? (
+      hasBar || summary.recent !== null ? (
         <ComposerBanner.Body className="pt-1 pb-1.5 pe-2">
           {/* Labels, then values sharing one left edge, then /usage-limits-style trailing text. */}
           <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 text-xs">
@@ -75,16 +70,13 @@ export function contextUsageBannerItem(
                 </span>
               </>
             ) : null}
-            {summary.lastRequest !== null ? (
+            {summary.recent !== null ? (
               <>
-                <span className={LABEL_CLASS_NAME}>Last request</span>
-                <span className="flex min-w-0 items-center">
+                <span className={LABEL_CLASS_NAME}>{summary.recent.label}</span>
+                <span className="col-span-2 flex min-w-0 items-center">
                   <span className="truncate font-medium text-foreground tabular-nums">
-                    {summary.lastRequest}
+                    {summary.recent.tokens}
                   </span>
-                </span>
-                <span className={TRAILING_CLASS_NAME}>
-                  {summary.totalProcessed ? `${summary.totalProcessed} processed` : ""}
                 </span>
               </>
             ) : null}
