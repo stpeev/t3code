@@ -56,6 +56,16 @@ Turn on **Settings → Source control & issues → Review guides** to add a **Gu
 - On web, select lines in any stop to add review comments or ask an agent about that stop.
 - Agents can also generate guides for multiple PRs when asked. Choose **Rewrite guide** from the PR's **⋯** menu after new pushes.
 
+## Review your branch's commits
+
+In a thread's **Diff** panel, turn on the changes list from the toolbar. It shows the working tree,
+then your branch's own commits, then a few commits from the branch it started from. Select any row to
+see its diff; select **Branched from** to see all of the branch's changes together. Commits that are
+not on any remote yet are marked **Not pushed**. Use the branch picker in the list to compare against
+a different parent branch. By default the parent is the branch's recorded base (`gh-merge-base`) or
+the remote's default branch; turn on **Guess the parent branch** in **Settings → Source Control** to
+use the closest other branch instead.
+
 ### Pull request sharing across environments
 
 Disabled by default. In **Settings → Environments → Pull request sharing** (**Pull request routing** on mobile), opt in trusted environments to **Read PRs** or **Read and act** so review reads/actions can route through another connected environment signed into the same account on the same host (credentials never leave their machines). Enable on both source and target environments; only grant **Read and act** to environments you control.

@@ -42,7 +42,9 @@ import { SourceControlAppSignInSettings } from "./SourceControlAppSignInSettings
 import { SourceControlTokenSettings } from "./SourceControlTokenSettings";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SourceControlWritingSettingsSection } from "./SourceControlWritingSettings";
+import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import {
+  SettingResetButton,
   SettingsPageContainer,
   SettingsSearchTarget,
   SettingsSection,
@@ -378,6 +380,43 @@ function DiscoveryItemRow({
   );
 }
 
+function InferParentBranchSetting() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const searchableSetting = useSearchableSetting();
+  const setting = searchableSetting("infer-parent-branch");
+
+  return (
+    <SettingsSearchTarget id={setting.id} className="grid gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="text-xs font-medium text-foreground">{setting.title}</span>
+            {settings.inferParentBranch ? (
+              <SettingResetButton
+                ariaLabel={m(msg("parent branch guessing"))}
+                onClick={() => updateSettings({ inferParentBranch: false })}
+              />
+            ) : null}
+          </div>
+          <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+            <T>
+              When a branch has no recorded parent, compare it to the closest other branch instead
+              of the default branch. Applies to the Diff panel's branch changes and commit list.
+            </T>
+          </p>
+        </div>
+        <Switch
+          className="shrink-0"
+          checked={settings.inferParentBranch}
+          onCheckedChange={(checked) => updateSettings({ inferParentBranch: Boolean(checked) })}
+          aria-label={m(msg("Guess the parent branch"))}
+        />
+      </div>
+    </SettingsSearchTarget>
+  );
+}
+
 function SourceControlSectionSkeleton({
   title,
   headerAction,
@@ -611,7 +650,9 @@ export function SourceControlSettingsPanel() {
               headerAction={scanButton}
             >
               {result.versionControlSystems.map((item) => (
-                <DiscoveryItemRow key={`vcs:${item.kind}`} item={item} />
+                <DiscoveryItemRow key={`vcs:${item.kind}`} item={item}>
+                  {item.kind === "git" ? <InferParentBranchSetting /> : undefined}
+                </DiscoveryItemRow>
               ))}
             </SettingsSection>
           ) : null}

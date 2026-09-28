@@ -11,8 +11,8 @@ import { msg } from "gt-react-native";
 
 import { m, type MessageResolver } from "../../i18n/messages";
 
-export type ReviewSectionKind = "turn" | "working-tree" | "branch-range";
-export type ReviewGitSectionKind = Exclude<ReviewSectionKind, "turn">;
+export type ReviewSectionKind = "turn" | ReviewDiffPreviewSource["kind"];
+export type ReviewGitSectionKind = Exclude<ReviewSectionKind, "turn" | "commit">;
 type ReviewGitSource = ReviewDiffPreviewSource & { readonly kind: ReviewGitSectionKind };
 
 const CHANGES_SECTION_ID = "git:branch-range";

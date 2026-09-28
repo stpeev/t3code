@@ -1,5 +1,6 @@
 import {
   type EnvironmentId,
+  type VcsListCommitsInput,
   type VcsListRefsInput,
   type VcsListRefsResult,
   type VcsRefreshStatusResult,
@@ -18,6 +19,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import { Atom, AtomRegistry } from "effect/reactivity";
 
 import {
+  createEnvironmentQueryAtomFamily,
   createEnvironmentRpcCommand,
   createEnvironmentRpcSubscriptionAtomFamily,
   createEnvironmentSubscriptionAtomFamily,
@@ -327,6 +329,13 @@ export function createVcsEnvironmentAtoms<R, E>(
       execute: refreshVcsBranch,
       scheduler: vcsCommandScheduler,
       concurrency: vcsCommandConcurrency,
+    }),
+    // `revision` is not sent: it only keys the query, so a new HEAD or push refetches the list.
+    listCommits: createEnvironmentQueryAtomFamily(runtime, {
+      label: "environment-data:vcs:list-commits",
+      staleTimeMs: 5_000,
+      execute: (input: { readonly request: VcsListCommitsInput; readonly revision: string }) =>
+        request(WS_METHODS.vcsListCommits, input.request),
     }),
     status: createEnvironmentSubscriptionAtomFamily(runtime, {
       label: "environment-data:vcs:status",
