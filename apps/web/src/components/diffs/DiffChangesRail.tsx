@@ -15,6 +15,7 @@ import { DiffStatLabel } from "../chat/DiffStatLabel";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { CommitDetails } from "./CommitDetails";
 import { isSelectableDiffChangesRow, type DiffChangesRow } from "./diffChanges.logic";
 
 const KEYBOARD_SELECT_DELAY_MS = 150;
@@ -215,60 +216,69 @@ function ChangesRowButton({
         selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
       )}
     >
-      <button
-        type="button"
-        data-changes-row={row.id}
-        aria-pressed={selected}
-        aria-label={accessibleName}
-        className={cn(
-          "flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          row.kind === "commit" && !row.onBranch && !selected && "text-muted-foreground",
-        )}
-        onClick={onSelect}
-      >
-        {row.kind === "commit" ? (
-          <>
-            <span className="flex min-w-0 items-center gap-1.5 text-xs">
-              {row.commit.parentShas.length > 1 ? (
-                <PullRequestGlyph.merged aria-hidden className="size-3 shrink-0 opacity-70" />
-              ) : null}
-              <span className="min-w-0 truncate">{row.commit.subject || row.commit.shortSha}</span>
-              {unpushed ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={<span className="ml-auto flex shrink-0 text-muted-foreground" />}
-                  >
-                    <CloudOffIcon aria-hidden className="size-3" />
-                  </TooltipTrigger>
-                  <TooltipPopup side="top">Not pushed</TooltipPopup>
-                </Tooltip>
-              ) : null}
-            </span>
-            <span className="flex min-w-0 gap-2 text-2xs text-muted-foreground">
-              <span className="font-mono">{row.commit.shortSha}</span>
-              <span className="truncate">{formatRelativeTimeLabel(row.commit.authoredAt)}</span>
-            </span>
-          </>
-        ) : row.kind === "working-tree" ? (
-          <span className="flex min-w-0 items-center gap-2 text-xs">
-            <span className="truncate font-medium">Working tree</span>
-            {row.fileCount > 0 ? (
-              <span className="ml-auto flex shrink-0 items-center gap-2 text-2xs text-muted-foreground">
-                <span className="tabular-nums">{row.fileCount}</span>
-                <DiffStatLabel
-                  additions={row.additions}
-                  deletions={row.deletions}
-                  layout="inline"
-                />
+      <Tooltip disabled={commit === null}>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              data-changes-row={row.id}
+              aria-pressed={selected}
+              aria-label={accessibleName}
+              className={cn(
+                "flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                row.kind === "commit" && !row.onBranch && !selected && "text-muted-foreground",
+              )}
+              onClick={onSelect}
+            />
+          }
+        >
+          {row.kind === "commit" ? (
+            <>
+              <span className="flex min-w-0 items-center gap-1.5 text-xs">
+                {row.commit.parentShas.length > 1 ? (
+                  <PullRequestGlyph.merged aria-hidden className="size-3 shrink-0 opacity-70" />
+                ) : null}
+                <span className="min-w-0 truncate">
+                  {row.commit.subject || row.commit.shortSha}
+                </span>
+                {unpushed ? (
+                  <CloudOffIcon
+                    aria-hidden
+                    className="ml-auto size-3 shrink-0 text-muted-foreground"
+                  />
+                ) : null}
               </span>
-            ) : (
-              <span className="ml-auto text-2xs text-muted-foreground">Clean</span>
-            )}
-          </span>
-        ) : (
-          <span className="truncate text-xs font-medium">{row.label}</span>
-        )}
-      </button>
+              <span className="flex min-w-0 gap-2 text-2xs text-muted-foreground">
+                <span className="font-mono">{row.commit.shortSha}</span>
+                <span className="truncate">{formatRelativeTimeLabel(row.commit.authoredAt)}</span>
+              </span>
+            </>
+          ) : row.kind === "working-tree" ? (
+            <span className="flex min-w-0 items-center gap-2 text-xs">
+              <span className="truncate font-medium">Working tree</span>
+              {row.fileCount > 0 ? (
+                <span className="ml-auto flex shrink-0 items-center gap-2 text-2xs text-muted-foreground">
+                  <span className="tabular-nums">{row.fileCount}</span>
+                  <DiffStatLabel
+                    additions={row.additions}
+                    deletions={row.deletions}
+                    layout="inline"
+                  />
+                </span>
+              ) : (
+                <span className="ml-auto text-2xs text-muted-foreground">Clean</span>
+              )}
+            </span>
+          ) : (
+            <span className="truncate text-xs font-medium">{row.label}</span>
+          )}
+        </TooltipTrigger>
+        {commit ? (
+          <TooltipPopup side="left" align="start">
+            <CommitDetails commit={commit} unpushed={unpushed} />
+          </TooltipPopup>
+        ) : null}
+      </Tooltip>
       {selected ? (
         <Button
           type="button"
