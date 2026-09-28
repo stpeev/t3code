@@ -1187,6 +1187,14 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   ...sourceControlHostSearchItems(sourceControlClients.definitions),
   {
+    id: "infer-parent-branch",
+    title: "Guess the parent branch",
+    to: "/settings/source-control",
+    searchTerms: ["base branch merge base stacked fork closest compare diff commits"],
+    environmentOnly: true,
+    scope: "environment-defaults",
+  },
+  {
     id: "source-control-writing-style",
     title: "Commit and pull request writing",
     to: "/settings/source-control",
