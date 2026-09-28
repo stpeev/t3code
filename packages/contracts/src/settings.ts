@@ -307,6 +307,12 @@ export const ClientSettingsSchema = Schema.Struct({
   inAppNotificationsPersistent: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
+  inAppNotificationsInBackground: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(false)),
+  ),
+  inAppNotificationsForActiveThread: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(false)),
+  ),
   diffColorScheme: DiffColorScheme.pipe(
     Schema.withDecodingDefault(Effect.succeed("red-green" as const)),
   ),
@@ -1606,6 +1612,8 @@ export const ClientSettingsPatch = Schema.Struct({
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   inAppNotificationsPersistent: Schema.optionalKey(Schema.Boolean),
+  inAppNotificationsInBackground: Schema.optionalKey(Schema.Boolean),
+  inAppNotificationsForActiveThread: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
   chatWidth: Schema.optionalKey(ChatWidth),
   attentionHighlight: Schema.optionalKey(AttentionHighlight),

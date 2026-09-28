@@ -326,6 +326,20 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["notification toast popup persistent sticky dismiss timeout hide"],
   },
   {
+    id: "in-app-notifications-in-background",
+    title: "Show while in background",
+    to: "/settings/general",
+    targetId: "in-app-notifications",
+    searchTerms: ["notification toast popup background unfocused desktop both alongside"],
+  },
+  {
+    id: "in-app-notifications-active-thread",
+    title: "Include the open thread",
+    to: "/settings/general",
+    targetId: "in-app-notifications",
+    searchTerms: ["notification toast popup active current open thread"],
+  },
+  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",

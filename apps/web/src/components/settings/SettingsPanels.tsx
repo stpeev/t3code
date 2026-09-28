@@ -570,6 +570,14 @@ export function useSettingsRestore(onRestored?: () => void) {
       DEFAULT_UNIFIED_SETTINGS.inAppNotificationsPersistent
         ? ["Keep until dismissed"]
         : []),
+      ...(settings.inAppNotificationsInBackground !==
+      DEFAULT_UNIFIED_SETTINGS.inAppNotificationsInBackground
+        ? ["Show while in background"]
+        : []),
+      ...(settings.inAppNotificationsForActiveThread !==
+      DEFAULT_UNIFIED_SETTINGS.inAppNotificationsForActiveThread
+        ? ["Include the open thread"]
+        : []),
       ...(settings.sidebarThreadPreviewCount !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount
         ? ["Visible threads"]
         : []),
@@ -705,6 +713,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.notificationMode,
       settings.inAppNotificationsEnabled,
       settings.inAppNotificationsPersistent,
+      settings.inAppNotificationsInBackground,
+      settings.inAppNotificationsForActiveThread,
       settings.wordWrap,
       followSystem,
       theme,
@@ -783,6 +793,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
       inAppNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled,
       inAppNotificationsPersistent: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsPersistent,
+      inAppNotificationsInBackground: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsInBackground,
+      inAppNotificationsForActiveThread: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsForActiveThread,
       wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       diffFilesCollapsed: DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed,
       diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
@@ -2437,6 +2449,36 @@ export function GeneralSettingsPanel() {
                   updateSettings({ inAppNotificationsPersistent: checked })
                 }
                 aria-label="Keep in-app notifications until dismissed"
+              />
+            }
+          />
+        ) : null}
+        {settings.inAppNotificationsEnabled ? (
+          <SettingsRow
+            title={searchableSetting("in-app-notifications-in-background").title}
+            description="Also show toasts while this app is in the background, alongside any desktop notification."
+            control={
+              <Switch
+                checked={settings.inAppNotificationsInBackground}
+                onCheckedChange={(checked) =>
+                  updateSettings({ inAppNotificationsInBackground: checked })
+                }
+                aria-label="Show in-app notifications while in background"
+              />
+            }
+          />
+        ) : null}
+        {settings.inAppNotificationsEnabled ? (
+          <SettingsRow
+            title={searchableSetting("in-app-notifications-active-thread").title}
+            description="Also show toasts for the thread you currently have open."
+            control={
+              <Switch
+                checked={settings.inAppNotificationsForActiveThread}
+                onCheckedChange={(checked) =>
+                  updateSettings({ inAppNotificationsForActiveThread: checked })
+                }
+                aria-label="Include the open thread in in-app notifications"
               />
             }
           />
