@@ -585,9 +585,14 @@ function useLabelsOverflow(element: HTMLDivElement | null): boolean {
   useEffect(() => {
     if (!element) return;
     const stopObserving = observeResize(element, measure);
+    // Children update without re-rendering this memoized toolbar: a branch name
+    // loading in, or composer controls portaled into the host.
+    const mutationObserver = new MutationObserver(measure);
+    mutationObserver.observe(element, { childList: true, characterData: true, subtree: true });
     document.fonts.addEventListener("loadingdone", measure);
     return () => {
       stopObserving();
+      mutationObserver.disconnect();
       document.fonts.removeEventListener("loadingdone", measure);
     };
   }, [element, measure]);
