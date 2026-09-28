@@ -152,6 +152,7 @@ function RootRouteView() {
   const hostedPromptLinkLanding = useHostedPromptLinkLanding(
     authGateState.status === "hosted-static",
   );
+  const toastPosition = useClientSettings((settings) => settings.toastPosition);
 
   if (pathname === "/pair" || pathname === "/connect" || pathname === "/connect-agent") {
     return (
@@ -177,7 +178,7 @@ function RootRouteView() {
 
   if (pathname === "/welcome") {
     return (
-      <ToastProvider>
+      <ToastProvider position={toastPosition}>
         <AnchoredToastProvider>
           <DocumentTitleSync />
           <BrowserChromeThemeSync key={pathname} />
@@ -216,7 +217,7 @@ function RootRouteView() {
   );
 
   return (
-    <ToastProvider>
+    <ToastProvider position={toastPosition}>
       <AnchoredToastProvider>
         <DocumentTitleSync />
         <BrowserChromeThemeSync key={pathname} />
