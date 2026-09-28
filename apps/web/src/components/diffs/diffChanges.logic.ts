@@ -13,6 +13,13 @@ export type DiffChangesRow =
       readonly deletions: number;
     }
   | {
+      readonly kind: "branch-header";
+      readonly id: "branch-header";
+      readonly commitCount: number;
+      readonly truncated: boolean;
+      readonly unpushedCount: number;
+    }
+  | {
       readonly kind: "commit";
       readonly id: string;
       readonly commit: VcsCommit;
@@ -46,6 +53,15 @@ export function buildDiffChangesRows(input: {
   rows.push({ kind: "working-tree", id: "working-tree", ...input.workingTree });
   const commits = input.commits;
   if (!commits) return rows;
+  if (commits.branchCommits.length > 0) {
+    rows.push({
+      kind: "branch-header",
+      id: "branch-header",
+      commitCount: commits.branchCommits.length,
+      truncated: commits.branchCommitsTruncated,
+      unpushedCount: commits.branchCommits.filter((commit) => commit.unpushed).length,
+    });
+  }
   for (const commit of commits.branchCommits) {
     rows.push({ kind: "commit", id: commitRowId(commit.sha), commit, onBranch: true });
   }
@@ -87,7 +103,7 @@ export function selectedDiffChangesRowId(
   }
 }
 
-/** Rows a keyboard can land on; `show-more` is an action, not a diff. */
+/** Rows a keyboard can land on; `show-more` is an action and `branch-header` a label, not diffs. */
 export function isSelectableDiffChangesRow(row: DiffChangesRow): boolean {
-  return row.kind !== "show-more";
+  return row.kind !== "show-more" && row.kind !== "branch-header";
 }
