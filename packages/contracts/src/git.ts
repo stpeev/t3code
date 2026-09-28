@@ -152,6 +152,7 @@ export const VcsListRefsInput = Schema.Struct({
 export type VcsListRefsInput = typeof VcsListRefsInput.Type;
 
 export const VCS_LIST_COMMITS_MAX_CONTEXT = 200;
+export const VCS_COMMIT_BODY_MAX_LENGTH = 2_000;
 
 export const VcsListCommitsInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
@@ -318,8 +319,15 @@ export const VcsCommit = Schema.Struct({
   shortSha: TrimmedNonEmptyStringSchema,
   subject: Schema.String,
   authorName: Schema.String,
+  authorEmail: Schema.optionalKey(Schema.String),
   /** ISO 8601 author date. */
   authoredAt: Schema.String,
+  committerName: Schema.optionalKey(Schema.String),
+  committerEmail: Schema.optionalKey(Schema.String),
+  /** ISO 8601 committer date. */
+  committedAt: Schema.optionalKey(Schema.String),
+  /** The message after the subject line, capped at {@link VCS_COMMIT_BODY_MAX_LENGTH} characters. */
+  body: Schema.optionalKey(Schema.String),
   parentShas: Schema.Array(TrimmedNonEmptyStringSchema),
   /** Not reachable from any remote-tracking ref. Always false when the repo has no remote. */
   unpushed: Schema.Boolean,

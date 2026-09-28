@@ -22,6 +22,7 @@ import {
   GitCommandError,
   type GitCommandFailureReason,
   T3_PROJECT_FILE_NAME,
+  VCS_COMMIT_BODY_MAX_LENGTH,
   type ReviewDiffFileContentsInput,
   type ReviewDiffPreviewInput,
   type ReviewDiffFileStat,
@@ -108,7 +109,10 @@ const STATUS_UPSTREAM_REFRESH_ENV = Object.freeze({
 const DEFAULT_BASE_BRANCH_CANDIDATES = ["main", "master"] as const;
 const LIST_COMMITS_BRANCH_LIMIT = 200;
 const LIST_COMMITS_DEFAULT_CONTEXT = 10;
-const COMMIT_LOG_FORMAT = "--format=%H%x1f%h%x1f%P%x1f%an%x1f%aI%x1f%s";
+// The body goes last because it is the only field that can span lines.
+const COMMIT_LOG_FORMAT =
+  "--format=%H%x1f%h%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%cn%x1f%ce%x1f%cI%x1f%s%x1f%b";
+const LIST_COMMITS_LOG_MAX_OUTPUT_BYTES = 4_000_000;
 
 /** Picks the branch HEAD is fewest commits ahead of, skipping its own copies and branches containing HEAD. */
 export function pickClosestBranch(
@@ -149,15 +153,29 @@ export function parseCommitLog(
         shortSha = "",
         parents = "",
         authorName = "",
+        authorEmail = "",
         authoredAt = "",
+        committerName = "",
+        committerEmail = "",
+        committedAt = "",
         subject = "",
+        ...bodyParts
       ] = record.split("\x1f");
+      const body = bodyParts.join("\x1f").trimEnd();
       return {
         sha,
         shortSha,
         subject,
         authorName,
+        authorEmail,
         authoredAt,
+        committerName,
+        committerEmail,
+        committedAt,
+        body:
+          body.length > VCS_COMMIT_BODY_MAX_LENGTH
+            ? `${body.slice(0, VCS_COMMIT_BODY_MAX_LENGTH).trimEnd()}…`
+            : body,
         parentShas: parents.split(" ").filter((parent) => parent.length > 0),
         unpushed: unpushedShas.has(sha),
       };
@@ -3302,14 +3320,12 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         (yield* listRemoteNames(cwd).pipe(Effect.orElseSucceed(() => []))).length > 0;
 
       const readLog = (operation: string, range: string, limit: number) =>
-        runGitStdout(`GitVcsDriver.listCommits.${operation}`, cwd, [
-          "log",
-          "-z",
-          COMMIT_LOG_FORMAT,
-          `--max-count=${limit}`,
-          range,
-          "--",
-        ]);
+        runGitStdoutWithOptions(
+          `GitVcsDriver.listCommits.${operation}`,
+          cwd,
+          ["log", "-z", COMMIT_LOG_FORMAT, `--max-count=${limit}`, range, "--"],
+          { maxOutputBytes: LIST_COMMITS_LOG_MAX_OUTPUT_BYTES },
+        );
       const [branchStdout, contextStdout, unpushedStdout] = yield* Effect.all(
         [
           mergeBase
