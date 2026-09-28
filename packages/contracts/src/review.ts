@@ -8,6 +8,9 @@ const ReviewMergeBase = Schema.String.check(
   Schema.isPattern(/^(?:[0-9a-f]{40}|[0-9a-f]{64}|HEAD)$/),
 );
 
+/** A full or abbreviated commit id; never a ref name, so it can't be read as a git option. */
+export const ReviewCommitSha = TrimmedNonEmptyString.check(Schema.isPattern(/^[0-9a-f]{7,64}$/i));
+
 export const ReviewDiffChangeType = Schema.Literals([
   "change",
   "rename-pure",
@@ -22,7 +25,8 @@ export const ReviewDiffPreviewInput = Schema.Struct({
   baseRef: Schema.optional(TrimmedNonEmptyString),
   // A branch-range file read reuses its preview's merge base instead of resolving it again.
   mergeBase: Schema.optionalKey(ReviewMergeBase),
-  commitSha: Schema.optional(TrimmedNonEmptyString),
+  /** Diffs this one commit against its first parent, instead of the working tree and branch. */
+  commitSha: Schema.optionalKey(ReviewCommitSha),
   ignoreWhitespace: Schema.optionalKey(Schema.Boolean),
   sourceKind: Schema.optionalKey(Schema.Literals(["working-tree", "branch-range"])),
   trackedOnly: Schema.optionalKey(Schema.Boolean),

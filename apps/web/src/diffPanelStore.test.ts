@@ -1,13 +1,17 @@
 import { EnvironmentId, RunId, ThreadId, TurnItemId } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
-import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
   resolveToolCallDiffTarget,
+  selectThreadBranchBaseRef,
+  selectThreadDiffPanelSelection,
   useDiffPanelSessionStore,
   useDiffPanelStore,
 } from "./diffPanelStore";
+
+const THREAD_REF = scopeThreadRef(EnvironmentId.make("environment-1"), ThreadId.make("thread-1"));
 
 describe("diffPanelStore", () => {
   beforeEach(() => {
@@ -133,5 +137,36 @@ describe("diffPanelStore", () => {
     store.selectTurnRepository(ref, RunId.make("run-2"), "/work/api");
     store.selectTurnRepository(ref, RunId.make("run-2"), null);
     expect(selection()).not.toHaveProperty("repository");
+  });
+
+  it("keeps the branch base across a commit selection", () => {
+    const store = useDiffPanelStore.getState();
+    store.selectBranchBaseRef(THREAD_REF, "origin/release");
+    store.selectCommit(THREAD_REF, "abc1234");
+
+    const state = useDiffPanelStore.getState();
+    expect(selectThreadDiffPanelSelection(state.byThreadKey, THREAD_REF)).toEqual({
+      kind: "commit",
+      sha: "abc1234",
+    });
+    expect(selectThreadBranchBaseRef(state, THREAD_REF)).toBe("origin/release");
+
+    store.selectGitScope(THREAD_REF, "branch");
+    expect(
+      selectThreadDiffPanelSelection(useDiffPanelStore.getState().byThreadKey, THREAD_REF),
+    ).toEqual({ kind: "branch", baseRef: "origin/release" });
+  });
+
+  it("changes the branch base without leaving a commit selection", () => {
+    const store = useDiffPanelStore.getState();
+    store.selectCommit(THREAD_REF, "abc1234");
+    store.setBranchBaseRef(THREAD_REF, " origin/main ");
+
+    const state = useDiffPanelStore.getState();
+    expect(selectThreadDiffPanelSelection(state.byThreadKey, THREAD_REF)).toEqual({
+      kind: "commit",
+      sha: "abc1234",
+    });
+    expect(selectThreadBranchBaseRef(state, THREAD_REF)).toBe("origin/main");
   });
 });
