@@ -131,8 +131,9 @@ function RootRouteNotFoundView() {
 function RootRouteView() {
   // Above every branch: app services raise toasts for the whole page, so the surface they write to
   // must not unmount when the root switches branches (for example /welcome to the app shell).
+  const toastPosition = useClientSettings((settings) => settings.toastPosition);
   return (
-    <ToastProvider>
+    <ToastProvider position={toastPosition}>
       <AnchoredToastProvider>
         <RootRouteBranch />
       </AnchoredToastProvider>
