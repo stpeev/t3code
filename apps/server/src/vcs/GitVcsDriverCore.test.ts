@@ -1784,6 +1784,36 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
     const subjects = (commits: ReadonlyArray<{ readonly subject: string }>) =>
       commits.map((commit) => commit.subject);
 
+    it.effect("returns the full message and author details of each commit", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* writeTextFile(cwd, "a.txt", "a\n");
+        yield* git(cwd, ["add", "a.txt"]);
+        yield* git(cwd, [
+          "-c",
+          "user.name=Commit Author",
+          "-c",
+          "user.email=author@example.com",
+          "commit",
+          "-m",
+          "add a",
+          "-m",
+          "First paragraph.\n\nSecond paragraph.",
+        ]);
+
+        const [commit] = (yield* driver.listCommits({ cwd })).contextCommits;
+
+        assert.strictEqual(commit!.subject, "add a");
+        assert.strictEqual(commit!.body, "First paragraph.\n\nSecond paragraph.");
+        assert.strictEqual(commit!.authorName, "Commit Author");
+        assert.strictEqual(commit!.authorEmail, "author@example.com");
+        assert.strictEqual(commit!.committerName, "Commit Author");
+        assert.isTrue(Number.isFinite(Date.parse(commit!.committedAt!)));
+      }),
+    );
+
     it.effect("splits branch commits from the parent and marks the unpushed ones", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();
