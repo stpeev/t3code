@@ -38,6 +38,7 @@ describe("buildDiffChangesRows", () => {
 
     expect(rows.map((row) => row.id)).toEqual([
       "working-tree",
+      "branch-header",
       `commit:${branchTip.sha}`,
       `commit:${branchFirst.sha}`,
       "divider",
@@ -45,7 +46,8 @@ describe("buildDiffChangesRows", () => {
       `commit:${older.sha}`,
       "show-more",
     ]);
-    expect(rows[3]).toMatchObject({ mergeBaseShortSha: "ccccccc", upToDate: false });
+    expect(rows[1]).toMatchObject({ commitCount: 2, truncated: false, unpushedCount: 0 });
+    expect(rows[4]).toMatchObject({ mergeBaseShortSha: "ccccccc", upToDate: false });
     expect(rows.filter((row) => row.kind === "commit").map((row) => row.onBranch)).toEqual([
       true,
       true,
@@ -62,6 +64,7 @@ describe("buildDiffChangesRows", () => {
     });
 
     expect(rows.find((row) => row.kind === "divider")).toMatchObject({ upToDate: true });
+    expect(rows.some((row) => row.kind === "branch-header")).toBe(false);
     expect(rows.at(-1)?.kind).toBe("commit");
   });
 
