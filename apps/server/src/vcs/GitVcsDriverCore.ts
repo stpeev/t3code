@@ -29,6 +29,8 @@ import {
   type ReviewDiffPreviewInput,
   type ReviewDiffFileStat,
   type ReviewDiffPreviewSource,
+  type VcsCommit,
+  type VcsListCommitsResult,
   type VcsRef,
 } from "@t3tools/contracts";
 import { dedupeRemoteBranchesWithLocalMatches } from "@t3tools/shared/git";
@@ -51,6 +53,7 @@ import {
 } from "../git/remoteRefs.ts";
 import * as ServerConfig from "../config.ts";
 import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
+import { ServerSettingsService } from "../serverSettings.ts";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 /** T3's record of the branch, named as on the host, that a branch was cut from. */
@@ -113,6 +116,63 @@ const STATUS_UPSTREAM_REFRESH_ENV = Object.freeze({
   SSH_ASKPASS_REQUIRE: "never",
 } satisfies NodeJS.ProcessEnv);
 const DEFAULT_BASE_BRANCH_CANDIDATES = ["main", "master"] as const;
+const LIST_COMMITS_BRANCH_LIMIT = 200;
+const LIST_COMMITS_DEFAULT_CONTEXT = 10;
+const COMMIT_LOG_FORMAT = "--format=%H%x1f%h%x1f%P%x1f%an%x1f%aI%x1f%s";
+
+/** Picks the branch HEAD is fewest commits ahead of, skipping its own copies and branches containing HEAD. */
+export function pickClosestBranch(
+  stdout: string,
+  refName: string,
+  remoteNames: ReadonlyArray<string>,
+): string | null {
+  const ownNames = new Set([refName, ...remoteNames.map((remote) => `${remote}/${refName}`)]);
+  const candidates = stdout.split("\n").flatMap((line) => {
+    const [name = "", counts = ""] = line.trim().split("\t");
+    const [ahead, behind] = counts.split(" ").map(Number);
+    if (!name || ahead === undefined || behind === undefined) return [];
+    if (!Number.isFinite(ahead) || !Number.isFinite(behind) || behind === 0) return [];
+    if (ownNames.has(name) || remoteNames.includes(name) || name.endsWith("/HEAD")) return [];
+    return [{ name, ahead, behind, remote: remoteNames.some((r) => name.startsWith(`${r}/`)) }];
+  });
+  candidates.sort(
+    (left, right) =>
+      left.behind - right.behind ||
+      left.ahead - right.ahead ||
+      Number(left.remote) - Number(right.remote),
+  );
+  return candidates[0]?.name ?? null;
+}
+
+/** Parses `git log -z` output written with {@link COMMIT_LOG_FORMAT}. */
+export function parseCommitLog(
+  stdout: string,
+  unpushedShas: ReadonlySet<string>,
+): ReadonlyArray<VcsCommit> {
+  return stdout
+    .split("\0")
+    .map((record) => record.replace(/^\n/, ""))
+    .filter((record) => record.length > 0)
+    .map((record) => {
+      const [
+        sha = "",
+        shortSha = "",
+        parents = "",
+        authorName = "",
+        authoredAt = "",
+        subject = "",
+      ] = record.split("\x1f");
+      return {
+        sha,
+        shortSha,
+        subject,
+        authorName,
+        authoredAt,
+        parentShas: parents.split(" ").filter((parent) => parent.length > 0),
+        unpushed: unpushedShas.has(sha),
+      };
+    });
+}
 const GIT_LIST_BRANCHES_DEFAULT_LIMIT = 100;
 const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitVcsDriver.GitStatusDetails>({
   isRepo: false,
@@ -1802,12 +1862,25 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     return { baseRef: comparisonRef.slice("refs/remotes/".length), comparisonRef };
   });
 
+  // Read per call: the driver's layers don't carry settings, but the RPC fibers calling it do.
+  const readInferParentBranch = Effect.serviceOption(ServerSettingsService).pipe(
+    Effect.flatMap((settings) =>
+      Option.isNone(settings)
+        ? Effect.succeed(false)
+        : settings.value.getSettings.pipe(
+            Effect.map((value) => value.inferParentBranch),
+            Effect.orElseSucceed(() => false),
+          ),
+    ),
+  );
+
   const resolveBaseBranchForNoUpstream = Effect.fn("resolveBaseBranchForNoUpstream")(function* (
     cwd: string,
     refName: string,
     options?: {
       readonly allowRemoteOfCurrent?: boolean;
       readonly knownOriginDefaultBranch?: string | null;
+      readonly inferClosest?: boolean;
     },
   ) {
     const configuredBaseRef = yield* readConfigValue(cwd, `branch.${refName}.t3-merge-base-ref`);
@@ -1837,6 +1910,31 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       return { baseRef: comparisonRef, comparisonRef };
     }
     if (configuredBase !== null) return configuredBase;
+
+    if (configuredBaseBranch.length === 0 && options?.inferClosest) {
+      // `%(ahead-behind:)` needs git 2.41; older git fails here and falls through to the defaults.
+      const refs = yield* executeGit(
+        "GitVcsDriver.resolveBaseBranchForNoUpstream.closest",
+        cwd,
+        [
+          "for-each-ref",
+          "--format=%(refname:short)%09%(ahead-behind:HEAD)",
+          "refs/heads",
+          "refs/remotes",
+        ],
+        { allowNonZeroExit: true, maxOutputBytes: REVIEW_METADATA_MAX_OUTPUT_BYTES },
+      );
+      const remoteNames = yield* listRemoteNames(cwd).pipe(Effect.orElseSucceed(() => []));
+      const closest =
+        refs.exitCode === 0 ? pickClosestBranch(refs.stdout, refName, remoteNames) : null;
+      if (closest) {
+        const remote = remoteNames.some((name) => closest.startsWith(`${name}/`));
+        return {
+          baseRef: closest,
+          comparisonRef: remote ? `refs/remotes/${closest}` : `refs/heads/${closest}`,
+        };
+      }
+    }
 
     const primaryRemoteName = yield* resolvePrimaryRemoteName(cwd).pipe(
       Effect.orElseSucceed(() => null),
@@ -2185,6 +2283,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const statusStdout = statusResult.stdout;
 
     let refName: string | null = null;
+    let headSha: string | null = null;
     let upstreamRef: string | null = null;
     let aheadCount = 0;
     let behindCount = 0;
@@ -2195,6 +2294,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const statusRecords = statusStdout.split("\0");
     for (let index = 0; index < statusRecords.length; index++) {
       const line = statusRecords[index]!;
+      if (line.startsWith("# branch.oid ")) {
+        const value = line.slice("# branch.oid ".length).trim();
+        headSha = value.startsWith("(") ? null : value;
+        continue;
+      }
       if (line.startsWith("# branch.head ")) {
         const value = line.slice("# branch.head ".length).trim();
         refName = value.startsWith("(") ? null : value;
@@ -2281,6 +2385,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       hasOriginRemote: hasPrimaryRemote,
       isDefaultBranch,
       branch: refName,
+      headSha,
       upstreamRef,
       hasWorkingTreeChanges,
       workingTree: {
@@ -2337,6 +2442,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         hasPrimaryRemote: details.hasOriginRemote,
         isDefaultRef: details.isDefaultBranch,
         refName: details.branch,
+        ...(details.headSha ? { headSha: details.headSha } : {}),
         hasWorkingTreeChanges: details.hasWorkingTreeChanges,
         workingTree: details.workingTree,
         hasUpstream: details.hasUpstream,
@@ -2998,9 +3104,10 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
                 : explicitBaseRef,
           })
         : branch
-          ? yield* resolveBaseBranchForNoUpstream(cwd, branch, { allowRemoteOfCurrent: true }).pipe(
-              Effect.orElseSucceed(() => null),
-            )
+          ? yield* resolveBaseBranchForNoUpstream(cwd, branch, {
+              allowRemoteOfCurrent: true,
+              inferClosest: yield* readInferParentBranch,
+            }).pipe(Effect.orElseSucceed(() => null))
           : null;
     if (base === null) return { baseRef: null, mergeBase: "HEAD" };
     const { baseRef, comparisonRef } = base;
@@ -3101,26 +3208,23 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     }
 
     const cwd = repository.worktreeRoot;
-    const dirtyRef = input.file?.sourceKind === "branch-range" ? null : "HEAD";
-    const review =
-      input.file?.sourceKind === "working-tree"
-        ? { baseRef: input.baseRef ?? null, mergeBase: null }
-        : yield* resolveReviewMergeBase(cwd, repository.currentBranch, input.baseRef);
-
     const diffArgs = [
       ...REVIEW_DIFF_ARGS,
       "--minimal",
       ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
     ];
+    // A pair diffs one tree-ish against another; a string is a single ref or `a...b` range.
+    const refArgs = (ref: string | readonly [string, string]) =>
+      typeof ref === "string" ? [ref] : ref;
     const readStats = Effect.fn("GitVcsDriver.getReviewDiffPreview.stat")(function* (
-      ref: string,
+      ref: string | readonly [string, string],
       env?: NodeJS.ProcessEnv,
     ) {
       const args = [...diffArgs, "--numstat", "-z"];
       const result = yield* executeGit(
         "GitVcsDriver.getReviewDiffPreview.stat",
         cwd,
-        [...args, ref, "--", ...pathArgs],
+        [...args, ...refArgs(ref), "--", ...pathArgs],
         { allowNonZeroExit: true, maxOutputBytes: REVIEW_METADATA_MAX_OUTPUT_BYTES, env },
       );
       if (result.exitCode === 0) return { ref, files: parseReviewNumstat(result.stdout) };
@@ -3143,7 +3247,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       });
     });
     const readTrackedDiff = Effect.fn("GitVcsDriver.getReviewDiffPreview.tracked")(function* (
-      ref: string | null,
+      ref: string | readonly [string, string] | null,
       env?: NodeJS.ProcessEnv,
     ) {
       if (ref === null) return { stdout: "", stdoutTruncated: false, files: [] };
@@ -3152,11 +3256,58 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       const patch = yield* executeGit(
         "GitVcsDriver.getReviewDiffPreview.patch",
         cwd,
-        [...diffArgs, "--patch", stat.ref, "--", ...pathArgs],
+        [...diffArgs, "--patch", ...refArgs(stat.ref), "--", ...pathArgs],
         { maxOutputBytes: patchLimit, appendTruncationMarker: true, env },
       );
       return { ...patch, files: stat.files };
     });
+    const hashDiff = (diff: string, files: ReadonlyArray<ReviewDiffFileStat>) =>
+      crypto.digest("SHA-256", new TextEncoder().encode(JSON.stringify([diff, files]))).pipe(
+        Effect.map(Hex.encode),
+        Effect.mapError(
+          (cause) =>
+            new GitCommandError({
+              operation: "GitVcsDriver.getReviewDiffPreview.hash",
+              command: "crypto.digest SHA-256",
+              cwd,
+              detail: "Failed to hash review diff.",
+              cause,
+            }),
+        ),
+      );
+
+    if (input.commit !== undefined) {
+      const [sha = "", shortSha = "", parents = "", subject = ""] = (yield* runGitStdout(
+        "GitVcsDriver.getReviewDiffPreview.commit",
+        cwd,
+        ["log", "-1", "--format=%H%x1f%h%x1f%P%x1f%s", `${input.commit}^{commit}`, "--"],
+      ))
+        .trim()
+        .split("\x1f");
+      // A root commit has no parent, so it is shown against the empty tree.
+      const parentSha = parents.split(" ").find((parent) => parent.length > 0) ?? null;
+      const commitBase = parentSha ?? (yield* readEmptyTreeHash(cwd));
+      const commitDiff = yield* readTrackedDiff([commitBase, sha]);
+      const source: ReviewDiffPreviewSource = {
+        id: `commit:${sha}`,
+        kind: "commit",
+        title: subject.length > 0 ? `${shortSha} ${subject}` : shortSha,
+        baseRef: commitBase,
+        headRef: sha,
+        diff: commitDiff.stdout,
+        files: commitDiff.files,
+        diffHash: yield* hashDiff(commitDiff.stdout, commitDiff.files),
+        truncated: commitDiff.stdoutTruncated,
+      };
+      return { cwd: input.cwd, generatedAt: yield* DateTime.now, sources: [source] };
+    }
+
+    // A per-file request only reads its own source.
+    const dirtyRef = input.file?.sourceKind === "branch-range" ? null : "HEAD";
+    const review =
+      input.file?.sourceKind === "working-tree"
+        ? { baseRef: input.baseRef ?? null, mergeBase: null }
+        : yield* resolveReviewMergeBase(cwd, repository.currentBranch, input.baseRef);
     const [dirtyTrackedResult, baseResult] = yield* Effect.gen(function* () {
       const untracked = yield* prepareUntrackedReviewIndex(cwd, pathArgs, input.file?.path);
       const [dirty, base] =
@@ -3180,20 +3331,6 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const baseFiles = baseResult.files;
     const dirtyDiff = dirtyTrackedResult.stdout;
     const baseDiff = baseResult.stdout;
-    const hashDiff = (diff: string, files: ReadonlyArray<ReviewDiffFileStat>) =>
-      crypto.digest("SHA-256", new TextEncoder().encode(JSON.stringify([diff, files]))).pipe(
-        Effect.map(Hex.encode),
-        Effect.mapError(
-          (cause) =>
-            new GitCommandError({
-              operation: "GitVcsDriver.getReviewDiffPreview.hash",
-              command: "crypto.digest SHA-256",
-              cwd,
-              detail: "Failed to hash review diff.",
-              cause,
-            }),
-        ),
-      );
     const [dirtyDiffHash, baseDiffHash] = yield* Effect.all([
       hashDiff(dirtyDiff, dirtyFiles ?? []),
       hashDiff(baseDiff, baseFiles ?? []),
@@ -3337,6 +3474,25 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
   const getReviewDiffFileContents = Effect.fn("getReviewDiffFileContents")(function* (
     input: ReviewDiffFileContentsInput,
   ) {
+    // A commit compares its parent (or the empty tree) with itself; nothing comes from disk.
+    if (input.sourceKind === "commit") {
+      const { baseRef, headRef } = input;
+      if (!baseRef || !headRef) {
+        return yield* reviewDiffFileError(input, "Commit file expansion requires both refs.");
+      }
+      const [oldContents, newContents] = yield* Effect.all(
+        [
+          input.changeType === "new"
+            ? Effect.succeed("")
+            : readReviewFileAtRevision(input, baseRef, input.oldPath),
+          input.changeType === "deleted"
+            ? Effect.succeed("")
+            : readReviewFileAtRevision(input, headRef, input.newPath),
+        ],
+        { concurrency: 2 },
+      );
+      return { oldContents, newContents };
+    }
     const repositoryRoot = yield* runGitStdout(
       "GitVcsDriver.getReviewDiffFileContents.repositoryRoot",
       input.cwd,
@@ -3362,6 +3518,109 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     );
     return { oldContents, newContents };
   });
+
+  const listCommits: GitVcsDriver.GitVcsDriver["Service"]["listCommits"] = Effect.fn("listCommits")(
+    function* (input) {
+      const empty: VcsListCommitsResult = {
+        baseRef: null,
+        mergeBase: null,
+        hasRemote: false,
+        branchCommits: [],
+        branchCommitsTruncated: false,
+        contextCommits: [],
+        hasMoreContext: false,
+      };
+      const repository = yield* resolveRepositoryPathsUncached(input.cwd).pipe(
+        Effect.catchTags({
+          GitCommandError: (error) =>
+            isMissingGitCwdError(error) ? Effect.succeed(null) : Effect.fail(error),
+        }),
+      );
+      if (!repository?.worktreeRoot) return empty;
+      const cwd = repository.worktreeRoot;
+      const head = yield* executeGit(
+        "GitVcsDriver.listCommits.head",
+        cwd,
+        ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        { allowNonZeroExit: true },
+      );
+      if (head.exitCode !== 0) return empty;
+      if (input.baseRef?.startsWith("-")) {
+        return yield* new GitCommandError({
+          operation: "GitVcsDriver.listCommits",
+          command: "git merge-base",
+          cwd,
+          detail: "Base ref cannot start with '-'.",
+        });
+      }
+
+      const contextLimit = input.contextLimit ?? LIST_COMMITS_DEFAULT_CONTEXT;
+      const inferredBase =
+        !input.baseRef && repository.currentBranch
+          ? yield* resolveBaseBranchForNoUpstream(cwd, repository.currentBranch, {
+              inferClosest: yield* readInferParentBranch,
+            }).pipe(Effect.orElseSucceed(() => null))
+          : null;
+      const requestedBaseRef = input.baseRef || inferredBase?.baseRef || null;
+      const comparisonRef = input.baseRef || inferredBase?.comparisonRef || null;
+      const mergeBaseResult = comparisonRef
+        ? yield* executeGit(
+            "GitVcsDriver.listCommits.mergeBase",
+            cwd,
+            ["merge-base", comparisonRef, "HEAD"],
+            { allowNonZeroExit: true },
+          )
+        : null;
+      // Unrelated histories have no merge-base; the list then treats the branch as having no parent.
+      const mergeBase =
+        mergeBaseResult?.exitCode === 0 ? mergeBaseResult.stdout.trim() || null : null;
+      const baseRef = mergeBase ? requestedBaseRef : null;
+      const hasRemote =
+        (yield* listRemoteNames(cwd).pipe(Effect.orElseSucceed(() => []))).length > 0;
+
+      const readLog = (operation: string, range: string, limit: number) =>
+        runGitStdout(`GitVcsDriver.listCommits.${operation}`, cwd, [
+          "log",
+          "-z",
+          COMMIT_LOG_FORMAT,
+          `--max-count=${limit}`,
+          range,
+          "--",
+        ]);
+      const [branchStdout, contextStdout, unpushedStdout] = yield* Effect.all(
+        [
+          mergeBase
+            ? readLog("branch", `${mergeBase}..HEAD`, LIST_COMMITS_BRANCH_LIMIT + 1)
+            : Effect.succeed(""),
+          readLog("context", mergeBase ?? "HEAD", contextLimit + 1),
+          hasRemote
+            ? runGitStdout("GitVcsDriver.listCommits.unpushed", cwd, [
+                "rev-list",
+                `--max-count=${LIST_COMMITS_BRANCH_LIMIT + contextLimit + 2}`,
+                "HEAD",
+                "--not",
+                "--remotes",
+              ])
+            : Effect.succeed(""),
+        ],
+        { concurrency: "unbounded" },
+      );
+      const unpushedShas = new Set(
+        unpushedStdout.split("\n").flatMap((line) => (line.trim() ? [line.trim()] : [])),
+      );
+      const branchCommits = parseCommitLog(branchStdout, unpushedShas);
+      const contextCommits = parseCommitLog(contextStdout, unpushedShas);
+      return {
+        baseRef,
+        mergeBase,
+        hasRemote,
+        branchCommits: branchCommits.slice(0, LIST_COMMITS_BRANCH_LIMIT),
+        branchCommitsTruncated: branchCommits.length > LIST_COMMITS_BRANCH_LIMIT,
+        contextCommits: contextCommits.slice(0, contextLimit),
+        hasMoreContext: contextCommits.length > contextLimit,
+      };
+    },
+  );
 
   const readConfigValue: GitVcsDriver.GitVcsDriver["Service"]["readConfigValue"] = (cwd, key) =>
     runGitStdout("GitVcsDriver.readConfigValue", cwd, ["config", "--get", key], true).pipe(
@@ -4529,6 +4788,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     readBranchBase,
     resolveBranchName,
     listRefs,
+    listCommits,
     createWorktree: (input, options) =>
       withListRefsInvalidation(input.cwd, createWorktree(input, options)),
     fetchRefIntoBranch: (input) => withListRefsInvalidation(input.cwd, fetchRefIntoBranch(input)),
