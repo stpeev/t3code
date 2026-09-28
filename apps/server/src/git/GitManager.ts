@@ -1005,6 +1005,7 @@ export const make = Effect.gen(function* () {
     hasOriginRemote: false,
     isDefaultBranch: false,
     branch: null,
+    headSha: null,
     upstreamRef: null,
     hasWorkingTreeChanges: false,
     workingTree: { files: [], insertions: 0, deletions: 0 },
@@ -1029,6 +1030,7 @@ export const make = Effect.gen(function* () {
       hasPrimaryRemote: details.hasOriginRemote,
       isDefaultRef: details.isDefaultBranch,
       refName: details.branch,
+      ...(details.headSha ? { headSha: details.headSha } : {}),
       hasWorkingTreeChanges: details.hasWorkingTreeChanges,
       workingTree: details.workingTree,
     } satisfies VcsStatusLocalResult;

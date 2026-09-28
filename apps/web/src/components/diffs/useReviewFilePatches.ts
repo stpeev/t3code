@@ -64,6 +64,9 @@ export function useReviewFilePatches({
                     request: {
                       cwd,
                       ...(baseRef ? { baseRef } : {}),
+                      ...(source.kind === "commit" && source.headRef
+                        ? { commit: source.headRef }
+                        : {}),
                       ignoreWhitespace,
                       file: {
                         path: file.path,

@@ -733,6 +733,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     scope: "environment-defaults",
   },
   {
+    id: "infer-parent-branch",
+    title: "Guess the parent branch",
+    to: "/settings/source-control",
+    searchTerms: ["base branch merge base stacked fork closest compare diff commits"],
+    environmentOnly: true,
+    scope: "environment-defaults",
+  },
+  {
     id: "source-control-writing-style",
     title: "Source control writing style",
     to: "/settings/source-control",

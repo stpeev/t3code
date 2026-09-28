@@ -430,6 +430,40 @@ function GitFetchIntervalSettings() {
   );
 }
 
+function InferParentBranchSetting() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const setting = searchableSetting("infer-parent-branch");
+
+  return (
+    <SettingsSearchTarget id={setting.id} className="grid gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="text-xs font-medium text-foreground">{setting.title}</span>
+            {settings.inferParentBranch ? (
+              <SettingResetButton
+                label="parent branch guessing"
+                onClick={() => updateSettings({ inferParentBranch: false })}
+              />
+            ) : null}
+          </div>
+          <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+            When a branch has no recorded parent, compare it to the closest other branch instead of
+            the default branch. Applies to the Diff panel's branch changes and commit list.
+          </p>
+        </div>
+        <Switch
+          className="shrink-0"
+          checked={settings.inferParentBranch}
+          onCheckedChange={(checked) => updateSettings({ inferParentBranch: Boolean(checked) })}
+          aria-label="Guess the parent branch"
+        />
+      </div>
+    </SettingsSearchTarget>
+  );
+}
+
 function SourceControlSectionSkeleton({
   title,
   headerAction,
@@ -576,7 +610,12 @@ export function SourceControlSettingsPanel() {
             >
               {result.versionControlSystems.map((item) => (
                 <DiscoveryItemRow key={`vcs:${item.kind}`} item={item}>
-                  {item.kind === "git" ? <GitFetchIntervalSettings /> : undefined}
+                  {item.kind === "git" ? (
+                    <>
+                      <GitFetchIntervalSettings />
+                      <InferParentBranchSetting />
+                    </>
+                  ) : undefined}
                 </DiscoveryItemRow>
               ))}
             </SettingsSection>
