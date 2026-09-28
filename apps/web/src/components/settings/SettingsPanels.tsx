@@ -20,6 +20,7 @@ import {
   type ResponseStreamingMode,
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
+  ToastPosition,
 } from "@t3tools/contracts/settings";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -127,6 +128,14 @@ const TIMESTAMP_FORMAT_LABELS = {
   "12-hour": "12-hour",
   "24-hour": "24-hour",
 } as const;
+
+const TOAST_POSITION_LABELS: Record<ToastPosition, string> = {
+  "top-left": "Top left",
+  "top-right": "Top right",
+  "bottom-left": "Bottom left",
+  "bottom-right": "Bottom right",
+};
+const isToastPosition = Schema.is(ToastPosition);
 
 const DIFF_LAYOUT_LABELS: Record<DiffLayout, string> = {
   stacked: "Stacked",
@@ -471,6 +480,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     DEFAULT_UNIFIED_SETTINGS.inAppNotificationsForActiveThread
       ? ["Include the open thread"]
       : []),
+    ...(settings.toastPosition !== DEFAULT_UNIFIED_SETTINGS.toastPosition
+      ? ["Notification position"]
+      : []),
     ...(settings.sidebarProjectGroupingMode !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode
       ? ["Project Grouping"]
       : []),
@@ -633,6 +645,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       inAppNotificationsPersistent: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsPersistent,
       inAppNotificationsInBackground: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsInBackground,
       inAppNotificationsForActiveThread: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsForActiveThread,
+      toastPosition: DEFAULT_UNIFIED_SETTINGS.toastPosition,
       wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       persistComposerContextStrip: DEFAULT_UNIFIED_SETTINGS.persistComposerContextStrip,
       diffFilesCollapsed: DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed,
@@ -1072,6 +1085,48 @@ export function GeneralSettingsPanel() {
       </SettingsSection>
 
       <SettingsSection id="display" title="Display">
+        <SettingsRow
+          {...searchableSetting("toast-position")}
+          description="Choose the corner of the window where notifications and other toasts appear."
+          resetAction={
+            settings.toastPosition !== DEFAULT_UNIFIED_SETTINGS.toastPosition ? (
+              <SettingResetButton
+                label="notification position"
+                onClick={() =>
+                  updateSettings({ toastPosition: DEFAULT_UNIFIED_SETTINGS.toastPosition })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="w-full sm:w-40">
+              <Select
+                value={settings.toastPosition}
+                onValueChange={(value) => {
+                  if (isToastPosition(value)) updateSettings({ toastPosition: value });
+                }}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="w-full min-w-0"
+                  aria-label="Notification position"
+                >
+                  <SelectValue>{TOAST_POSITION_LABELS[settings.toastPosition]}</SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  {Object.entries(TOAST_POSITION_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {value === DEFAULT_UNIFIED_SETTINGS.toastPosition
+                        ? `${label} (default)`
+                        : label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
+            </div>
+          }
+        />
+
         <SettingsRow
           {...searchableSetting("time-format")}
           description="System default follows your browser or OS clock preference."
