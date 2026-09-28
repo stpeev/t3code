@@ -44,6 +44,7 @@ import {
 } from "./BranchToolbarBranchSelector";
 import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSelector";
 import { BranchToolbarEnvModeSelector } from "./BranchToolbarEnvModeSelector";
+import { BranchToolbarMissingWorktree } from "./BranchToolbarMissingWorktree";
 import { PreviousWorktreeItemContent } from "./PreviousWorktreeItemContent";
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import {
@@ -84,6 +85,8 @@ interface BranchToolbarProps {
   environmentId: EnvironmentId;
   threadId: ThreadId;
   showGitControls: boolean;
+  /** The started thread's worktree folder is gone, so recovery replaces the Git controls. */
+  worktreeMissing?: boolean;
   draftId?: DraftId;
   onEnvModeChange: (mode: EnvMode) => void;
   /** The thread's env mode as ChatView resolves it. */
@@ -600,6 +603,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   environmentId,
   threadId,
   showGitControls,
+  worktreeMissing = false,
   draftId,
   onEnvModeChange,
   envMode,
@@ -858,6 +862,17 @@ export const BranchToolbar = memo(function BranchToolbar({
           onStartFromOriginChange={onStartFromOriginChange}
           {...(onCheckoutPullRequestRequest ? { onCheckoutPullRequestRequest } : {})}
           {...(onComposerFocusRequest ? { onComposerFocusRequest } : {})}
+        />
+      ) : null}
+
+      {worktreeMissing && serverThread?.worktreePath ? (
+        <BranchToolbarMissingWorktree
+          environmentId={environmentId}
+          threadId={threadId}
+          worktreePath={serverThread.worktreePath}
+          branch={serverThread.branch}
+          projectCwd={activeProject.workspaceRoot}
+          hasSession={serverThread.runtime !== null}
         />
       ) : null}
     </ComposerSurface.ContextStrip>
