@@ -3,10 +3,21 @@ import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { GitCommandError } from "./git.ts";
 import { VcsError } from "./vcs.ts";
 
+export const ReviewDiffPreviewSourceKind = Schema.Literals([
+  "working-tree",
+  "branch-range",
+  "commit",
+]);
+export type ReviewDiffPreviewSourceKind = typeof ReviewDiffPreviewSourceKind.Type;
+
+/** A full or abbreviated commit id; never a ref name, so it can't be read as a git option. */
+export const ReviewCommitSha = TrimmedNonEmptyString.check(Schema.isPattern(/^[0-9a-f]{7,64}$/i));
+
 export const ReviewDiffPreviewInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   baseRef: Schema.optional(TrimmedNonEmptyString),
-  commitSha: Schema.optional(TrimmedNonEmptyString),
+  /** Diffs this one commit against its first parent, instead of the working tree and branch. */
+  commitSha: Schema.optionalKey(ReviewCommitSha),
   ignoreWhitespace: Schema.optionalKey(Schema.Boolean),
   sourceKind: Schema.optionalKey(Schema.Literals(["working-tree", "branch-range"])),
   trackedOnly: Schema.optionalKey(Schema.Boolean),
@@ -15,7 +26,7 @@ export const ReviewDiffPreviewInput = Schema.Struct({
     Schema.Struct({
       path: Schema.NonEmptyString,
       previousPath: Schema.NullOr(Schema.NonEmptyString),
-      sourceKind: Schema.Literals(["working-tree", "branch-range", "commit"]),
+      sourceKind: ReviewDiffPreviewSourceKind,
     }),
   ),
 });
@@ -38,13 +49,6 @@ export const ReviewBranchCommitsResult = Schema.Struct({
   truncated: Schema.Boolean,
 });
 export type ReviewBranchCommitsResult = typeof ReviewBranchCommitsResult.Type;
-
-export const ReviewDiffPreviewSourceKind = Schema.Literals([
-  "working-tree",
-  "branch-range",
-  "commit",
-]);
-export type ReviewDiffPreviewSourceKind = typeof ReviewDiffPreviewSourceKind.Type;
 
 export const ReviewDiffFileStat = Schema.Struct({
   path: Schema.String,
