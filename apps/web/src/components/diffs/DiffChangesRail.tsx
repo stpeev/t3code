@@ -138,18 +138,27 @@ export function DiffChangesRail({
               >
                 Show more
               </Button>
+            ) : row.kind === "branch-header" ? (
+              <div className="mx-1 mt-2 flex min-w-0 items-center gap-1.5 px-2 pb-0.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="truncate">This branch</span>
+                <span className="shrink-0 tabular-nums normal-case">
+                  · {row.commitCount}
+                  {row.truncated ? "+" : ""}
+                  {hasRemote && row.unpushedCount > 0 ? ` · ${row.unpushedCount} not pushed` : ""}
+                </span>
+              </div>
             ) : row.kind === "divider" ? (
               <div
                 className={cn(
-                  "mx-1 mt-1 flex min-w-0 items-center gap-1 rounded-md border-y border-border/60 px-2 py-1 text-2xs text-muted-foreground",
-                  selected && "bg-accent text-accent-foreground",
+                  "mx-1 mt-3 mb-1 flex min-w-0 items-center gap-1 rounded-b-md border-t border-primary/40 bg-primary/5 px-2 py-1 text-2xs text-muted-foreground",
+                  selected && "text-foreground ring-1 ring-primary/60 ring-inset",
                 )}
               >
                 <button
                   type="button"
                   data-changes-row={row.id}
                   aria-pressed={selected}
-                  className="shrink-0 rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="shrink-0 rounded-sm font-medium uppercase tracking-wide outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => select(row)}
                 >
                   {row.upToDate ? "Up to date with" : "Branched from"}
@@ -192,7 +201,10 @@ function ChangesRowButton({
   onSelect,
   onToggleFolded,
 }: {
-  readonly row: Exclude<DiffChangesRow, { kind: "divider" } | { kind: "show-more" }>;
+  readonly row: Exclude<
+    DiffChangesRow,
+    { kind: "branch-header" } | { kind: "divider" } | { kind: "show-more" }
+  >;
   readonly selected: boolean;
   readonly expanded: boolean;
   readonly hasRemote: boolean;
