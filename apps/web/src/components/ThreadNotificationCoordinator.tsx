@@ -29,6 +29,9 @@ import {
 import { resolveSidebarThreadStatus } from "./Sidebar.logic";
 import { toastManager } from "./ui/toast";
 
+/** Base UI's default toast timeout, applied as focused time for toasts raised in the background. */
+const BACKGROUND_TOAST_VISIBLE_MS = 5_000;
+
 export function ThreadNotificationCoordinator() {
   const environmentIds = useEnvironmentIds();
   const mode = useClientSettings((settings) => settings.notificationMode);
@@ -119,6 +122,12 @@ function EnvironmentNotifications({
   const inAppNotificationsPersistent = useClientSettings(
     (settings) => settings.inAppNotificationsPersistent,
   );
+  const inAppNotificationsInBackground = useClientSettings(
+    (settings) => settings.inAppNotificationsInBackground,
+  );
+  const inAppNotificationsForActiveThread = useClientSettings(
+    (settings) => settings.inAppNotificationsForActiveThread,
+  );
   const navigate = useNavigate();
   const { environmentId: activeEnvironmentId, threadId: activeThreadId } = useParams({
     strict: false,
@@ -207,20 +216,25 @@ function EnvironmentNotifications({
           hasNotificationSound(getClientSettings().notificationMode),
         );
       }
+      const focused = document.visibilityState === "visible" && document.hasFocus();
+      const isActiveThread = activeEnvironmentId === environmentId && activeThreadId === thread.id;
       if (
         inAppNotificationsEnabled &&
-        document.visibilityState === "visible" &&
-        document.hasFocus() &&
-        (activeEnvironmentId !== environmentId || activeThreadId !== thread.id)
+        (focused || inAppNotificationsInBackground) &&
+        (!isActiveThread || inAppNotificationsForActiveThread)
       ) {
         openToasts.current.set(thread.id, kind);
         toastManager.add({
           id: threadToastId(environmentId, thread.id),
-          ...(inAppNotificationsPersistent ? { timeout: 0 } : {}),
+          // A background toast counts down only once the app is focused again.
+          ...(inAppNotificationsPersistent || !focused ? { timeout: 0 } : {}),
           type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
           title,
           description: body,
           data: {
+            ...(!inAppNotificationsPersistent && !focused
+              ? { dismissAfterVisibleMs: BACKGROUND_TOAST_VISIBLE_MS }
+              : {}),
             hideCopyButton: true,
             leadingIcon:
               kind === "completion" ? (
@@ -244,11 +258,10 @@ function EnvironmentNotifications({
             },
           },
         });
-        continue;
       }
       if (
         !hasDesktopNotifications(mode) ||
-        (document.visibilityState === "visible" && document.hasFocus()) ||
+        focused ||
         typeof Notification === "undefined" ||
         Notification.permission !== "granted"
       )
@@ -262,6 +275,7 @@ function EnvironmentNotifications({
         onNotification(environmentId, notification);
         notification.addEventListener("click", () => {
           notification.close();
+          closeThreadToast(thread.id);
           window.focus();
           void window.desktopBridge?.revealWindow?.().catch(() => undefined);
           void navigate({
@@ -280,6 +294,8 @@ function EnvironmentNotifications({
     closeThreadToast,
     environmentId,
     inAppNotificationsEnabled,
+    inAppNotificationsForActiveThread,
+    inAppNotificationsInBackground,
     inAppNotificationsPersistent,
     mode,
     navigate,
