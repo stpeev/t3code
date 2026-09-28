@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   mode: "off" as ClientSettings["notificationMode"],
   inApp: true,
   persistent: false,
+  inBackground: false,
+  forActiveThread: false,
   active: { environmentId: "env-1", threadId: "other-thread" },
   focused: true,
   visible: "visible",
@@ -26,6 +28,7 @@ const state = vi.hoisted(() => ({
     (_toast: {
       id: string;
       timeout?: number;
+      data?: { dismissAfterVisibleMs?: number };
       title: string;
       description: string;
       actionProps: { onClick: () => void };
@@ -111,7 +114,11 @@ vi.mock("../hooks/useSettings", () => ({
     select: (
       settings: Pick<
         ClientSettings,
-        "notificationMode" | "inAppNotificationsEnabled" | "inAppNotificationsPersistent"
+        | "notificationMode"
+        | "inAppNotificationsEnabled"
+        | "inAppNotificationsPersistent"
+        | "inAppNotificationsInBackground"
+        | "inAppNotificationsForActiveThread"
       >,
     ) => unknown,
   ) =>
@@ -119,6 +126,8 @@ vi.mock("../hooks/useSettings", () => ({
       notificationMode: state.mode,
       inAppNotificationsEnabled: state.inApp,
       inAppNotificationsPersistent: state.persistent,
+      inAppNotificationsInBackground: state.inBackground,
+      inAppNotificationsForActiveThread: state.forActiveThread,
     }),
   getClientSettings: () => ({ notificationMode: state.mode }),
 }));
@@ -161,6 +170,8 @@ beforeEach(() => {
     mode: "off",
     inApp: true,
     persistent: false,
+    inBackground: false,
+    forActiveThread: false,
     active: { environmentId: "env-1", threadId: "other-thread" },
     focused: true,
     visible: "visible",
@@ -361,6 +372,43 @@ describe("thread notifications", () => {
     state.input = false;
     await render();
     expect(state.close).toHaveBeenCalledWith(TOAST_ID);
+  });
+
+  it("shows a background toast alongside the desktop alert when opted in", async () => {
+    state.mode = "notifications";
+    state.inBackground = true;
+    state.focused = false;
+    await render();
+    await complete();
+    expect(state.notification).toHaveBeenCalledTimes(1);
+    expect(state.add).toHaveBeenCalledTimes(1);
+    const toast = state.add.mock.calls[0]?.[0];
+    expect(toast?.timeout).toBe(0);
+    expect(toast?.data?.dismissAfterVisibleMs).toBe(5_000);
+
+    Object.assign(window, { focus: vi.fn() });
+    const notification = state.notification.mock.results[0]?.value as EventTarget;
+    notification.dispatchEvent(new Event("click"));
+    expect(state.close).toHaveBeenCalledWith(TOAST_ID);
+  });
+
+  it("keeps a background toast until dismissed when persistent", async () => {
+    state.inBackground = true;
+    state.persistent = true;
+    state.focused = false;
+    await render();
+    await complete();
+    const toast = state.add.mock.calls[0]?.[0];
+    expect(toast?.timeout).toBe(0);
+    expect(toast?.data?.dismissAfterVisibleMs).toBeUndefined();
+  });
+
+  it("shows a toast for the open thread when opted in", async () => {
+    state.forActiveThread = true;
+    state.active.threadId = "thread-1";
+    await render();
+    await complete();
+    expect(state.add).toHaveBeenCalledTimes(1);
   });
 
   it("keeps system alerts when the app is in the background", async () => {
