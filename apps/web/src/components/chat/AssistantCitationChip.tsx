@@ -94,7 +94,8 @@ export function AssistantCitationChip({
         },
       }
     : undefined;
-  const preview = (citation.comment?.trim() || citation.text).replace(/\s+/g, " ");
+  const comment = citation.comment?.trim();
+  const preview = (comment || citation.text).replace(/\s+/g, " ");
   const label = preview.length > 64 ? `${preview.slice(0, 64)}…` : preview;
   const sourceLinkProps = {
     to: "/$environmentId/$threadId" as const,
@@ -124,7 +125,11 @@ export function AssistantCitationChip({
     <Link
       {...sourceLinkProps}
       className="inline-flex h-full min-w-0 items-center gap-[0.33em] rounded-sm text-inherit no-underline hover:bg-(--context-chip-accent)/17 focus-visible:outline-2 focus-visible:outline-foreground"
-      aria-label={`View cited assistant text: ${label}`}
+      aria-label={
+        comment
+          ? `View cited assistant text. Comment: ${comment}. Quote: ${citation.text}`
+          : `View cited assistant text: ${citation.text}`
+      }
     >
       <QuoteIcon aria-hidden="true" />
       <ContextChipLabel className="max-w-[16em]">{label}</ContextChipLabel>
@@ -142,7 +147,13 @@ export function AssistantCitationChip({
       ) : (
         <Tooltip>
           <TooltipTrigger render={chatSourceLink} />
-          <TooltipPopup side="top">View source</TooltipPopup>
+          <TooltipPopup side="top">
+            <span className="flex flex-col gap-1 text-left">
+              <span className="line-clamp-4 text-muted-foreground italic">“{citation.text}”</span>
+              {comment ? <span className="line-clamp-8 whitespace-pre-wrap">{comment}</span> : null}
+              <span className="text-muted-foreground">Click to view source</span>
+            </span>
+          </TooltipPopup>
         </Tooltip>
       )}
       {commentEditor ? (
