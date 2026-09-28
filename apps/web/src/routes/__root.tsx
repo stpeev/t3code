@@ -142,6 +142,7 @@ function RootRouteView() {
   const { authGateState } = Route.useRouteContext();
   const primaryEnvironmentAuthenticated = authGateState.status === "authenticated";
   const returningFromWelcomeRef = useRef(pathname === "/welcome");
+  const toastPosition = useClientSettings((settings) => settings.toastPosition);
 
   useEffect(() => {
     if (pathname === "/welcome") {
@@ -171,7 +172,7 @@ function RootRouteView() {
   // and other startup dialogs suspended until setup finishes.
   if (pathname === "/welcome") {
     return (
-      <ToastProvider>
+      <ToastProvider position={toastPosition}>
         <AnchoredToastProvider>
           <DocumentTitleSync />
           <ContrastAppearanceSync />
@@ -212,7 +213,7 @@ function RootRouteView() {
   // decision is known, so a fresh install renders nothing (not the shell,
   // not a flash of threads) before landing on the welcome wizard.
   return (
-    <ToastProvider>
+    <ToastProvider position={toastPosition}>
       <AnchoredToastProvider>
         <DocumentTitleSync />
         <ContrastAppearanceSync />

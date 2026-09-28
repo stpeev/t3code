@@ -299,6 +299,15 @@ export type ChatWidth = typeof ChatWidth.Type;
 export const AttentionHighlight = Schema.Literals(["slide", "blink", "none"]);
 export type AttentionHighlight = typeof AttentionHighlight.Type;
 
+/** Which window corner toasts stack in. */
+export const ToastPosition = Schema.Literals([
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+]);
+export type ToastPosition = typeof ToastPosition.Type;
+
 export const ClientSettingsSchema = Schema.Struct({
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
@@ -312,6 +321,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   inAppNotificationsForActiveThread: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
+  ),
+  toastPosition: ToastPosition.pipe(
+    Schema.withDecodingDefault(Effect.succeed("top-right" as const)),
   ),
   diffColorScheme: DiffColorScheme.pipe(
     Schema.withDecodingDefault(Effect.succeed("red-green" as const)),
@@ -1617,6 +1629,7 @@ export const ClientSettingsPatch = Schema.Struct({
   inAppNotificationsPersistent: Schema.optionalKey(Schema.Boolean),
   inAppNotificationsInBackground: Schema.optionalKey(Schema.Boolean),
   inAppNotificationsForActiveThread: Schema.optionalKey(Schema.Boolean),
+  toastPosition: Schema.optionalKey(ToastPosition),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
   chatWidth: Schema.optionalKey(ChatWidth),
   attentionHighlight: Schema.optionalKey(AttentionHighlight),

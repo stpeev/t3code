@@ -25,6 +25,7 @@ import {
   type ChatWidth,
   type DiffLayout,
   type EnvironmentIdentificationMode,
+  ToastPosition,
   MAX_APPEARANCE_CONTRAST,
   MAX_CODE_FONT_SIZE,
   MAX_GLASS_OPACITY,
@@ -210,6 +211,14 @@ const CHAT_WIDTH_LABELS: Record<ChatWidth, string> = {
   wide: "Wide",
   full: "Full",
 };
+
+const TOAST_POSITION_LABELS: Record<ToastPosition, string> = {
+  "top-left": "Top left",
+  "top-right": "Top right",
+  "bottom-left": "Bottom left",
+  "bottom-right": "Bottom right",
+};
+const isToastPosition = Schema.is(ToastPosition);
 
 const DIFF_LAYOUT_LABELS: Record<DiffLayout, string> = {
   stacked: "Stacked",
@@ -578,6 +587,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       DEFAULT_UNIFIED_SETTINGS.inAppNotificationsForActiveThread
         ? ["Include the open thread"]
         : []),
+      ...(settings.toastPosition !== DEFAULT_UNIFIED_SETTINGS.toastPosition
+        ? ["Notification position"]
+        : []),
       ...(settings.sidebarThreadPreviewCount !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount
         ? ["Visible threads"]
         : []),
@@ -715,6 +727,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.inAppNotificationsPersistent,
       settings.inAppNotificationsInBackground,
       settings.inAppNotificationsForActiveThread,
+      settings.toastPosition,
       settings.wordWrap,
       followSystem,
       theme,
@@ -795,6 +808,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       inAppNotificationsPersistent: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsPersistent,
       inAppNotificationsInBackground: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsInBackground,
       inAppNotificationsForActiveThread: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsForActiveThread,
+      toastPosition: DEFAULT_UNIFIED_SETTINGS.toastPosition,
       wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       diffFilesCollapsed: DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed,
       diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
@@ -2483,6 +2497,48 @@ export function GeneralSettingsPanel() {
             }
           />
         ) : null}
+        <SettingsRow
+          {...searchableSetting("toast-position")}
+          description="Choose the corner of the window where notifications and other toasts appear."
+          resetAction={
+            settings.toastPosition !== DEFAULT_UNIFIED_SETTINGS.toastPosition ? (
+              <SettingResetButton
+                label="notification position"
+                onClick={() =>
+                  updateSettings({ toastPosition: DEFAULT_UNIFIED_SETTINGS.toastPosition })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="w-full sm:w-40">
+              <Select
+                value={settings.toastPosition}
+                onValueChange={(value) => {
+                  if (isToastPosition(value)) updateSettings({ toastPosition: value });
+                }}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="w-full min-w-0"
+                  aria-label="Notification position"
+                >
+                  <SelectValue>{TOAST_POSITION_LABELS[settings.toastPosition]}</SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  {Object.entries(TOAST_POSITION_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {value === DEFAULT_UNIFIED_SETTINGS.toastPosition
+                        ? `${label} (default)`
+                        : label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
+            </div>
+          }
+        />
+
         <SettingsRow
           {...searchableSetting("time-format")}
           description="System default follows your browser or OS clock preference."
