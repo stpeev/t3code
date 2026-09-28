@@ -2635,6 +2635,36 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("recreates a worktree whose folder was deleted outside Git", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const pathService = yield* Path.Path;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const worktreePath = pathService.join(
+          yield* makeTmpDir("git-worktrees-"),
+          "deleted-worktree",
+        );
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* driver.createWorktree({
+          cwd,
+          path: worktreePath,
+          refName: initialBranch,
+          newRefName: "feature/deleted",
+        });
+        yield* fileSystem.remove(worktreePath, { recursive: true });
+
+        const recreated = yield* driver.createWorktree({
+          cwd,
+          path: worktreePath,
+          refName: "feature/deleted",
+        });
+
+        assert.equal(recreated.worktree.path, worktreePath);
+        assert.equal(yield* git(worktreePath, ["branch", "--show-current"]), "feature/deleted");
+      }),
+    );
+
     it.effect("allows worktree removal to run longer than the default command timeout", () =>
       Effect.gen(function* () {
         const delegate = yield* ChildProcessSpawner.ChildProcessSpawner;

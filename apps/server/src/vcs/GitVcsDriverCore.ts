@@ -3075,6 +3075,15 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const progress = options?.progress;
     const onCheckoutProgress = progress?.onCheckoutProgress;
 
+    // A worktree folder deleted outside Git stays registered, and `worktree add`
+    // refuses both its path and its branch until the stale entry is pruned.
+    const worktreeFolderExists = yield* fileSystem
+      .exists(worktreePath)
+      .pipe(Effect.orElseSucceed(() => true));
+    if (!worktreeFolderExists) {
+      yield* pruneWorktrees({ cwd: input.cwd });
+    }
+
     const checkoutWorkers = (yield* readConfigValue(input.cwd, "checkout.workers")) ?? "0";
     yield* executeGit(
       "GitVcsDriver.createWorktree",
