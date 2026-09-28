@@ -402,6 +402,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["notification toast popup active current open thread"],
   },
   {
+    id: "toast-position",
+    title: "Notification position",
+    to: "/settings/general",
+    targetId: "in-app-notifications",
+    searchTerms: ["notification toast popup position corner top bottom left right placement"],
+  },
+  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",
