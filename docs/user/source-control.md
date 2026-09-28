@@ -140,6 +140,16 @@ messages, review titles, and descriptions from your changes.
 Choose the writing style and model in **Settings → Source Control**. **Repository conventions**
 uses the project's instructions and recent commit subjects.
 
+## Review your branch's commits
+
+In a thread's **Diff** panel, turn on the changes list from the toolbar. It shows the working tree,
+then your branch's own commits, then a few commits from the branch it started from. Select any row to
+see its diff; select **Branched from** to see all of the branch's changes together. Commits that are
+not on any remote yet are marked **Not pushed**. Use the branch picker in the list to compare against
+a different parent branch. By default the parent is the branch's recorded base (`gh-merge-base`) or
+the remote's default branch; turn on **Guess the parent branch** in **Settings → Source Control** to
+use the closest other branch instead.
+
 ## Review and merge
 
 Open **Pull requests** to review changes and comments, request reviewers, check out a branch,

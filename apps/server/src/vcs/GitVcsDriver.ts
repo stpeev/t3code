@@ -24,6 +24,8 @@ import {
   type ReviewDiffFileContentsInput,
   type ReviewDiffFileContentsResult,
   type VcsInitInput,
+  type VcsListCommitsInput,
+  type VcsListCommitsResult,
   type VcsListRefsInput,
   type VcsListRefsResult,
   type VcsPullResult,
@@ -73,6 +75,8 @@ export interface GitStatusDetails {
   hasOriginRemote: boolean;
   isDefaultBranch: boolean;
   branch: string | null;
+  /** Null before the first commit; absent from callers that predate it. */
+  headSha?: string | null;
   upstreamRef: string | null;
   hasWorkingTreeChanges: boolean;
   workingTree: VcsStatusResult["workingTree"];
@@ -349,6 +353,10 @@ export class GitVcsDriver extends Context.Service<
     readonly listRefs: (
       input: VcsListRefsInput,
     ) => Effect.Effect<VcsListRefsResult, GitCommandError>;
+    /** HEAD's own commits against its parent branch, then a page of the parent's history. */
+    readonly listCommits: (
+      input: VcsListCommitsInput,
+    ) => Effect.Effect<VcsListCommitsResult, GitCommandError>;
     readonly pullCurrentBranch: (cwd: string) => Effect.Effect<VcsPullResult, GitCommandError>;
     readonly createWorktree: (
       input: VcsCreateWorktreeInput,

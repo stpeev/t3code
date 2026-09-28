@@ -10,6 +10,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as Metric from "effect/Metric";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Queue from "effect/Queue";
@@ -31,9 +32,11 @@ import {
 } from "@t3tools/contracts";
 import * as ServerConfig from "../config.ts";
 import { gitCommandDuration } from "../observability/Metrics.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import {
   makeGitVcsDriverCore,
   parseGitCheckoutProgressLine,
+  pickClosestBranch,
   splitNullSeparatedGitStdoutPaths,
   windowsLongPathConfigEnv,
 } from "./GitVcsDriverCore.ts";
@@ -2290,6 +2293,331 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
             [{ path: "feature.txt", previousPath: null, additions: 1, deletions: 0 }],
           );
         }
+      }),
+    );
+  });
+
+  describe("commit list", () => {
+    const commitFile = (cwd: string, relativePath: string, contents: string, message: string) =>
+      Effect.gen(function* () {
+        yield* writeTextFile(cwd, relativePath, contents);
+        yield* git(cwd, ["add", relativePath]);
+        yield* git(cwd, ["commit", "-m", message]);
+        return yield* git(cwd, ["rev-parse", "HEAD"]);
+      });
+    const subjects = (commits: ReadonlyArray<{ readonly subject: string }>) =>
+      commits.map((commit) => commit.subject);
+
+    it.effect("splits branch commits from the parent and marks the unpushed ones", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const remote = yield* makeTmpDir("git-vcs-driver-remote-");
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(remote, ["init", "--bare"]);
+        yield* git(cwd, ["remote", "add", "origin", remote]);
+        yield* git(cwd, ["push", "-u", "origin", initialBranch]);
+        const initialSha = yield* git(cwd, ["rev-parse", "HEAD"]);
+        yield* git(cwd, ["checkout", "-b", "feature/list"]);
+        yield* commitFile(cwd, "a.txt", "a\n", "pushed change");
+        yield* git(cwd, ["push", "-u", "origin", "feature/list"]);
+        yield* commitFile(cwd, "b.txt", "b\n", "local change");
+
+        const result = yield* driver.listCommits({ cwd, baseRef: `origin/${initialBranch}` });
+
+        assert.strictEqual(result.baseRef, `origin/${initialBranch}`);
+        assert.strictEqual(result.mergeBase, initialSha);
+        assert.isTrue(result.hasRemote);
+        assert.deepStrictEqual(subjects(result.branchCommits), ["local change", "pushed change"]);
+        assert.deepStrictEqual(
+          result.branchCommits.map((commit) => commit.unpushed),
+          [true, false],
+        );
+        assert.deepStrictEqual(subjects(result.contextCommits), ["initial commit"]);
+        assert.isFalse(result.contextCommits[0]!.unpushed);
+        assert.deepStrictEqual(result.branchCommits[1]!.parentShas, [initialSha]);
+        assert.isFalse(result.hasMoreContext);
+      }),
+    );
+
+    it.effect("does not mark commits as unpushed when the repository has no remote", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-b", "feature/offline"]);
+        yield* commitFile(cwd, "a.txt", "a\n", "offline change");
+
+        const result = yield* driver.listCommits({ cwd, baseRef: initialBranch });
+
+        assert.isFalse(result.hasRemote);
+        assert.deepStrictEqual(subjects(result.branchCommits), ["offline change"]);
+        assert.isFalse(result.branchCommits[0]!.unpushed);
+      }),
+    );
+
+    it.effect("keeps parent commits merged into the branch out of the branch commits", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-b", "feature/merge"]);
+        yield* commitFile(cwd, "feature.txt", "feature\n", "feature change");
+        yield* git(cwd, ["checkout", initialBranch]);
+        yield* commitFile(cwd, "parent.txt", "parent\n", "parent change");
+        yield* git(cwd, ["checkout", "feature/merge"]);
+        yield* git(cwd, ["merge", "--no-edit", "-m", "merge parent", initialBranch]);
+
+        const result = yield* driver.listCommits({ cwd, baseRef: initialBranch });
+
+        assert.deepStrictEqual(subjects(result.branchCommits), ["merge parent", "feature change"]);
+        assert.strictEqual(result.contextCommits[0]!.subject, "parent change");
+      }),
+    );
+
+    it.effect("lists HEAD's history as context when no parent branch resolves", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* commitFile(cwd, "a.txt", "a\n", "second commit");
+
+        const result = yield* driver.listCommits({ cwd });
+
+        assert.isNull(result.baseRef);
+        assert.isNull(result.mergeBase);
+        assert.deepStrictEqual(result.branchCommits, []);
+        assert.deepStrictEqual(subjects(result.contextCommits), [
+          "second commit",
+          "initial commit",
+        ]);
+      }),
+    );
+
+    it.effect("pages the parent branch's history by context limit", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* commitFile(cwd, "a.txt", "a\n", "parent two");
+        yield* commitFile(cwd, "b.txt", "b\n", "parent three");
+        yield* git(cwd, ["checkout", "-b", "feature/paged"]);
+
+        const firstPage = yield* driver.listCommits({
+          cwd,
+          baseRef: initialBranch,
+          contextLimit: 2,
+        });
+        const everything = yield* driver.listCommits({
+          cwd,
+          baseRef: initialBranch,
+          contextLimit: 3,
+        });
+
+        assert.deepStrictEqual(subjects(firstPage.contextCommits), ["parent three", "parent two"]);
+        assert.isTrue(firstPage.hasMoreContext);
+        assert.strictEqual(everything.contextCommits.length, 3);
+        assert.isFalse(everything.hasMoreContext);
+      }),
+    );
+
+    it.effect("returns an empty list before the first commit", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* driver.initRepo({ cwd });
+
+        const result = yield* driver.listCommits({ cwd });
+
+        assert.deepStrictEqual(result.contextCommits, []);
+        assert.deepStrictEqual(result.branchCommits, []);
+      }),
+    );
+
+    it.effect("splits at the closest branch when the parent-branch setting is on", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-b", "fork-main"]);
+        yield* commitFile(cwd, "fork.txt", "fork\n", "fork change");
+        yield* git(cwd, ["checkout", "-b", "feature/stacked"]);
+        yield* commitFile(cwd, "feature.txt", "feature\n", "stacked change");
+
+        const guessed = yield* driver
+          .listCommits({ cwd })
+          .pipe(Effect.provide(ServerSettings.layerTest({ inferParentBranch: true })));
+        const fallback = yield* driver.listCommits({ cwd });
+
+        assert.strictEqual(guessed.baseRef, "fork-main");
+        assert.deepStrictEqual(subjects(guessed.branchCommits), ["stacked change"]);
+        assert.notStrictEqual(fallback.baseRef, "fork-main");
+      }),
+    );
+
+    it.effect("rejects a base ref that git would read as an option", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const result = yield* driver
+          .listCommits({ cwd, baseRef: "--output=x" })
+          .pipe(Effect.result);
+
+        assert.isTrue(Result.isFailure(result));
+      }),
+    );
+
+    it.effect("reports the HEAD commit in local status", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* driver.initRepo({ cwd });
+        assert.isNull((yield* driver.statusDetailsLocal(cwd)).headSha);
+
+        yield* initRepoWithCommit(cwd);
+        const headSha = yield* git(cwd, ["rev-parse", "HEAD"]);
+
+        assert.strictEqual((yield* driver.statusDetailsLocal(cwd)).headSha, headSha);
+        assert.strictEqual((yield* driver.status({ cwd })).headSha, headSha);
+      }),
+    );
+  });
+
+  describe("pickClosestBranch", () => {
+    it("prefers the fewest branch commits, then the fewest extra commits, then local refs", () => {
+      const rows = [
+        "main\t12 30",
+        "fork-main\t0 6",
+        "origin/fork-main\t0 7",
+        "sibling\t4 6",
+        "origin/fork-main-copy\t0 6",
+      ].join("\n");
+      assert.strictEqual(pickClosestBranch(rows, "feature", ["origin"]), "fork-main");
+    });
+
+    it("skips the branch itself, its remote copies, remote HEADs and branches containing HEAD", () => {
+      const rows = [
+        "feature\t0 0",
+        "origin/feature\t0 2",
+        "origin\t3 9",
+        "child\t4 0",
+        "main\t3 9",
+      ].join("\n");
+      assert.strictEqual(pickClosestBranch(rows, "feature", ["origin"]), "main");
+      assert.isNull(pickClosestBranch("feature\t0 0\n", "feature", []));
+    });
+  });
+
+  describe("commit diffs", () => {
+    const commitFile = (cwd: string, relativePath: string, contents: string, message: string) =>
+      Effect.gen(function* () {
+        yield* writeTextFile(cwd, relativePath, contents);
+        yield* git(cwd, ["add", relativePath]);
+        yield* git(cwd, ["commit", "-m", message]);
+        return yield* git(cwd, ["rev-parse", "HEAD"]);
+      });
+
+    it.effect("diffs a commit against its parent and nothing else", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const parentSha = yield* git(cwd, ["rev-parse", "HEAD"]);
+        const sha = yield* commitFile(cwd, "README.md", "# changed\n", "change readme");
+        yield* commitFile(cwd, "later.txt", "later\n", "later commit");
+        yield* writeTextFile(cwd, "dirty.txt", "dirty\n");
+
+        const preview = yield* driver.getReviewDiffPreview({ cwd, commit: sha.slice(0, 12) });
+
+        assert.strictEqual(preview.sources.length, 1);
+        const source = preview.sources[0]!;
+        assert.strictEqual(source.kind, "commit");
+        assert.strictEqual(source.baseRef, parentSha);
+        assert.strictEqual(source.headRef, sha);
+        assert.include(source.title, "change readme");
+        assert.deepStrictEqual(
+          source.files?.map((file) => file.path),
+          ["README.md"],
+        );
+        assert.include(source.diff, "+# changed");
+
+        const scoped = yield* driver.getReviewDiffPreview({
+          cwd,
+          commit: sha,
+          file: { path: "README.md", previousPath: null, sourceKind: "commit" },
+        });
+        assert.include(scoped.sources[0]!.diff, "b/README.md");
+
+        const contents = yield* driver.getReviewDiffFileContents(
+          makeReviewDiffFileContentsInput(cwd, {
+            sourceKind: "commit",
+            baseRef: parentSha,
+            headRef: sha,
+          }),
+        );
+        assert.strictEqual(contents.oldContents, "# test\n");
+        assert.strictEqual(contents.newContents, "# changed\n");
+      }),
+    );
+
+    it.effect("diffs a root commit against the empty tree", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const rootSha = yield* git(cwd, ["rev-parse", "HEAD"]);
+
+        const source = (yield* driver.getReviewDiffPreview({ cwd, commit: rootSha })).sources[0]!;
+
+        assert.notStrictEqual(source.baseRef, rootSha);
+        assert.deepStrictEqual(
+          source.files?.map((file) => file.path),
+          ["README.md"],
+        );
+        assert.include(source.diff, "+# test");
+        const contents = yield* driver.getReviewDiffFileContents(
+          makeReviewDiffFileContentsInput(cwd, {
+            sourceKind: "commit",
+            changeType: "new",
+            baseRef: source.baseRef,
+            headRef: rootSha,
+          }),
+        );
+        assert.strictEqual(contents.oldContents, "");
+        assert.strictEqual(contents.newContents, "# test\n");
+      }),
+    );
+
+    it.effect("diffs a merge commit against its first parent", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-b", "feature/merged"]);
+        yield* commitFile(cwd, "feature.txt", "feature\n", "feature change");
+        yield* git(cwd, ["checkout", initialBranch]);
+        const firstParent = yield* commitFile(cwd, "parent.txt", "parent\n", "parent change");
+        yield* git(cwd, ["merge", "--no-ff", "--no-edit", "-m", "merge feature", "feature/merged"]);
+        const mergeSha = yield* git(cwd, ["rev-parse", "HEAD"]);
+
+        const source = (yield* driver.getReviewDiffPreview({ cwd, commit: mergeSha })).sources[0]!;
+
+        assert.strictEqual(source.baseRef, firstParent);
+        assert.deepStrictEqual(
+          source.files?.map((file) => file.path),
+          ["feature.txt"],
+        );
+      }),
+    );
+
+    it.effect("rejects a commit input that is not a hex object id", () =>
+      Effect.sync(() => {
+        const decode = Schema.decodeUnknownOption(ReviewDiffPreviewInput);
+        assert.isTrue(Option.isNone(decode({ cwd: "/repo", commit: "--output=x" })));
+        assert.isTrue(Option.isNone(decode({ cwd: "/repo", commit: "HEAD" })));
+        assert.isTrue(Option.isSome(decode({ cwd: "/repo", commit: "abc1234" })));
       }),
     );
   });

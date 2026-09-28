@@ -151,6 +151,19 @@ export const VcsListRefsInput = Schema.Struct({
 });
 export type VcsListRefsInput = typeof VcsListRefsInput.Type;
 
+export const VCS_LIST_COMMITS_MAX_CONTEXT = 200;
+
+export const VcsListCommitsInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  /** The parent branch to compare against. Omitted means the server resolves it. */
+  baseRef: Schema.optional(TrimmedNonEmptyStringSchema),
+  /** How many commits to list from the parent branch, starting at the merge-base. */
+  contextLimit: Schema.optional(
+    PositiveInt.check(Schema.isLessThanOrEqualTo(VCS_LIST_COMMITS_MAX_CONTEXT)),
+  ),
+});
+export type VcsListCommitsInput = typeof VcsListCommitsInput.Type;
+
 export const VcsCreateWorktreeInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   refName: TrimmedNonEmptyStringSchema,
@@ -230,6 +243,8 @@ const VcsStatusLocalShape = {
   hasPrimaryRemote: Schema.Boolean,
   isDefaultRef: Schema.Boolean,
   refName: Schema.NullOr(TrimmedNonEmptyStringSchema),
+  /** The commit HEAD points at. Absent on older servers and before the first commit. */
+  headSha: Schema.optional(TrimmedNonEmptyStringSchema),
   hasWorkingTreeChanges: Schema.Boolean,
   workingTree: Schema.Struct({
     files: Schema.Array(
@@ -297,6 +312,33 @@ export const VcsListRefsResult = Schema.Struct({
   totalCount: NonNegativeInt,
 });
 export type VcsListRefsResult = typeof VcsListRefsResult.Type;
+
+export const VcsCommit = Schema.Struct({
+  sha: TrimmedNonEmptyStringSchema,
+  shortSha: TrimmedNonEmptyStringSchema,
+  subject: Schema.String,
+  authorName: Schema.String,
+  /** ISO 8601 author date. */
+  authoredAt: Schema.String,
+  parentShas: Schema.Array(TrimmedNonEmptyStringSchema),
+  /** Not reachable from any remote-tracking ref. Always false when the repo has no remote. */
+  unpushed: Schema.Boolean,
+});
+export type VcsCommit = typeof VcsCommit.Type;
+
+export const VcsListCommitsResult = Schema.Struct({
+  /** The parent branch the list was split against, or null when none resolved. */
+  baseRef: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  mergeBase: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  hasRemote: Schema.Boolean,
+  /** Commits on HEAD but not on `baseRef`, newest first. Empty when there is no base. */
+  branchCommits: Schema.Array(VcsCommit),
+  branchCommitsTruncated: Schema.Boolean,
+  /** The merge-base and older, or HEAD's history when there is no base. */
+  contextCommits: Schema.Array(VcsCommit),
+  hasMoreContext: Schema.Boolean,
+});
+export type VcsListCommitsResult = typeof VcsListCommitsResult.Type;
 
 export const VcsCreateWorktreeResult = Schema.Struct({
   worktree: VcsWorktree,
