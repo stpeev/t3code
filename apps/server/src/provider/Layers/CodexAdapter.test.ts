@@ -796,6 +796,45 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
     }),
   );
 
+  it.effect("reports the running turn's output on each Codex usage snapshot", () =>
+    Effect.gen(function* () {
+      const { adapter, runtime } = yield* startLifecycleRuntime();
+      const usageFiber = yield* adapter.streamEvents.pipe(
+        Stream.filter((event) => event.type === "thread.token-usage.updated"),
+        Stream.take(3),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+      const usage = (id: string, turnId: string, outputTokens: number) =>
+        codexTokenUsageEvent({
+          id,
+          turnId,
+          inputTokens: 100 + outputTokens,
+          cachedInputTokens: 0,
+          cacheCreationTokens: 0,
+          outputTokens,
+          reasoningTokens: 0,
+        });
+
+      yield* runtime.emit(codexTurnEvent("turn/started", "turn-a"));
+      yield* runtime.emit(usage("evt-usage-a", "turn-a", 20));
+      yield* runtime.emit(codexTurnEvent("turn/completed", "turn-a"));
+      yield* runtime.emit(codexTurnEvent("turn/started", "turn-b"));
+      yield* runtime.emit(usage("evt-usage-b1", "turn-b", 50));
+      yield* runtime.emit(usage("evt-usage-b2", "turn-b", 65));
+
+      const events = Array.from(yield* Fiber.join(usageFiber));
+      NodeAssert.deepStrictEqual(
+        events.map((event) =>
+          event.type === "thread.token-usage.updated"
+            ? event.payload.usage.turnOutputTokens
+            : undefined,
+        ),
+        [20, 30, 45],
+      );
+    }),
+  );
+
   it.effect("does not charge a late prior-turn update to the next Codex turn", () =>
     Effect.gen(function* () {
       const { adapter, runtime } = yield* startLifecycleRuntime();

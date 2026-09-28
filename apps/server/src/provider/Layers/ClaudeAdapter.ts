@@ -272,6 +272,9 @@ interface ClaudeTurnState {
   readonly capturedProposedPlanKeys: Set<string>;
   latestAssistantUsage: unknown | undefined;
   compactedSinceLatestAssistantUsage: boolean;
+  /** Output of the turn's finished requests, and of the one streaming now. */
+  finishedRequestsOutputTokens: number;
+  currentRequestOutputTokens: number;
   hasSubagents: boolean;
   nextSyntheticAssistantBlockIndex: number;
   authenticationFailureMessage: string | undefined;
@@ -2553,6 +2556,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       usage.totalProcessedTokens ?? context.lastKnownTotalProcessedTokens;
 
     const turnState = context.turnState;
+    // Kept off lastKnownTokenUsage, which later turns reuse as a fallback.
+    const turnOutputTokens = turnState
+      ? turnState.finishedRequestsOutputTokens + turnState.currentRequestOutputTokens
+      : 0;
     const stamp = yield* makeEventStamp();
     yield* offerRuntimeEvent({
       type: "thread.token-usage.updated",
@@ -2562,7 +2569,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       threadId: context.session.threadId,
       ...(turnState ? { turnId: turnState.turnId } : {}),
       payload: {
-        usage,
+        usage: turnOutputTokens > 0 ? { ...usage, turnOutputTokens } : usage,
       },
       providerRefs: nativeProviderRefs(context),
       ...(options?.rawMethod || options?.rawPayload
@@ -2893,6 +2900,9 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
 
     if (event.type === "message_start" && context.turnState && !streamParentToolUseId) {
       context.turnState.emittedThinkingText = false;
+      context.turnState.finishedRequestsOutputTokens +=
+        context.turnState.currentRequestOutputTokens;
+      context.turnState.currentRequestOutputTokens = 0;
     }
 
     if (event.type === "message_delta") {
@@ -2905,6 +2915,14 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         context.lastKnownContextWindow,
         context.lastKnownTotalProcessedTokens,
       );
+      // The assistant frame arrives before this with only message_start's output count.
+      if (snapshot && context.turnState) {
+        context.turnState.latestAssistantUsage = event.usage;
+        context.turnState.compactedSinceLatestAssistantUsage = false;
+        // message_delta counts are cumulative for the request, so this replaces rather than adds.
+        context.turnState.currentRequestOutputTokens =
+          finiteNonNegativeInteger(event.usage.output_tokens) ?? 0;
+      }
       yield* emitThreadTokenUsage(context, snapshot, {
         rawMethod: "claude/stream_event/message_delta",
         rawPayload: message,
@@ -3382,6 +3400,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         capturedProposedPlanKeys: new Set(),
         latestAssistantUsage: undefined,
         compactedSinceLatestAssistantUsage: false,
+        finishedRequestsOutputTokens: 0,
+        currentRequestOutputTokens: 0,
         hasSubagents: false,
         nextSyntheticAssistantBlockIndex: -1,
         authenticationFailureMessage: undefined,
@@ -5208,6 +5228,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         capturedProposedPlanKeys: new Set(),
         latestAssistantUsage: undefined,
         compactedSinceLatestAssistantUsage: false,
+        finishedRequestsOutputTokens: 0,
+        currentRequestOutputTokens: 0,
         hasSubagents: false,
         nextSyntheticAssistantBlockIndex: -1,
         authenticationFailureMessage: undefined,

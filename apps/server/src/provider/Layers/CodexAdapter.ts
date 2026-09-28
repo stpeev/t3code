@@ -2369,6 +2369,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
         const eventFiber = yield* Stream.runForEach(runtime.events, (event) =>
           Effect.gen(function* () {
             yield* writeNativeEvent(event);
+            let turnOutputTokens: number | undefined;
             if (event.method === "turn/started" && event.turnId) {
               if (turnTokenUsage.activeTurnId !== event.turnId) {
                 turnTokenUsage.byTurnId.clear();
@@ -2382,6 +2383,10 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
               );
               if (payload) {
                 accumulateCodexTurnTokenUsage(turnTokenUsage, payload.turnId, payload.tokenUsage);
+                const accumulator = turnTokenUsage.byTurnId.get(payload.turnId);
+                if (payload.turnId === turnTokenUsage.activeTurnId && accumulator?.observed) {
+                  turnOutputTokens = accumulator.outputTokens;
+                }
               }
             } else if (turnTokenUsage.activeTurnId) {
               const collabPayload =
@@ -2469,6 +2474,12 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
                   },
                 } satisfies ProviderRuntimeEvent;
 
+              if (runtimeEvent.type === "thread.token-usage.updated" && turnOutputTokens) {
+                return {
+                  ...runtimeEvent,
+                  payload: { usage: { ...runtimeEvent.payload.usage, turnOutputTokens } },
+                } satisfies ProviderRuntimeEvent;
+              }
               if (runtimeEvent.type === "turn.completed" && runtimeEvent.turnId) {
                 return {
                   ...runtimeEvent,

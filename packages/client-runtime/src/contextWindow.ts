@@ -63,6 +63,7 @@ export function deriveLatestContextWindowSnapshot(
       lastCachedInputTokens: asFiniteNumber(payload?.lastCachedInputTokens),
       lastOutputTokens: asFiniteNumber(payload?.lastOutputTokens),
       lastReasoningOutputTokens: asFiniteNumber(payload?.lastReasoningOutputTokens),
+      turnOutputTokens: asFiniteNumber(payload?.turnOutputTokens),
       toolUses: asFiniteNumber(payload?.toolUses),
       durationMs: asFiniteNumber(payload?.durationMs),
       compactsAutomatically: asBoolean(payload?.compactsAutomatically) ?? false,
@@ -118,9 +119,12 @@ export interface ContextUsageSummary {
   readonly usedPercentage: number | null;
   readonly percentage: string | null;
   readonly remaining: string | null;
-  /** The most recent model request, such as "68k in · 40k cached · 500 out". */
-  readonly lastRequest: string | null;
-  readonly totalProcessed: string | null;
+  /** "Last turn" with the turn's whole output; snapshots without it only know the last request. */
+  readonly recent: {
+    readonly label: "Last turn" | "Last request";
+    /** Such as "68k in · 40k cached · 500 out". */
+    readonly tokens: string;
+  } | null;
   /** Occasional facts that ride along with `tokens`, such as "compacts in 99k". */
   readonly notes: ReadonlyArray<string>;
 }
@@ -135,7 +139,7 @@ function joinTokenParts(
 }
 
 export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextUsageSummary {
-  const { autoCompactThreshold, maxTokens, toolUses, totalProcessedTokens } = snapshot;
+  const { autoCompactThreshold, maxTokens, toolUses, turnOutputTokens } = snapshot;
   const percentage =
     maxTokens == null ? null : formatContextWindowPercentage(snapshot.usedPercentage);
   const used = formatContextWindowTokens(snapshot.usedTokens);
@@ -147,6 +151,20 @@ export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextU
   if (toolUses) {
     notes.push(`${toolUses.toLocaleString("en-US")} tool ${toolUses === 1 ? "use" : "uses"}`);
   }
+  // Adapters disagree on whether the unprefixed split is cumulative, so it only backs up `last*`.
+  // Input stays the last request's either way, since that is what fills the window.
+  const input = [
+    [snapshot.lastInputTokens ?? snapshot.inputTokens, "in"],
+    [snapshot.lastCachedInputTokens ?? snapshot.cachedInputTokens, "cached"],
+  ] as const;
+  const recentTokens =
+    turnOutputTokens == null
+      ? joinTokenParts([
+          ...input,
+          [snapshot.lastOutputTokens ?? snapshot.outputTokens, "out"],
+          [snapshot.lastReasoningOutputTokens ?? snapshot.reasoningOutputTokens, "reasoning"],
+        ])
+      : joinTokenParts([...input, [turnOutputTokens, "out"]]);
 
   return {
     tokens:
@@ -157,14 +175,10 @@ export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextU
       percentage === null || snapshot.remainingTokens == null
         ? null
         : formatContextWindowTokens(snapshot.remainingTokens),
-    // Adapters disagree on whether the unprefixed split is cumulative, so it only backs up `last*`.
-    lastRequest: joinTokenParts([
-      [snapshot.lastInputTokens ?? snapshot.inputTokens, "in"],
-      [snapshot.lastCachedInputTokens ?? snapshot.cachedInputTokens, "cached"],
-      [snapshot.lastOutputTokens ?? snapshot.outputTokens, "out"],
-      [snapshot.lastReasoningOutputTokens ?? snapshot.reasoningOutputTokens, "reasoning"],
-    ]),
-    totalProcessed: totalProcessedTokens ? formatContextWindowTokens(totalProcessedTokens) : null,
+    recent:
+      recentTokens === null
+        ? null
+        : { label: turnOutputTokens == null ? "Last request" : "Last turn", tokens: recentTokens },
     notes,
   };
 }

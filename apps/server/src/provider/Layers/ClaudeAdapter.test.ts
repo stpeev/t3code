@@ -3829,6 +3829,151 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
+  it.effect("keeps the streamed output count when the turn completes", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      const runtimeEventsFiber = yield* adapter.streamEvents.pipe(
+        Stream.takeUntil((event) => event.type === "turn.completed"),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({
+        threadId: THREAD_ID,
+        input: "hello",
+        attachments: [],
+      });
+      harness.query.emit({
+        type: "assistant",
+        session_id: "sdk-session-streamed-usage",
+        uuid: "assistant-streamed-usage",
+        parent_tool_use_id: null,
+        message: {
+          id: "assistant-message-streamed-usage",
+          role: "assistant",
+          content: [],
+          usage: { input_tokens: 180, output_tokens: 2 },
+        },
+      } as unknown as SDKMessage);
+      harness.query.emit({
+        type: "stream_event",
+        session_id: "sdk-session-streamed-usage",
+        uuid: "stream-streamed-usage",
+        parent_tool_use_id: null,
+        event: {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: { input_tokens: 180, output_tokens: 900 },
+        },
+      } as unknown as SDKMessage);
+      harness.query.emit({
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        duration_ms: 1234,
+        duration_api_ms: 1200,
+        num_turns: 1,
+        result: "done",
+        stop_reason: "end_turn",
+        session_id: "sdk-session-streamed-usage",
+        usage: { input_tokens: 180, output_tokens: 900 },
+        modelUsage: {
+          [SYNTHETIC_CLAUDE_CAPABLE_MODEL]: {
+            contextWindow: 200000,
+            maxOutputTokens: 64000,
+          },
+        },
+      } as unknown as SDKMessage);
+
+      const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
+      const finalUsageEvent = runtimeEvents.findLast(
+        (event) => event.type === "thread.token-usage.updated",
+      );
+      assert.equal(finalUsageEvent?.type, "thread.token-usage.updated");
+      if (finalUsageEvent?.type === "thread.token-usage.updated") {
+        assert.equal(finalUsageEvent.payload.usage.outputTokens, 900);
+        assert.equal(finalUsageEvent.payload.usage.usedTokens, 1080);
+      }
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("sums a turn's output across its requests", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      const runtimeEventsFiber = yield* adapter.streamEvents.pipe(
+        Stream.takeUntil((event) => event.type === "turn.completed"),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId: THREAD_ID, input: "hello", attachments: [] });
+      const request = (index: number, inputTokens: number, outputTokens: number) => {
+        harness.query.emit({
+          type: "stream_event",
+          session_id: "sdk-session-turn-output",
+          uuid: `stream-start-${index}`,
+          parent_tool_use_id: null,
+          event: { type: "message_start", message: { usage: { output_tokens: 1 } } },
+        } as unknown as SDKMessage);
+        harness.query.emit({
+          type: "stream_event",
+          session_id: "sdk-session-turn-output",
+          uuid: `stream-delta-${index}`,
+          parent_tool_use_id: null,
+          event: {
+            type: "message_delta",
+            delta: { stop_reason: "end_turn", stop_sequence: null },
+            usage: { input_tokens: inputTokens, output_tokens: outputTokens },
+          },
+        } as unknown as SDKMessage);
+      };
+      request(1, 1_000, 300);
+      request(2, 1_400, 74);
+      harness.query.emit({
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        duration_ms: 1234,
+        duration_api_ms: 1200,
+        num_turns: 2,
+        result: "done",
+        stop_reason: "end_turn",
+        session_id: "sdk-session-turn-output",
+        usage: { input_tokens: 2_400, output_tokens: 374 },
+      } as unknown as SDKMessage);
+
+      const usages = Array.from(yield* Fiber.join(runtimeEventsFiber)).flatMap((event) =>
+        event.type === "thread.token-usage.updated" ? [event.payload.usage] : [],
+      );
+      assert.deepEqual(
+        usages.map((usage) => [usage.outputTokens, usage.turnOutputTokens]),
+        [
+          [300, 300],
+          [74, 374],
+          [74, 374],
+        ],
+      );
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
   it.effect("workflow member coalescing: identical snapshots suppress, changes emit", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
