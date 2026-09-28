@@ -136,7 +136,7 @@ Type `/` for commands or `$` for skills from the selected environment and provid
 - Turn on **Settings → Appearance → Thread details → Context window** to view reported context usage. For automatic idle compaction on Claude, see [compact long conversations](./providers-claude.md#compact-long-conversations).
 
 Send `/context-usage` in an existing thread to see how full its context window is, including what
-the last request used and how far it is from compacting automatically. The summary opens above the
+the last turn used and how far it is from compacting automatically. The summary opens above the
 composer and stays until you dismiss it or switch threads. It reads the usage the provider last
 reported, so it doesn't run the agent. Providers that don't report usage have nothing to show.
 
