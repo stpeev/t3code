@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { EventId, type OrchestrationThreadActivity, TurnId } from "@t3tools/contracts";
 
 import {
+  contextWindowTurnNumber,
   deriveLatestContextWindowSnapshot,
   formatContextWindowTokens,
   isContextUsageCommand,
@@ -133,6 +134,18 @@ describe("summarizeContextUsage", () => {
     expect(summary.recent).toEqual({ label: "Last turn", tokens: "203k in · 991 out" });
   });
 
+  it("numbers the last turn when it is known", () => {
+    const snapshot = deriveLatestContextWindowSnapshot([
+      makeActivity("activity-1", "context-window.updated", {
+        usedTokens: 1_000,
+        turnOutputTokens: 200,
+      }),
+    ]);
+    if (!snapshot) throw new Error("expected a snapshot");
+
+    expect(summarizeContextUsage(snapshot, 384).recent?.label).toBe("Last turn (#384)");
+  });
+
   it("prefers the last-request split over the unprefixed one", () => {
     const summary = summarize({
       usedTokens: 30_000,
@@ -162,6 +175,50 @@ describe("summarizeContextUsage", () => {
       recent: null,
       notes: [],
     });
+  });
+});
+
+describe("contextWindowTurnNumber", () => {
+  const snapshot = deriveLatestContextWindowSnapshot([
+    makeActivity("activity-1", "context-window.updated", { usedTokens: 1_000 }),
+  ]);
+  if (!snapshot) throw new Error("expected a snapshot");
+  const checkpoint = (turnId: string, checkpointTurnCount: number) => ({
+    turnId: TurnId.make(turnId),
+    checkpointTurnCount,
+  });
+
+  it("uses the checkpoint of the snapshot's turn", () => {
+    expect(
+      contextWindowTurnNumber(snapshot, {
+        checkpoints: [checkpoint("turn-0", 6), checkpoint("turn-1", 7)],
+        latestTurn: { turnId: TurnId.make("turn-2") },
+      }),
+    ).toBe(7);
+  });
+
+  it("puts the not-yet-checkpointed latest turn one past the last checkpoint", () => {
+    expect(
+      contextWindowTurnNumber(snapshot, {
+        checkpoints: [checkpoint("turn-0", 6)],
+        latestTurn: { turnId: TurnId.make("turn-1") },
+      }),
+    ).toBe(7);
+  });
+
+  it("has no number without checkpoints or for an older uncheckpointed turn", () => {
+    expect(
+      contextWindowTurnNumber(snapshot, {
+        checkpoints: [],
+        latestTurn: { turnId: TurnId.make("turn-1") },
+      }),
+    ).toBeNull();
+    expect(
+      contextWindowTurnNumber(snapshot, {
+        checkpoints: [checkpoint("turn-0", 6)],
+        latestTurn: { turnId: TurnId.make("turn-2") },
+      }),
+    ).toBeNull();
   });
 });
 

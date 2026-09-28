@@ -408,6 +408,7 @@ import {
   shouldOfferResumeCompaction,
 } from "./chat/ContextWindowMeter.logic";
 import {
+  contextWindowTurnNumber,
   deriveLatestContextWindowSnapshot,
   formatContextWindowTokens,
   isContextUsageCommand,
@@ -6466,6 +6467,18 @@ export default function ChatView(props: ChatViewProps) {
     setContextUsagePanel({ threadKey: routeThreadKey, openedAt: Date.now() });
     return true;
   }, [activeContextWindow, routeThreadKey]);
+  const activeCheckpoints = activeThread?.checkpoints;
+  const activeLatestTurnId = activeThread?.latestTurn?.turnId ?? null;
+  const contextWindowTurn = useMemo(
+    () =>
+      activeContextWindow && activeCheckpoints
+        ? contextWindowTurnNumber(activeContextWindow, {
+            checkpoints: activeCheckpoints,
+            latestTurn: activeLatestTurnId === null ? null : { turnId: activeLatestTurnId },
+          })
+        : null,
+    [activeCheckpoints, activeContextWindow, activeLatestTurnId],
+  );
   const contextUsageBanner = useMemo(
     () =>
       contextUsagePanel !== null &&
@@ -6475,6 +6488,7 @@ export default function ChatView(props: ChatViewProps) {
           contextUsageBannerItem(
             `context-usage:${contextUsagePanel.threadKey}:${contextUsagePanel.openedAt}`,
             activeContextWindow,
+            contextWindowTurn,
             selectedProvider,
             manualCompactionProviderAvailable ? compactBannerAction : null,
             () => setContextUsagePanel(null),
@@ -6484,6 +6498,7 @@ export default function ChatView(props: ChatViewProps) {
       activeContextWindow,
       compactBannerAction,
       contextUsagePanel,
+      contextWindowTurn,
       manualCompactionProviderAvailable,
       routeThreadKey,
       selectedProvider,

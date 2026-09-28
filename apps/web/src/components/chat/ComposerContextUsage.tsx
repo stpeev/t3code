@@ -19,11 +19,12 @@ const TRAILING_CLASS_NAME =
 export function contextUsageBannerItem(
   id: string,
   snapshot: ContextWindowSnapshot,
+  turnNumber: number | null,
   driver: ProviderDriverKind,
   actions: ReactNode,
   onDismiss: () => void,
 ): ComposerBannerStackItem {
-  const summary = summarizeContextUsage(snapshot);
+  const summary = summarizeContextUsage(snapshot, turnNumber);
   const hasBar = summary.usedPercentage !== null && summary.percentage !== null;
   return {
     id,

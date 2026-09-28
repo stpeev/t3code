@@ -13,15 +13,17 @@ import { useBarColor } from "../usage/UsageLimitsSection";
 /** The /context-usage result, docked above the composer; it re-reads the snapshot as the turn runs. */
 export function ComposerContextUsage({
   snapshot,
+  turnNumber,
   driver,
   onClose,
 }: {
   readonly snapshot: ContextWindowSnapshot;
+  readonly turnNumber: number | null;
   readonly driver: ProviderDriverKind | null;
   readonly onClose: () => void;
 }) {
   const color = useBarColor(driver);
-  const summary = summarizeContextUsage(snapshot);
+  const summary = summarizeContextUsage(snapshot, turnNumber);
   const used = summary.usedPercentage === null ? null : Math.round(summary.usedPercentage);
   const detail = [summary.tokens, ...summary.notes].join(" · ");
   return (

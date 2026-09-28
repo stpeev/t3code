@@ -1,4 +1,10 @@
-import type { OrchestrationThreadActivity, ThreadTokenUsageSnapshot } from "@t3tools/contracts";
+import type {
+  OrchestrationCheckpointSummary,
+  OrchestrationLatestTurn,
+  OrchestrationThreadActivity,
+  ThreadTokenUsageSnapshot,
+  TurnId,
+} from "@t3tools/contracts";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
@@ -22,6 +28,7 @@ export type ContextWindowSnapshot = NullableContextWindowUsage & {
   readonly remainingTokens: number | null;
   readonly usedPercentage: number | null;
   readonly remainingPercentage: number | null;
+  readonly turnId: TurnId | null;
   readonly updatedAt: string;
 };
 
@@ -68,6 +75,7 @@ export function deriveLatestContextWindowSnapshot(
       durationMs: asFiniteNumber(payload?.durationMs),
       compactsAutomatically: asBoolean(payload?.compactsAutomatically) ?? false,
       autoCompactThreshold: asFiniteNumber(payload?.autoCompactThreshold),
+      turnId: activity.turnId,
       updatedAt: activity.createdAt,
     };
   }
@@ -119,9 +127,9 @@ export interface ContextUsageSummary {
   readonly usedPercentage: number | null;
   readonly percentage: string | null;
   readonly remaining: string | null;
-  /** "Last turn" with the turn's whole output; snapshots without it only know the last request. */
+  /** "Last turn (#384)" with the turn's whole output; snapshots without it only know the last request. */
   readonly recent: {
-    readonly label: "Last turn" | "Last request";
+    readonly label: string;
     /** Such as "68k in · 40k cached · 500 out". */
     readonly tokens: string;
   } | null;
@@ -138,7 +146,31 @@ function joinTokenParts(
   return present.length > 0 ? present.join(" · ") : null;
 }
 
-export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextUsageSummary {
+/** The turn number rewind and the diff panel use; an uncheckpointed latest turn is one past the last. */
+export function contextWindowTurnNumber(
+  snapshot: ContextWindowSnapshot,
+  thread: {
+    readonly checkpoints: ReadonlyArray<
+      Pick<OrchestrationCheckpointSummary, "turnId" | "checkpointTurnCount">
+    >;
+    readonly latestTurn: Pick<OrchestrationLatestTurn, "turnId"> | null;
+  },
+): number | null {
+  const { turnId } = snapshot;
+  if (turnId === null) return null;
+  const checkpoint = thread.checkpoints.find((candidate) => candidate.turnId === turnId);
+  if (checkpoint) return checkpoint.checkpointTurnCount;
+  if (thread.latestTurn?.turnId !== turnId || thread.checkpoints.length === 0) return null;
+  return (
+    thread.checkpoints.reduce((max, candidate) => Math.max(max, candidate.checkpointTurnCount), 0) +
+    1
+  );
+}
+
+export function summarizeContextUsage(
+  snapshot: ContextWindowSnapshot,
+  turnNumber: number | null = null,
+): ContextUsageSummary {
   const { autoCompactThreshold, maxTokens, toolUses, turnOutputTokens } = snapshot;
   const percentage =
     maxTokens == null ? null : formatContextWindowPercentage(snapshot.usedPercentage);
@@ -178,7 +210,15 @@ export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextU
     recent:
       recentTokens === null
         ? null
-        : { label: turnOutputTokens == null ? "Last request" : "Last turn", tokens: recentTokens },
+        : {
+            label:
+              turnOutputTokens == null
+                ? "Last request"
+                : turnNumber === null
+                  ? "Last turn"
+                  : `Last turn (#${turnNumber})`,
+            tokens: recentTokens,
+          },
     notes,
   };
 }

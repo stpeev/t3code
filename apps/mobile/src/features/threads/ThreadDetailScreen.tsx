@@ -126,6 +126,7 @@ export interface ThreadDetailScreenProps {
   readonly onDismissFeedback: (id: MessageId) => void;
   readonly selectedThreadFeed: ReadonlyArray<ThreadFeedEntry>;
   readonly contextWindow: ContextWindowSnapshot | null;
+  readonly contextWindowTurn: number | null;
   readonly activeWorkStartedAt: string | null;
   readonly isCompacting: boolean;
   /**
@@ -1036,6 +1037,7 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
                   >
                     <ComposerContextUsage
                       snapshot={props.contextWindow}
+                      turnNumber={props.contextWindowTurn}
                       driver={
                         props.serverConfig?.providers.find(
                           (provider) =>

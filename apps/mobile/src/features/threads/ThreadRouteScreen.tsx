@@ -6,7 +6,10 @@ import {
 } from "../../state/use-composer-drafts";
 import { useWorktreeSetup } from "./use-worktree-setup";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
-import { deriveLatestContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
+import {
+  contextWindowTurnNumber,
+  deriveLatestContextWindowSnapshot,
+} from "@t3tools/client-runtime/context-window";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { ScreenHeaderButton } from "../../components/ScreenHeaderButton";
 import type { ScreenHeaderAction } from "../../components/ScreenHeader.types";
@@ -341,6 +344,18 @@ function ThreadRouteContent(
   const contextWindow = useMemo(
     () => deriveLatestContextWindowSnapshot(selectedThreadActivities ?? []),
     [selectedThreadActivities],
+  );
+  const selectedThreadCheckpoints = selectedThreadDetail?.checkpoints;
+  const selectedLatestTurnId = selectedThreadDetail?.latestTurn?.turnId ?? null;
+  const contextWindowTurn = useMemo(
+    () =>
+      contextWindow && selectedThreadCheckpoints
+        ? contextWindowTurnNumber(contextWindow, {
+            checkpoints: selectedThreadCheckpoints,
+            latestTurn: selectedLatestTurnId === null ? null : { turnId: selectedLatestTurnId },
+          })
+        : null,
+    [contextWindow, selectedLatestTurnId, selectedThreadCheckpoints],
   );
   // "Load earlier turns" header state for windowed (paginated) thread loads.
   const loadEarlierTurns = useMemo(() => {
@@ -973,6 +988,7 @@ function ThreadRouteContent(
           onDismissFeedback={composer.dismissFeedback}
           selectedThreadFeed={composer.selectedThreadFeed}
           contextWindow={contextWindow}
+          contextWindowTurn={contextWindowTurn}
           activeWorkStartedAt={composer.activeWorkStartedAt}
           isCompacting={composer.isCompacting}
           creationState={creationState}
