@@ -1692,6 +1692,8 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
+  // A worktree is always a Git checkout, so one that reads as non-Git has lost its folder.
+  const worktreeMissing = routeKind === "server" && activeThreadWorktreePath !== null && !isGitRepo;
   // Provider-native subagents cannot take messages; approvals and questions go to the top-level parent.
   const showProviderSubagentBar = isProviderSubagent;
   const composerMounted = !showProviderSubagentBar;
@@ -1722,7 +1724,7 @@ export default function ChatView(props: ChatViewProps) {
     isDraftHeroState,
     persistInActiveThreads: settings.persistComposerContextStrip,
     hasActiveProject: activeProject !== null && !showProviderSubagentBar,
-    isGitRepo,
+    isGitRepo: isGitRepo || worktreeMissing,
     showEnvironmentIndicator: showComposerEnvironmentIndicator,
   });
   const terminalShortcutLabelOptions = {
@@ -3697,6 +3699,7 @@ export default function ChatView(props: ChatViewProps) {
                                 worktreePath={activeThread.worktreePath}
                                 isServerThread={isServerThread}
                                 showGitControls={isGitRepo}
+                                worktreeMissing={worktreeMissing}
                                 {...(routeKind === "draft" && draftId ? { draftId } : {})}
                                 onEnvModeChange={onEnvModeChangeStable}
                                 startFromOrigin={startFromOrigin}
