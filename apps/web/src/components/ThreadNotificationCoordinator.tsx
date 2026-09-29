@@ -29,12 +29,14 @@ import {
   threadNotificationTag,
   unlockNotificationAudio,
 } from "../threadNotifications";
+import { ProjectFavicon } from "./ProjectFavicon";
 import { resolveSidebarThreadStatus, type SidebarThreadStatus } from "./Sidebar.logic";
 import {
   createThreadNotificationGate,
   type ThreadNotificationKind,
   type ThreadNotificationObservation,
 } from "./ThreadNotificationCoordinator.logic";
+import { Badge } from "./ui/badge";
 import { toastManager } from "./ui/toast";
 
 /** Base UI's default toast timeout, applied as focused time for toasts raised in the background. */
@@ -96,10 +98,11 @@ export function startThreadNotifications(
   ) => {
     const { thread, status } = state;
     const shell = registry.get(environmentShell.stateValueAtom(environmentId));
-    const projectTitle = Option.isSome(shell.snapshot)
-      ? shell.snapshot.value.projects.find((project) => project.id === thread.projectId)?.title
+    const projectShell = Option.isSome(shell.snapshot)
+      ? shell.snapshot.value.projects.find((candidate) => candidate.id === thread.projectId)
       : undefined;
-    const body = projectTitle ? `${projectTitle} · ${thread.title}` : thread.title;
+    const project = projectShell ? { ...projectShell, environmentId } : undefined;
+    const body = project ? `${project.title} · ${thread.title}` : thread.title;
     const {
       notificationMode: mode,
       inAppNotificationsEnabled,
@@ -139,7 +142,17 @@ export function startThreadNotifications(
         ...(inAppNotificationsPersistent || !focused ? { timeout: 0 } : {}),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
-        description: body,
+        description: project ? (
+          <>
+            <Badge variant="outline" className="me-1 align-text-bottom">
+              <ProjectFavicon project={project} className="size-3" />
+              {project.title}
+            </Badge>
+            {thread.title}
+          </>
+        ) : (
+          thread.title
+        ),
         data: {
           ...(!inAppNotificationsPersistent && !focused
             ? { dismissAfterVisibleMs: BACKGROUND_TOAST_VISIBLE_MS }
