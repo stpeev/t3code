@@ -18,6 +18,7 @@ import {
   setAllDirectoriesExpanded,
   subscribeOncePerTask,
 } from "../files/fileTreeExpansion";
+import { useFileTreeScrollWidth } from "../files/fileTreeScrollWidth";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
@@ -104,6 +105,7 @@ export function DiffFileTree({
     (listener) => subscribeOncePerTask(model, listener),
     () => areAllDirectoriesExpanded(model, directoryPaths),
   );
+  useFileTreeScrollWidth(model, paths);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes the icon set into the imperative Pierre file tree model
   useEffect(() => {
@@ -191,7 +193,7 @@ export function DiffFileTree({
   }, [model, presented, revealRequestId, selectedPath]);
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)}>
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col bg-background", className)}>
       <div
         className="flex h-10 min-h-10 shrink-0 items-center gap-1 border-b border-border/60 bg-background px-2 text-xs text-muted-foreground in-data-[preview-panel-mode=inline]:mb-3 in-data-[preview-panel-mode=inline]:h-7 in-data-[preview-panel-mode=inline]:min-h-7 in-data-[preview-panel-mode=inline]:border-b-transparent"
         data-surface-subheader
