@@ -26,7 +26,9 @@ import {
   threadNotificationTag,
   unlockNotificationAudio,
 } from "../threadNotifications";
+import { ProjectFavicon } from "./ProjectFavicon";
 import { resolveSidebarThreadStatus } from "./Sidebar.logic";
+import { Badge } from "./ui/badge";
 import { toastManager } from "./ui/toast";
 
 /** Base UI's default toast timeout, applied as focused time for toasts raised in the background. */
@@ -158,7 +160,9 @@ function EnvironmentNotifications({
     }
     const next = new Map<ThreadId, NotificationState>();
     const subagentRequests = pendingSubagentRequestsByThread(threads);
-    const projectTitles = new Map((projects ?? []).map((project) => [project.id, project.title]));
+    const projectsById = new Map(
+      (projects ?? []).map((project) => [project.id, { ...project, environmentId }]),
+    );
     for (const rawThread of threads) {
       if (rawThread.lineage.relationshipToParent === "subagent") continue;
       const prior = previous.current.get(rawThread.id);
@@ -209,8 +213,8 @@ function EnvironmentNotifications({
               : status === "failed"
                 ? "Thread failed"
                 : "Input needed";
-      const projectTitle = projectTitles.get(thread.projectId);
-      const body = projectTitle ? `${projectTitle} · ${thread.title}` : thread.title;
+      const project = projectsById.get(thread.projectId);
+      const body = project ? `${project.title} · ${thread.title}` : thread.title;
       if (hasNotificationSound(mode)) {
         void playNotificationSound(kind, () =>
           hasNotificationSound(getClientSettings().notificationMode),
@@ -230,7 +234,17 @@ function EnvironmentNotifications({
           ...(inAppNotificationsPersistent || !focused ? { timeout: 0 } : {}),
           type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
           title,
-          description: body,
+          description: project ? (
+            <>
+              <Badge variant="outline" className="me-1 align-text-bottom">
+                <ProjectFavicon project={project} className="size-3" />
+                {project.title}
+              </Badge>
+              {thread.title}
+            </>
+          ) : (
+            thread.title
+          ),
           data: {
             ...(!inAppNotificationsPersistent && !focused
               ? { dismissAfterVisibleMs: BACKGROUND_TOAST_VISIBLE_MS }
