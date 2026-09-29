@@ -30,7 +30,6 @@ const state = vi.hoisted(() => ({
       timeout?: number;
       data?: { dismissAfterVisibleMs?: number };
       title: string;
-      description: string;
       actionProps: { onClick: () => void };
     }) => _toast.id,
   ),
@@ -226,7 +225,6 @@ describe("thread notifications", () => {
     expect(state.add).toHaveBeenCalledTimes(1);
     const toast = state.add.mock.calls[0]?.[0];
     expect(toast?.title).toBe("Thread completed");
-    expect(toast?.description).toBe("Web app · Fix the login form");
     toast?.actionProps.onClick();
     expect(state.close).toHaveBeenCalledWith(TOAST_ID);
     expect(state.navigate).toHaveBeenCalledWith({
