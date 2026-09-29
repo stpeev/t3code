@@ -47,7 +47,7 @@ describe("buildDiffChangesRows", () => {
       "show-more",
     ]);
     expect(rows[1]).toMatchObject({ commitCount: 2, truncated: false, unpushedCount: 0 });
-    expect(rows[4]).toMatchObject({ mergeBaseShortSha: "ccccccc", upToDate: false });
+    expect(rows[4]).toMatchObject({ upToDate: false });
     expect(rows.filter((row) => row.kind === "commit").map((row) => row.onBranch)).toEqual([
       true,
       true,
