@@ -384,20 +384,31 @@ describe("hasUnseenCompletion", () => {
 });
 
 describe("shouldRecedeSidebarThread", () => {
-  it.each(["working", "monitoring"] as const)(
-    "recedes an inactive %s thread even when it is unread and woke",
-    (status) => {
-      expect(
-        shouldRecedeSidebarThread({
-          status,
-          isUnread: true,
-          isWoke: true,
-          isActive: false,
-          isSelected: false,
-        }),
-      ).toBe(true);
-    },
-  );
+  it("recedes an inactive working thread even when it is unread and woke", () => {
+    expect(
+      shouldRecedeSidebarThread({
+        status: "working",
+        isUnread: true,
+        isWoke: true,
+        isActive: false,
+        isSelected: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("recedes a monitoring thread only once its completion is read", () => {
+    const input = {
+      status: "monitoring" as const,
+      isUnread: false,
+      isWoke: false,
+      isActive: false,
+      isSelected: false,
+    };
+
+    expect(shouldRecedeSidebarThread(input)).toBe(true);
+    expect(shouldRecedeSidebarThread({ ...input, isUnread: true })).toBe(false);
+    expect(shouldRecedeSidebarThread({ ...input, isWoke: true })).toBe(false);
+  });
 
   it.each(["ready", "approval", "input"] as const)(
     "keeps an unread %s thread prominent",
@@ -2017,6 +2028,26 @@ describe("resolveThreadStatusPill", () => {
         },
       }),
     ).toMatchObject({ label: "Completed", pulse: false });
+  });
+
+  it("lets an unseen completion outrank monitoring until the thread is visited", () => {
+    const monitoringThread = {
+      ...baseThread,
+      interactionMode: "default" as const,
+      backgroundLiveness: "monitoring" as const,
+      latestTurn: makeLatestTurn(),
+      lastVisitedAt: "2026-03-09T10:04:00.000Z",
+      session: { ...baseThread.session, status: "ready" as const, activeTurnId: null },
+    };
+
+    expect(resolveThreadStatusPill({ thread: monitoringThread })).toMatchObject({
+      label: "Completed",
+    });
+    expect(
+      resolveThreadStatusPill({
+        thread: { ...monitoringThread, lastVisitedAt: "2026-03-09T10:06:00.000Z" },
+      }),
+    ).toMatchObject({ label: "Monitoring", pulse: false });
   });
 });
 

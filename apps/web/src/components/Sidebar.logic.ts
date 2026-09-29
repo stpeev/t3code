@@ -818,8 +818,9 @@ export function shouldRecedeSidebarThread(input: {
   isSelected: boolean;
 }): boolean {
   if (input.isActive || input.isSelected || input.status === "input") return false;
-  if (input.status === "working" || input.status === "monitoring") return true;
-  if (input.status === "ready" || input.status === "approval") {
+  if (input.status === "working") return true;
+  // A watch loop is idle, so a turn that settled under it still needs reading.
+  if (input.status === "ready" || input.status === "monitoring" || input.status === "approval") {
     return !input.isUnread && !input.isWoke;
   }
   return false;
@@ -1056,7 +1057,8 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (thread.backgroundLiveness === "monitoring") {
+  // Monitoring must not mask an unseen completion: the loop is idle, the turn needs reading.
+  if (thread.backgroundLiveness === "monitoring" && !hasUnseenCompletion(thread)) {
     return {
       label: "Monitoring",
       colorClass: "text-sky-600 dark:text-sky-300/80",

@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   approval: false,
   sessionError: false,
   turnError: false,
+  monitoring: false,
   add: vi.fn(
     (_toast: {
       id: string;
@@ -51,6 +52,7 @@ vi.mock("@effect/atom-react", () => ({
           hasPendingUserInput: state.input,
           hasPendingApprovals: state.approval,
           session: state.sessionError ? { status: "error" } : null,
+          backgroundLiveness: state.monitoring ? "monitoring" : null,
           latestTurn: {
             turnId: "turn-1",
             state: state.turnError ? "error" : state.completedAt ? "completed" : "running",
@@ -138,6 +140,7 @@ beforeEach(() => {
     approval: false,
     sessionError: false,
     turnError: false,
+    monitoring: false,
   });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("window", new EventTarget());
@@ -278,6 +281,22 @@ describe("thread notifications", () => {
     const toast = state.add.mock.calls[0]?.[0];
     expect(toast?.id).toBe(TOAST_ID);
     expect(toast?.timeout).toBe(timeout);
+  });
+
+  it.each([
+    ["completion", "Thread completed"],
+    ["turn error", "Thread failed"],
+  ] as const)("alerts a %s while a watch loop stays armed", async (event, title) => {
+    state.monitoring = true;
+    await render();
+    if (event === "turn error") state.turnError = true;
+    await complete();
+    await render();
+    expect(state.add).toHaveBeenCalledTimes(1);
+    expect(state.add).toHaveBeenLastCalledWith(expect.objectContaining({ title }));
+    state.monitoring = false;
+    await render();
+    expect(state.add).toHaveBeenCalledTimes(1);
   });
 
   it("closes the thread's toast once that thread is opened", async () => {

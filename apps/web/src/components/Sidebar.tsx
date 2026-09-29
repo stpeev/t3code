@@ -1150,7 +1150,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
           // full of them (and repaints every vsync on high-refresh displays).
           className: "text-sky-600 dark:text-sky-400",
         }
-      : status === "monitoring"
+      : status === "monitoring" && !isUnread && !isWoke
         ? {
             // Monitoring is calm background presence, not active progress
             // (monitoring-pill D6), so it keeps the label at full strength.

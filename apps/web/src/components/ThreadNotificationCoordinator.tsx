@@ -152,7 +152,9 @@ function EnvironmentNotifications({
     );
     for (const thread of shell.snapshot.value.threads) {
       let status = resolveSidebarThreadStatus(thread);
-      if (status === "ready" && thread.latestTurn?.state === "error") status = "failed";
+      // A watch loop outliving the turn is idle; the settled turn still notifies.
+      const settled = status === "ready" || status === "monitoring";
+      if (settled && thread.latestTurn?.state === "error") status = "failed";
       const prior = previous.current.get(thread.id);
       const attention =
         status === "input" || status === "approval" || status === "failed"
@@ -160,9 +162,7 @@ function EnvironmentNotifications({
           : null;
       const completedAt = Date.parse(thread.latestTurn?.completedAt ?? "");
       const completion =
-        status === "ready" &&
-        thread.latestTurn?.state === "completed" &&
-        Number.isFinite(completedAt)
+        settled && thread.latestTurn?.state === "completed" && Number.isFinite(completedAt)
           ? completedAt
           : (prior?.completion ?? null);
       next.set(thread.id, { attention, completion });
