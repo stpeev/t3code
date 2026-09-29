@@ -29,7 +29,6 @@ export type DiffChangesRow =
       readonly kind: "divider";
       readonly id: "divider";
       readonly baseRef: string;
-      readonly mergeBaseShortSha: string | null;
       readonly upToDate: boolean;
     }
   | { readonly kind: "show-more"; readonly id: "show-more" };
@@ -66,12 +65,10 @@ export function buildDiffChangesRows(input: {
     rows.push({ kind: "commit", id: commitRowId(commit.sha), commit, onBranch: true });
   }
   if (commits.baseRef !== null) {
-    const mergeBase = commits.contextCommits.find((commit) => commit.sha === commits.mergeBase);
     rows.push({
       kind: "divider",
       id: "divider",
       baseRef: commits.baseRef,
-      mergeBaseShortSha: mergeBase?.shortSha ?? commits.mergeBase?.slice(0, 7) ?? null,
       upToDate: commits.branchCommits.length === 0,
     });
   }

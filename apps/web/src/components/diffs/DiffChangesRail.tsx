@@ -164,9 +164,6 @@ export function DiffChangesRail({
                   {row.upToDate ? "Up to date with" : "Branched from"}
                 </button>
                 {renderBasePicker(row.baseRef)}
-                {row.mergeBaseShortSha && !row.upToDate ? (
-                  <span className="ml-auto shrink-0 font-mono">{row.mergeBaseShortSha}</span>
-                ) : null}
               </div>
             ) : (
               <ChangesRowButton
