@@ -1,7 +1,17 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
+import { preloadFileTree } from "@pierre/trees";
 import { describe, expect, it } from "vite-plus/test";
 
+<<<<<<< HEAD
 import { buildDiffFileTreeUpdates, diffFileTreeEntries } from "./diffFileTree.logic";
+=======
+import {
+  buildDiffFileTreeUpdates,
+  countDiffFileTreeRows,
+  diffFileTreeEntries,
+  orderDiffFilesLikeTree,
+} from "./diffFileTree.logic";
+>>>>>>> 3c4cce1525 (fix(web): changes list file tree no longer leaves empty rows under flattened folders)
 
 function file(type: FileDiffMetadata["type"], name: string, prevName = name): FileDiffMetadata {
   return { type, name, prevName } as FileDiffMetadata;
@@ -24,6 +34,51 @@ describe("diffFileTreeEntries", () => {
   });
 });
 
+<<<<<<< HEAD
+=======
+describe("orderDiffFilesLikeTree", () => {
+  it("pulls a test listed last into its directory, keeping the first-seen order", () => {
+    expect(
+      orderDiffFilesLikeTree([
+        file("change", "server/device/Host.ts"),
+        file("change", "web/settings.ts"),
+        file("change", "server/ws.ts"),
+        file("change", "server/device/Host.test.ts"),
+        file("change", "web/settings.test.ts"),
+      ]).map((entry) => entry.name),
+    ).toEqual([
+      "server/device/Host.ts",
+      "server/device/Host.test.ts",
+      "server/ws.ts",
+      "web/settings.ts",
+      "web/settings.test.ts",
+    ]);
+  });
+});
+
+describe("countDiffFileTreeRows", () => {
+  it("matches the rows Pierre renders once single-folder chains are flattened", () => {
+    const paths = [
+      "apps/my-pill/src/components/a.tsx",
+      "apps/my-pill/src/components/b.tsx",
+      "packages/common-lib/src/browser-window.ts",
+      "packages/common-lib/src/browser-window.test.ts",
+      "apps/mobile/src/state/shell.ts",
+      "apps/mobile/src/features/threads/route.ts",
+      "docs/only/one.md",
+      "README.md",
+    ];
+    const tree = preloadFileTree({
+      paths,
+      initialExpansion: "open",
+      flattenEmptyDirectories: true,
+    });
+    const rows = [...tree.shadowHtml.matchAll(/data-item-path="([^"]+)"/g)];
+    expect(countDiffFileTreeRows(paths)).toBe(rows.length);
+  });
+});
+
+>>>>>>> 3c4cce1525 (fix(web): changes list file tree no longer leaves empty rows under flattened folders)
 describe("buildDiffFileTreeUpdates", () => {
   it("adds a new file's directories before the file", () => {
     expect(buildDiffFileTreeUpdates(["README.md"], ["README.md", "src/lib/a.ts"])).toEqual([

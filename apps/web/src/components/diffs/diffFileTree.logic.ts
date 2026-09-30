@@ -85,6 +85,72 @@ export function collectDirectoryPaths(paths: ReadonlyArray<string>): ReadonlyArr
   return [...directories];
 }
 
+<<<<<<< HEAD
+=======
+/** Rows the tree draws with every folder open; a folder whose only child is a folder shares its row. */
+export function countDiffFileTreeRows(paths: ReadonlyArray<string>): number {
+  const children = new Map<string, Set<string>>();
+  for (const path of paths) {
+    const segments = path.split("/");
+    let parent = "";
+    segments.forEach((segment, index) => {
+      const child = index < segments.length - 1 ? `${parent}${segment}/` : `${parent}${segment}`;
+      if (parent) children.set(parent, (children.get(parent) ?? new Set()).add(child));
+      parent = child;
+    });
+  }
+  let directoryRows = 0;
+  for (const directoryChildren of children.values()) {
+    const [onlyChild] = directoryChildren;
+    if (directoryChildren.size !== 1 || !onlyChild?.endsWith("/")) directoryRows += 1;
+  }
+  return paths.length + directoryRows;
+}
+
+export function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap<string, number> {
+  const positions = new Map<string, number>();
+  paths.forEach((path, index) => {
+    positions.set(path, index);
+    let directory = "";
+    for (const segment of path.split("/").slice(0, -1)) {
+      directory += `${segment}/`;
+      if (!positions.has(directory)) positions.set(directory, index);
+    }
+  });
+  return positions;
+}
+
+// A flat list in tree order: each directory stays contiguous, siblings ranked as
+// compareDiffFileTreeEntries ranks them, so the list never disagrees with the tree.
+export function orderDiffFilesLikeTree(
+  files: ReadonlyArray<FileDiffMetadata>,
+): ReadonlyArray<FileDiffMetadata> {
+  const paths = files.map(resolveFileDiffPath);
+  const positions = diffFileTreePositions(paths);
+  const keys = paths.map((path) => {
+    const key: number[] = [];
+    let directory = "";
+    for (const segment of path.split("/").slice(0, -1)) {
+      directory += `${segment}/`;
+      key.push(positions.get(directory)!);
+    }
+    key.push(positions.get(path)!);
+    return key;
+  });
+  return files
+    .map((file, index) => ({ file, key: keys[index]! }))
+    .toSorted((left, right) => {
+      const length = Math.min(left.key.length, right.key.length);
+      for (let index = 0; index < length; index++) {
+        const difference = left.key[index]! - right.key[index]!;
+        if (difference !== 0) return difference;
+      }
+      return left.key.length - right.key.length;
+    })
+    .map(({ file }) => file);
+}
+
+>>>>>>> 3c4cce1525 (fix(web): changes list file tree no longer leaves empty rows under flattened folders)
 export function compareDiffFileTreeEntries(
   getPositions: () => ReadonlyMap<string, number>,
 ): FileTreeSortComparator {
