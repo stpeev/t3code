@@ -6,6 +6,7 @@ import {
   buildDiffFileTreeUpdates,
   compareDiffFileTreeEntries,
   collectDirectoryPaths,
+  countDiffFileTreeRows,
   diffFileTreePositions,
   diffFileTreeEntries,
 } from "./diffFileTree.logic";
@@ -58,6 +59,28 @@ describe("collectDirectoryPaths", () => {
       "apps/web/",
       "apps/web/src/",
     ]);
+  });
+});
+
+describe("countDiffFileTreeRows", () => {
+  it("matches the rows Pierre renders once single-folder chains are flattened", () => {
+    const paths = [
+      "apps/my-pill/src/components/a.tsx",
+      "apps/my-pill/src/components/b.tsx",
+      "packages/common-lib/src/browser-window.ts",
+      "packages/common-lib/src/browser-window.test.ts",
+      "apps/mobile/src/state/shell.ts",
+      "apps/mobile/src/features/threads/route.ts",
+      "docs/only/one.md",
+      "README.md",
+    ];
+    const tree = preloadFileTree({
+      paths,
+      initialExpansion: "open",
+      flattenEmptyDirectories: true,
+    });
+    const rows = [...tree.shadowHtml.matchAll(/data-item-path="([^"]+)"/g)];
+    expect(countDiffFileTreeRows(paths)).toBe(rows.length);
   });
 });
 
