@@ -58,6 +58,26 @@ export function collectDirectoryPaths(paths: ReadonlyArray<string>): ReadonlyArr
   return [...directories];
 }
 
+/** Rows the tree draws with every folder open; a folder whose only child is a folder shares its row. */
+export function countDiffFileTreeRows(paths: ReadonlyArray<string>): number {
+  const children = new Map<string, Set<string>>();
+  for (const path of paths) {
+    const segments = path.split("/");
+    let parent = "";
+    segments.forEach((segment, index) => {
+      const child = index < segments.length - 1 ? `${parent}${segment}/` : `${parent}${segment}`;
+      if (parent) children.set(parent, (children.get(parent) ?? new Set()).add(child));
+      parent = child;
+    });
+  }
+  let directoryRows = 0;
+  for (const directoryChildren of children.values()) {
+    const [onlyChild] = directoryChildren;
+    if (directoryChildren.size !== 1 || !onlyChild?.endsWith("/")) directoryRows += 1;
+  }
+  return paths.length + directoryRows;
+}
+
 /** A folder takes the position of its first file in the diff. */
 export function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap<string, number> {
   const positions = new Map<string, number>();

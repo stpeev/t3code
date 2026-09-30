@@ -70,7 +70,7 @@ import {
 import { DiffFileTree } from "./diffs/DiffFileTree";
 import { DiffSearchBar } from "./diffs/DiffSearchBar";
 import { useDiffSearch } from "./diffs/useDiffSearch";
-import { collectDirectoryPaths, diffFileTreeEntries } from "./diffs/diffFileTree.logic";
+import { countDiffFileTreeRows, diffFileTreeEntries } from "./diffs/diffFileTree.logic";
 import { Button } from "./ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
@@ -596,9 +596,7 @@ export default function DiffPanel({
   }, [renderableFiles, selectedGitSource, selectedTurn]);
   const fileTreeEntries = useMemo(() => diffFileTreeEntries(renderableFiles), [renderableFiles]);
   const fileTreeRowCount = useMemo(
-    () =>
-      fileTreeEntries.length +
-      collectDirectoryPaths(fileTreeEntries.map((entry) => entry.path)).length,
+    () => countDiffFileTreeRows(fileTreeEntries.map((entry) => entry.path)),
     [fileTreeEntries],
   );
   const workingTreeStat = gitStatus?.workingTree;
