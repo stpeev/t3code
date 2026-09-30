@@ -86,7 +86,7 @@ import {
 import { DiffFileTree } from "./diffs/DiffFileTree";
 import { DiffSearchBar } from "./diffs/DiffSearchBar";
 import { useDiffSearch } from "./diffs/useDiffSearch";
-import { collectDirectoryPaths, diffFileTreeEntries } from "./diffs/diffFileTree.logic";
+import { countDiffFileTreeRows, diffFileTreeEntries } from "./diffs/diffFileTree.logic";
 import { Button } from "./ui/button";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
 import {
@@ -728,9 +728,7 @@ export default function DiffPanel({
     !isRefreshingDiff && remainingFileCount === 0,
     remainingFileCount > 0 ? loadNextFiles : null,
   );
-  const fileTreeRowCount =
-    fileTreeEntries.length +
-    collectDirectoryPaths(fileTreeEntries.map((entry) => entry.path)).length;
+  const fileTreeRowCount = countDiffFileTreeRows(fileTreeEntries.map((entry) => entry.path));
   const workingTreeStat = gitStatus?.workingTree;
   const pinnedChangesLabel =
     selectedRunId !== null
