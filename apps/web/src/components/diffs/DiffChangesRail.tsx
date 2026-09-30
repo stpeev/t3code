@@ -222,6 +222,7 @@ function ChangesRowButton({
       className={cn(
         "group mx-1 flex min-w-0 items-stretch rounded-md border-l-2 border-transparent",
         row.kind === "commit" && row.onBranch && "border-primary/70",
+        row.kind === "working-tree" && "border-muted-foreground/60",
         selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
       )}
     >
@@ -263,11 +264,13 @@ function ChangesRowButton({
               </span>
             </>
           ) : row.kind === "working-tree" ? (
-            <span className="flex min-w-0 items-center gap-2 text-xs">
-              <span className="truncate font-medium">Working tree</span>
+            <>
+              <span className="truncate text-xs">Working tree</span>
               {row.fileCount > 0 ? (
-                <span className="ml-auto flex shrink-0 items-center gap-2 text-2xs text-muted-foreground">
-                  <span className="tabular-nums">{row.fileCount}</span>
+                <span className="flex min-w-0 gap-2 text-2xs text-muted-foreground">
+                  <span className="tabular-nums">
+                    {row.fileCount} {row.fileCount === 1 ? "file" : "files"}
+                  </span>
                   <DiffStatLabel
                     additions={row.additions}
                     deletions={row.deletions}
@@ -275,9 +278,9 @@ function ChangesRowButton({
                   />
                 </span>
               ) : (
-                <span className="ml-auto text-2xs text-muted-foreground">Clean</span>
+                <span className="text-2xs text-muted-foreground">Clean</span>
               )}
-            </span>
+            </>
           ) : (
             <span className="truncate text-xs font-medium">{row.label}</span>
           )}
