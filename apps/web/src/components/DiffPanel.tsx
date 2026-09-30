@@ -69,7 +69,7 @@ import {
 import { DiffFileTree } from "./diffs/DiffFileTree";
 import { DiffSearchBar } from "./diffs/DiffSearchBar";
 import { useDiffSearch } from "./diffs/useDiffSearch";
-import { collectDirectoryPaths, diffFileTreeEntries } from "./diffs/diffFileTree.logic";
+import { countDiffFileTreeRows, diffFileTreeEntries } from "./diffs/diffFileTree.logic";
 import { Button } from "./ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
@@ -570,9 +570,7 @@ export default function DiffPanel({
   const allDiffFilesCollapsed = areAllDiffFilesCollapsed(diffFileKeys, collapsedDiffFileKeys);
   const diffLineStat = sourceLineStat ?? getDiffLineStat(renderableFiles);
   const fileTreeEntries = diffFileTreeEntries(renderableFiles);
-  const fileTreeRowCount =
-    fileTreeEntries.length +
-    collectDirectoryPaths(fileTreeEntries.map((entry) => entry.path)).length;
+  const fileTreeRowCount = countDiffFileTreeRows(fileTreeEntries.map((entry) => entry.path));
   const workingTreeStat = gitStatus?.workingTree;
   const pinnedChangesLabel =
     selectedRunId !== null

@@ -1,7 +1,12 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
+import { preloadFileTree } from "@pierre/trees";
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildDiffFileTreeUpdates, diffFileTreeEntries } from "./diffFileTree.logic";
+import {
+  buildDiffFileTreeUpdates,
+  countDiffFileTreeRows,
+  diffFileTreeEntries,
+} from "./diffFileTree.logic";
 
 function file(type: FileDiffMetadata["type"], name: string, prevName = name): FileDiffMetadata {
   return { type, name, prevName } as FileDiffMetadata;
@@ -21,6 +26,28 @@ describe("diffFileTreeEntries", () => {
       { path: "AGENTS.md", status: "modified" },
       { path: "docs/new.md", status: "added" },
     ]);
+  });
+});
+
+describe("countDiffFileTreeRows", () => {
+  it("matches the rows Pierre renders once single-folder chains are flattened", () => {
+    const paths = [
+      "apps/my-pill/src/components/a.tsx",
+      "apps/my-pill/src/components/b.tsx",
+      "packages/common-lib/src/browser-window.ts",
+      "packages/common-lib/src/browser-window.test.ts",
+      "apps/mobile/src/state/shell.ts",
+      "apps/mobile/src/features/threads/route.ts",
+      "docs/only/one.md",
+      "README.md",
+    ];
+    const tree = preloadFileTree({
+      paths,
+      initialExpansion: "open",
+      flattenEmptyDirectories: true,
+    });
+    const rows = [...tree.shadowHtml.matchAll(/data-item-path="([^"]+)"/g)];
+    expect(countDiffFileTreeRows(paths)).toBe(rows.length);
   });
 });
 
