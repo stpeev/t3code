@@ -86,14 +86,21 @@ export function BaseRefCombobox({
         onChange(next === AUTOMATIC_BASE_REF ? null : next);
       }}
     >
-      <ComboboxTrigger
-        render={<Button variant="ghost-muted" size="xs" />}
-        className="min-w-0 max-w-48 shrink"
-        aria-label={`Change comparison target. Currently ${displayRef}`}
-      >
-        <span className="min-w-0 truncate">{displayRef}</span>
-        <ChevronDownIcon className="size-3.5 shrink-0 opacity-70" />
-      </ComboboxTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <ComboboxTrigger
+              render={<Button variant="ghost-muted" size="xs" />}
+              className="min-w-0 max-w-48 shrink"
+              aria-label={`Change comparison target. Currently ${displayRef}`}
+            />
+          }
+        >
+          <span className="min-w-0 truncate">{displayRef}</span>
+          <ChevronDownIcon className="size-3.5 shrink-0 opacity-70" />
+        </TooltipTrigger>
+        <TooltipPopup side="top">{displayRef}</TooltipPopup>
+      </Tooltip>
       <ComboboxPopup
         align="start"
         className="w-72 min-w-0 max-w-[calc(100vw-1rem)] overflow-hidden"
