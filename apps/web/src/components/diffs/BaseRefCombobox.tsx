@@ -118,57 +118,74 @@ export function BaseRefCombobox({
           </div>
         </div>
         <ComboboxEmpty>No matching refs.</ComboboxEmpty>
-        <ComboboxList className="max-h-64 min-w-0 overflow-x-hidden">
-          <ComboboxItem
-            className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
-            value={AUTOMATIC_BASE_REF}
-          >
-            <span className="block min-w-0 truncate">Automatic</span>
-          </ComboboxItem>
-          {choices.map((choice) => {
-            const item = valueForChoice(choice);
-            const hasBoth = choice.local !== null && choice.remote !== null;
-            const useRemote = choice.remote?.name === item;
-            return (
-              <ComboboxItem
-                key={choice.id}
-                className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
-                value={item}
-              >
-                <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-center overflow-hidden">
-                  <span className="block min-w-0 truncate pe-2">{choice.label}</span>
-                  {hasBoth ? (
-                    <div
-                      className="flex justify-end"
-                      onClick={(event) => event.stopPropagation()}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <Switch
-                        aria-label={`Use remote version of ${choice.label}`}
-                        checked={useRemote}
-                        className="[--thumb-size:--spacing(3)]"
-                        onCheckedChange={(checked) => {
-                          const nextRef = checked ? choice.remote?.name : choice.local?.name;
-                          if (nextRef) onChange(nextRef);
-                        }}
-                      />
-                    </div>
-                  ) : choice.remote ? (
+        {/* The list is the scroller; one max-content wrapper keeps every row as wide as the longest name. */}
+        <ComboboxList className="max-h-64 min-w-0 overflow-auto">
+          <div className="w-max min-w-full">
+            <ComboboxItem
+              className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
+              value={AUTOMATIC_BASE_REF}
+            >
+              <span className="block min-w-0 truncate">Automatic</span>
+            </ComboboxItem>
+            {choices.map((choice) => {
+              const item = valueForChoice(choice);
+              const hasBoth = choice.local !== null && choice.remote !== null;
+              const useRemote = choice.remote?.name === item;
+              return (
+                <ComboboxItem
+                  key={choice.id}
+                  className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
+                  value={item}
+                >
+                  <div className="grid w-full grid-cols-[1fr_auto] items-center">
                     <Tooltip>
                       <TooltipTrigger
-                        render={
-                          <span className="flex justify-end text-muted-foreground">
-                            <CheckIcon role="img" aria-label="Remote only" className="size-3" />
-                          </span>
-                        }
+                        render={<span className="whitespace-nowrap pe-2">{choice.label}</span>}
                       />
-                      <TooltipPopup side="top">Remote only</TooltipPopup>
+                      <TooltipPopup side="top">{choice.label}</TooltipPopup>
                     </Tooltip>
-                  ) : null}
-                </div>
-              </ComboboxItem>
-            );
-          })}
+                    {hasBoth || choice.remote ? (
+                      // Pinned to the list's right edge; the opaque backing hides names scrolling beneath.
+                      <div className="sticky right-0 -me-3 flex w-11 self-stretch items-center justify-end bg-popover pe-3 in-data-highlighted:bg-linear-to-r in-data-highlighted:from-accent in-data-highlighted:to-accent in-[[data-selected]:not([data-highlighted])]:bg-linear-to-r in-[[data-selected]:not([data-highlighted])]:from-foreground/8 in-[[data-selected]:not([data-highlighted])]:to-foreground/8">
+                        {hasBoth ? (
+                          <div
+                            className="flex"
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                          >
+                            <Switch
+                              aria-label={`Use remote version of ${choice.label}`}
+                              checked={useRemote}
+                              className="[--thumb-size:--spacing(3)]"
+                              onCheckedChange={(checked) => {
+                                const nextRef = checked ? choice.remote?.name : choice.local?.name;
+                                if (nextRef) onChange(nextRef);
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <span className="flex text-muted-foreground">
+                                  <CheckIcon
+                                    role="img"
+                                    aria-label="Remote only"
+                                    className="size-3"
+                                  />
+                                </span>
+                              }
+                            />
+                            <TooltipPopup side="top">Remote only</TooltipPopup>
+                          </Tooltip>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </ComboboxItem>
+              );
+            })}
+          </div>
         </ComboboxList>
       </ComboboxPopup>
     </Combobox>
