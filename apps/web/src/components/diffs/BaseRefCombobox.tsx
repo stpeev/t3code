@@ -18,6 +18,8 @@ import {
 } from "../ui/combobox";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const AUTOMATIC_BASE_REF = "__automatic_base_ref__";
 
@@ -91,8 +93,10 @@ export function BaseRefCombobox({
           render={
             <ComboboxTrigger
               render={<Button variant="ghost-muted" size="xs" />}
-              className="min-w-9 max-w-48 shrink redesign:shrink-0"
-              aria-label={`Change comparison target. Currently ${displayRef}`}
+              className="min-w-9 max-w-48 shrink-0"
+              aria-label={m(
+                msg("Change comparison target. Currently {displayRef}", { displayRef: displayRef }),
+              )}
             />
           }
         >
@@ -106,69 +110,98 @@ export function BaseRefCombobox({
         className="w-72 min-w-0 max-w-[calc(100vw-1rem)] overflow-hidden"
       >
         <ComboboxSearchInput
-          placeholder="Search refs..."
+          placeholder={msg("Search refs...")}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
         <div className="grid shrink-0 grid-cols-[1rem_minmax(0,1fr)] items-center gap-2 border-b border-border/70 ps-3 pe-6.5 pt-2 pb-1.5 font-medium text-3xs text-muted-foreground uppercase tracking-wide">
           <span aria-hidden="true" />
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-center">
-            <span>Branch</span>
-            <span className="text-right">Remote</span>
+            <span>
+              <T>Branch</T>
+            </span>
+            <span className="text-right">
+              <T>Remote</T>
+            </span>
           </div>
         </div>
-        <ComboboxEmpty>No matching refs.</ComboboxEmpty>
-        <ComboboxList className="max-h-64 min-w-0 overflow-x-hidden">
-          <ComboboxItem
-            className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
-            value={AUTOMATIC_BASE_REF}
-          >
-            <span className="block min-w-0 truncate">Automatic</span>
-          </ComboboxItem>
-          {choices.map((choice) => {
-            const item = valueForChoice(choice);
-            const hasBoth = choice.local !== null && choice.remote !== null;
-            const useRemote = choice.remote?.name === item;
-            return (
-              <ComboboxItem
-                key={choice.id}
-                className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
-                value={item}
-              >
-                <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-center overflow-hidden">
-                  <span className="block min-w-0 truncate pe-2">{choice.label}</span>
-                  {hasBoth ? (
-                    <div
-                      className="flex justify-end"
-                      onClick={(event) => event.stopPropagation()}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <Switch
-                        aria-label={`Use remote version of ${choice.label}`}
-                        checked={useRemote}
-                        className="[--thumb-size:--spacing(3)]"
-                        onCheckedChange={(checked) => {
-                          const nextRef = checked ? choice.remote?.name : choice.local?.name;
-                          if (nextRef) onChange(nextRef);
-                        }}
-                      />
-                    </div>
-                  ) : choice.remote ? (
+        <ComboboxEmpty>
+          <T>No matching refs.</T>
+        </ComboboxEmpty>
+        {/* The list is the scroller; one max-content wrapper keeps every row as wide as the longest name. */}
+        <ComboboxList className="max-h-64 min-w-0 overflow-auto">
+          <div className="w-max min-w-full">
+            <ComboboxItem
+              className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
+              value={AUTOMATIC_BASE_REF}
+            >
+              <span className="block min-w-0 truncate">
+                <T>Automatic</T>
+              </span>
+            </ComboboxItem>
+            {choices.map((choice) => {
+              const item = valueForChoice(choice);
+              const hasBoth = choice.local !== null && choice.remote !== null;
+              const useRemote = choice.remote?.name === item;
+              return (
+                <ComboboxItem
+                  key={choice.id}
+                  className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
+                  value={item}
+                >
+                  <div className="grid w-full grid-cols-[1fr_auto] items-center">
                     <Tooltip>
                       <TooltipTrigger
-                        render={
-                          <span className="flex justify-end text-muted-foreground">
-                            <CheckIcon role="img" aria-label="Remote only" className="size-3" />
-                          </span>
-                        }
+                        render={<span className="whitespace-nowrap pe-2">{choice.label}</span>}
                       />
-                      <TooltipPopup side="top">Remote only</TooltipPopup>
+                      <TooltipPopup side="top">{choice.label}</TooltipPopup>
                     </Tooltip>
-                  ) : null}
-                </div>
-              </ComboboxItem>
-            );
-          })}
+                    {hasBoth || choice.remote ? (
+                      // Pinned to the list's right edge; the opaque backing hides names scrolling beneath.
+                      <div className="sticky right-0 -me-3 flex w-11 self-stretch items-center justify-end bg-popover pe-3 in-data-highlighted:bg-linear-to-r in-data-highlighted:from-accent in-data-highlighted:to-accent in-[[data-selected]:not([data-highlighted])]:bg-linear-to-r in-[[data-selected]:not([data-highlighted])]:from-foreground/8 in-[[data-selected]:not([data-highlighted])]:to-foreground/8">
+                        {hasBoth ? (
+                          <div
+                            className="flex"
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                          >
+                            <Switch
+                              aria-label={m(
+                                msg("Use remote version of {arg0}", { arg0: choice.label }),
+                              )}
+                              checked={useRemote}
+                              className="[--thumb-size:--spacing(3)]"
+                              onCheckedChange={(checked) => {
+                                const nextRef = checked ? choice.remote?.name : choice.local?.name;
+                                if (nextRef) onChange(nextRef);
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <span className="flex text-muted-foreground">
+                                  <CheckIcon
+                                    role="img"
+                                    aria-label={msg("Remote only")}
+                                    className="size-3"
+                                  />
+                                </span>
+                              }
+                            />
+                            <TooltipPopup side="top">
+                              <T>Remote only</T>
+                            </TooltipPopup>
+                          </Tooltip>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </ComboboxItem>
+              );
+            })}
+          </div>
         </ComboboxList>
       </ComboboxPopup>
     </Combobox>
