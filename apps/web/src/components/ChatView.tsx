@@ -39,6 +39,7 @@ import {
 } from "@t3tools/shared/usageLimits";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { usageLimitsBannerItem } from "./chat/ComposerUsageLimits";
+import { contextUsageBannerItem } from "./chat/ComposerContextUsage";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import * as Schema from "effect/Schema";
 import {
@@ -509,8 +510,9 @@ import {
 } from "./chat/ContextWindowMeter.logic";
 import {
   deriveLatestContextWindowSnapshot,
+  isContextUsageCommand,
   latestProviderTurnTokenUsage,
-} from "../lib/contextWindow";
+} from "@t3tools/client-runtime/context-window";
 import {
   DRAFT_HERO_TRANSITION_ANIMATION_ID,
   DRAFT_HERO_TRANSITION_EASING,
@@ -7639,6 +7641,70 @@ export default function ChatView(props: ChatViewProps) {
   };
   const toggleKeepFullHistory = () => setKeepFullHistory(routeThreadKey, !keepFullHistory);
   const toggleKeepFullHistoryStable = useStableCallback(toggleKeepFullHistory);
+  const compactBannerAction = useMemo(() => {
+    const button = (
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={compactDisabled}
+        onClick={() => {
+          if (compactDisabled) return;
+          composerRef.current?.compactContext();
+        }}
+      >
+        Compact
+      </Button>
+    );
+    return compactDisabledReason ? (
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex">{button}</span>} />
+        <TooltipPopup side="top">{compactDisabledReason}</TooltipPopup>
+      </Tooltip>
+    ) : (
+      button
+    );
+  }, [compactDisabled, compactDisabledReason, composerRef]);
+  // The open /context-usage banner. Only the opening is stored, so the rows follow the live
+  // snapshot; it closes on dismiss or when the thread changes, not on a new turn.
+  const [contextUsagePanel, setContextUsagePanel] = useState<{
+    readonly threadKey: string;
+    readonly openedAt: number;
+  } | null>(null);
+  if (contextUsagePanel !== null && contextUsagePanel.threadKey !== routeThreadKey) {
+    setContextUsagePanel(null);
+  }
+  const openContextUsage = () => {
+    if (!activeContextWindow) {
+      toastManager.add({ type: "info", title: "No context usage reported for this thread yet" });
+      return false;
+    }
+    setContextUsagePanel({ threadKey: routeThreadKey, openedAt: Date.now() });
+    return true;
+  };
+  const openContextUsageStable = useStableCallback(openContextUsage);
+  const contextUsageBanner = useMemo(
+    () =>
+      contextUsagePanel !== null &&
+      contextUsagePanel.threadKey === routeThreadKey &&
+      activeContextWindow
+        ? // A fresh id per opening: the stack keeps the last dismissed id as "exiting".
+          contextUsageBannerItem(
+            `context-usage:${contextUsagePanel.threadKey}:${contextUsagePanel.openedAt}`,
+            activeContextWindow,
+            selectedProvider,
+            manualCompactionProviderAvailable ? compactBannerAction : null,
+            () => setContextUsagePanel(null),
+          )
+        : null,
+    [
+      activeContextWindow,
+      compactBannerAction,
+      contextUsagePanel,
+      manualCompactionProviderAvailable,
+      routeThreadKey,
+      selectedProvider,
+    ],
+  );
   const handleRestoreThreadBranch = () => {
     if (!canWriteSourceControl) return;
     if (gitStatusQuery.data?.hasWorkingTreeChanges) {
@@ -7689,14 +7755,14 @@ export default function ChatView(props: ChatViewProps) {
       goalBannerItem,
       backgroundWorkBannerItem,
     ].filter((item) => item !== null);
-    // The user asked for this one, so it leads the notice tier instead of trailing it.
-    const usageLimitsItems = usageLimitsBanner === null ? [] : [usageLimitsBanner];
+    // The user asked for these, so they lead the notice tier instead of trailing it.
+    const requestedItems = [usageLimitsBanner, contextUsageBanner].filter((item) => item !== null);
     const projectCloneItems = projectCloneBannerItem === null ? [] : [projectCloneBannerItem];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {
       return [
         ...feedbackBannerItems,
         ...limitRecoveryItems,
-        ...usageLimitsItems,
+        ...requestedItems,
         ...projectCloneItems,
         ...systemComposerBannerItems,
         ...backgroundWorkItems,
@@ -7705,7 +7771,7 @@ export default function ChatView(props: ChatViewProps) {
     return [
       ...feedbackBannerItems,
       ...limitRecoveryItems,
-      ...usageLimitsItems,
+      ...requestedItems,
       ...projectCloneItems,
       ...systemComposerBannerItems,
       ...backgroundWorkItems,
@@ -7754,6 +7820,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadShell,
     serverRuntime?.usageLimitResetAt,
     canWriteSourceControl,
+    contextUsageBanner,
     feedbackBannerItems,
     limitRecoveryBanner,
     handleRestoreThreadBranchStable,
@@ -8629,6 +8696,18 @@ export default function ChatView(props: ChatViewProps) {
       isUsageLimitsCommand(promptRef.current)
     ) {
       if (openUsageLimits()) {
+        promptRef.current = "";
+        setComposerDraftPrompt(composerDraftTarget, "");
+        composerRef.current?.resetCursorState();
+      }
+      return;
+    }
+    if (
+      !directAnnotation &&
+      !composerHasNonPromptContent &&
+      isContextUsageCommand(promptRef.current)
+    ) {
+      if (openContextUsage()) {
         promptRef.current = "";
         setComposerDraftPrompt(composerDraftTarget, "");
         composerRef.current?.resetCursorState();
@@ -11552,6 +11631,9 @@ export default function ChatView(props: ChatViewProps) {
                                 !composerHasNonPromptContent
                                   ? openUsageLimitsStable
                                   : undefined
+                              }
+                              onContextUsageCommand={
+                                composerHasNonPromptContent ? undefined : openContextUsageStable
                               }
                               environmentUnavailable={activeEnvironmentUnavailableState}
                               activePendingApproval={activePendingApproval}
