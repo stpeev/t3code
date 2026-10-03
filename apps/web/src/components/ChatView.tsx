@@ -509,6 +509,7 @@ import {
   shouldOfferResumeCompaction,
 } from "./chat/ContextWindowMeter.logic";
 import {
+  deriveLastTurnUsage,
   deriveLatestContextWindowSnapshot,
   isContextUsageCommand,
   latestProviderTurnTokenUsage,
@@ -7693,6 +7694,7 @@ export default function ChatView(props: ChatViewProps) {
           contextUsageBannerItem(
             `context-usage:${contextUsagePanel.threadKey}:${contextUsagePanel.openedAt}`,
             activeContextWindow,
+            serverProjection ? deriveLastTurnUsage(serverProjection) : null,
             selectedProvider,
             manualCompactionProviderAvailable ? compactBannerAction : null,
             () => setContextUsagePanel(null),
@@ -7705,6 +7707,7 @@ export default function ChatView(props: ChatViewProps) {
       manualCompactionProviderAvailable,
       routeThreadKey,
       selectedProvider,
+      serverProjection,
     ],
   );
   const handleRestoreThreadBranch = () => {

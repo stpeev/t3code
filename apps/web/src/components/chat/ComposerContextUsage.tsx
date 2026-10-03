@@ -1,5 +1,6 @@
 import {
   type ContextWindowSnapshot,
+  type LastTurnUsage,
   summarizeContextUsage,
 } from "@t3tools/client-runtime/context-window";
 import type { ProviderDriverKind } from "@t3tools/contracts";
@@ -19,11 +20,12 @@ const TRAILING_CLASS_NAME =
 export function contextUsageBannerItem(
   id: string,
   snapshot: ContextWindowSnapshot,
+  lastTurn: LastTurnUsage | null,
   driver: ProviderDriverKind,
   actions: ReactNode,
   onDismiss: () => void,
 ): ComposerBannerStackItem {
-  const summary = summarizeContextUsage(snapshot);
+  const summary = summarizeContextUsage(snapshot, lastTurn);
   const hasBar = summary.usedPercentage !== null && summary.percentage !== null;
   return {
     id,

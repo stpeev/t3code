@@ -273,8 +273,6 @@ export const ThreadTokenUsageSnapshot = Schema.Struct({
   lastCachedInputTokens: Schema.optional(NonNegativeInt),
   lastOutputTokens: Schema.optional(NonNegativeInt),
   lastReasoningOutputTokens: Schema.optional(NonNegativeInt),
-  /** Output across every request of the snapshot's turn so far. */
-  turnOutputTokens: Schema.optional(NonNegativeInt),
   toolUses: Schema.optional(NonNegativeInt),
   durationMs: Schema.optional(NonNegativeInt),
   compactsAutomatically: Schema.optional(Schema.Boolean),
