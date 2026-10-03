@@ -5,6 +5,7 @@ import { buildProjectThreadStartTurnInput } from "../../lib/projectThreadStartTu
 import { useWorktreeSetup } from "./use-worktree-setup";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { AppBar } from "../../components/ui/AppBar";
+import { deriveLatestContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
 import {
   StackActions,
   useFocusEffect,
@@ -51,7 +52,10 @@ import {
 import { useKnownTerminalSessions } from "../../state/use-terminal-session";
 import { uuidv4 } from "../../lib/uuid";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
-import { useSelectedThreadDetailState } from "../../state/use-thread-detail";
+import {
+  useSelectedThreadDetailState,
+  useSelectedThreadVisibleTurnItems,
+} from "../../state/use-thread-detail";
 import { useThreadSelection } from "../../state/use-thread-selection";
 import { GitActionProgressOverlay } from "./GitActionProgressOverlay";
 import {
@@ -297,6 +301,19 @@ function ThreadRouteContent(
   );
   const selectedThreadDetailState = props.selectedThreadDetailState;
   const selectedThreadDetail = Option.getOrNull(selectedThreadDetailState.data);
+  const selectedVisibleTurnItems = useSelectedThreadVisibleTurnItems();
+  // Same inputs as the web composer meter: live provider usage, then the provider thread, then compactions.
+  const contextWindow = useMemo(() => {
+    const providerTurns = selectedThreadDetail?.providerTurns ?? [];
+    const liveUsage = providerTurns.findLast((turn) => turn.tokenUsage !== undefined)?.tokenUsage;
+    return deriveLatestContextWindowSnapshot(
+      selectedVisibleTurnItems,
+      liveUsage ?? null,
+      selectedThreadDetail?.providerThreads.find(
+        (thread) => thread.id === selectedThreadDetail.thread.activeProviderThreadId,
+      ),
+    );
+  }, [selectedThreadDetail, selectedVisibleTurnItems]);
   const { selectedThreadCwd } = useSelectedThreadWorktree();
   const composer = useThreadComposerState();
   const gitState = useSelectedThreadGitState();
@@ -934,6 +951,7 @@ function ThreadRouteContent(
           selectedThreadFeed={composer.selectedThreadFeed}
           pendingHandoff={composer.pendingHandoff}
           activityRun={composer.selectedThreadActivityRun}
+          contextWindow={contextWindow}
           activeWorkStartedAt={
             creationState?.kind === "preparing" ||
             (worktreeSetup !== null && setupTurnStartedAt === null)

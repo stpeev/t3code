@@ -117,9 +117,9 @@ export function BranchToolbarBranchSelector({
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   // The popup anchors to the whole context strip so its width follows the composer, not the chip.
   const [contextStrip, setContextStrip] = useState<HTMLElement | null>(null);
-  const captureContextStrip = useCallback((element: HTMLElement | null) => {
+  const captureContextStrip = (element: HTMLElement | null) => {
     setContextStrip(element?.closest<HTMLElement>('[data-slot="composer-context-strip"]') ?? null);
-  }, []);
+  };
   const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, "thread session stop");
   const updateThreadMetadata = useAtomCommand(
     threadEnvironment.updateMetadata,

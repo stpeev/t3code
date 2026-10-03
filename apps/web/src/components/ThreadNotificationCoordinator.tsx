@@ -126,13 +126,10 @@ function EnvironmentNotifications({
   const previous = useRef(new Map<ThreadId, NotificationState>());
   /** Kind of the thread toast currently shown per thread, so stale ones can be closed. */
   const openToasts = useRef(new Map<string, "input" | "completion">());
-  const closeThreadToast = useCallback(
-    (threadId: string) => {
-      if (!openToasts.current.delete(threadId)) return;
-      toastManager.close(threadToastId(environmentId, threadId));
-    },
-    [environmentId],
-  );
+  const closeThreadToast = (threadId: string) => {
+    if (!openToasts.current.delete(threadId)) return;
+    toastManager.close(threadToastId(environmentId, threadId));
+  };
 
   useEffect(() => {
     if (activeEnvironmentId === environmentId && activeThreadId) closeThreadToast(activeThreadId);

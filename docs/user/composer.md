@@ -243,6 +243,11 @@ provider supports it. Web and desktop also offer compaction from the context met
 Claude instances can also compact idle threads for you. See
 [compact long conversations](./providers-claude.md#compact-long-conversations).
 
+Send `/context-usage` in an existing thread to see how full its context window is, including what
+the last request used and how far it is from compacting automatically. The summary opens above the
+composer and stays until you dismiss it or switch threads. It reads the usage the provider last
+reported, so it doesn't run the agent. Providers that don't report usage have nothing to show.
+
 ## Goals
 
 With Codex and Claude, send `/goal` followed by what "done" means, for example
