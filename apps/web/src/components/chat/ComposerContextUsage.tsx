@@ -1,5 +1,6 @@
 import {
   type ContextWindowSnapshot,
+  type LastTurnUsage,
   summarizeContextUsage,
 } from "@t3tools/client-runtime/context-window";
 import type { ProviderDriverKind } from "@t3tools/contracts";
@@ -9,6 +10,8 @@ import type { ReactNode } from "react";
 import { barColor } from "../usage/UsageLimits";
 import { ComposerBanner } from "./ComposerBanner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const LABEL_CLASS_NAME =
   "col-start-1 flex h-6 items-center whitespace-nowrap text-muted-foreground";
@@ -19,21 +22,21 @@ const TRAILING_CLASS_NAME =
 export function contextUsageBannerItem(
   id: string,
   snapshot: ContextWindowSnapshot,
+  lastTurn: LastTurnUsage | null,
   driver: ProviderDriverKind,
   actions: ReactNode,
   onDismiss: () => void,
 ): ComposerBannerStackItem {
-  const summary = summarizeContextUsage(snapshot);
+  const summary = summarizeContextUsage(snapshot, lastTurn);
   const hasBar = summary.usedPercentage !== null && summary.percentage !== null;
   return {
     id,
     variant: "info",
-    priority: "notice",
     icon: <GaugeIcon />,
-    title: "Context usage",
+    title: m(msg("Context usage")),
     description: [summary.tokens, ...summary.notes].join(" · "),
     actions,
-    dismissLabel: "Dismiss context usage",
+    dismissLabel: m(msg("Dismiss context usage")),
     onDismiss,
     children:
       hasBar || summary.recent !== null ? (
@@ -42,7 +45,9 @@ export function contextUsageBannerItem(
           <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 text-xs">
             {hasBar ? (
               <>
-                <span className={LABEL_CLASS_NAME}>Used</span>
+                <span className={LABEL_CLASS_NAME}>
+                  <T>Used</T>
+                </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="min-w-8 shrink-0 font-medium text-foreground tabular-nums">
                     {summary.percentage}
@@ -53,7 +58,7 @@ export function contextUsageBannerItem(
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(summary.usedPercentage ?? 0)}
-                    aria-label="Context window usage"
+                    aria-label={msg("Context window usage")}
                   >
                     <div className="absolute inset-x-0 inset-y-1.5 rounded-full bg-muted" />
                     <div
