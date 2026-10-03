@@ -1,4 +1,7 @@
-import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
+import {
+  backgroundWorkHoldsCompletion,
+  backgroundWorkHoldsCompletionAlert,
+} from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestsOf } from "../threadPullRequests.ts";
 import type {
   ThreadLinkedPullRequest,
@@ -216,10 +219,13 @@ function terminalRunStatus(status: OrchestrationV2RunStatus): boolean {
 // roster while an interruptible activity run exists, so a remaining roster is
 // stronger than checkpoint-oriented waiting.
 function shellRuntime(thread: OrchestrationV2ThreadShell): ThreadRuntimeSummary | null {
+  const tasks = thread.pendingBackgroundTasks ?? [];
+  const neverRan = thread.latestRunId === null && thread.activeProviderThreadId === null;
+  // A monitor has no finished turn to hide on a thread that never ran, so there it still holds.
   const parkAtIdle =
-    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) &&
+    (neverRan ? backgroundWorkHoldsCompletion(tasks) : backgroundWorkHoldsCompletionAlert(tasks)) &&
     thread.status !== "failed";
-  if (thread.latestRunId === null && thread.activeProviderThreadId === null && !parkAtIdle) {
+  if (neverRan && !parkAtIdle) {
     return null;
   }
   const status = parkAtIdle ? "idle" : (thread.activityRunStatus ?? thread.status);

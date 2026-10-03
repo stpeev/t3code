@@ -6,7 +6,7 @@ import type {
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 
-import { backgroundWorkHoldsCompletion } from "./orchestrationV2PendingBackgroundWork.ts";
+import { backgroundWorkHoldsCompletionAlert } from "./orchestrationV2PendingBackgroundWork.ts";
 
 export type AgentAwarenessPhase =
   | "starting"
@@ -76,7 +76,7 @@ export function projectThreadAwarenessV2(
   if (
     thread.settledOverride === "settled" &&
     (phase === "completed" || phase === "failed") &&
-    !backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])
+    !backgroundWorkHoldsCompletionAlert(thread.pendingBackgroundTasks ?? [])
   ) {
     return null;
   }
@@ -126,7 +126,7 @@ function resolveThreadAwarenessPhaseV2(
     case "waiting":
       return "running";
     case "completed":
-      return backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])
+      return backgroundWorkHoldsCompletionAlert(thread.pendingBackgroundTasks ?? [])
         ? "running"
         : "completed";
     case "failed":

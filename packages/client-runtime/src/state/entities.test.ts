@@ -96,6 +96,7 @@ describe("V2 client presentation", () => {
 
   it.each([
     { kinds: ["command"], expected: "completed" },
+    { kinds: ["monitor"], expected: "completed" },
     { kinds: ["command", "subagent"], expected: "idle" },
     { kinds: ["background_task"], expected: "idle" },
   ] as const)("presents a completed shell with $kinds as $expected", ({ kinds, expected }) => {
@@ -141,7 +142,7 @@ describe("V2 client presentation", () => {
       activeRunId: null,
       status: "failed",
       lastError: "Provider turn failed",
-      pendingBackgroundTasks: [{ taskId: "bg-1", description: "Watch build", kind: "monitor" }],
+      pendingBackgroundTasks: [{ taskId: "bg-1", description: "Review", kind: "subagent" }],
     });
 
     expect(shell.runtime).toMatchObject({ status: "failed", lastError: "Provider turn failed" });
@@ -192,7 +193,7 @@ describe("V2 client presentation", () => {
       latestRunId: runId,
       activeRunId: runId,
       status: "running",
-      pendingBackgroundTasks: [{ taskId: "bg-1", description: "Watch build", kind: "monitor" }],
+      pendingBackgroundTasks: [{ taskId: "bg-1", description: "Review", kind: "subagent" }],
     });
 
     expect(shell.latestRun).toMatchObject({ runId, status: "running" });
@@ -201,7 +202,7 @@ describe("V2 client presentation", () => {
       activeRunId: runId,
     });
     expect(shell.pendingBackgroundTasks).toEqual([
-      { taskId: "bg-1", description: "Watch build", kind: "monitor" },
+      { taskId: "bg-1", description: "Review", kind: "subagent" },
     ]);
   });
 

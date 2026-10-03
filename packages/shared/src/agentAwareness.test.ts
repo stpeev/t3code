@@ -153,23 +153,24 @@ describe("projectThreadAwarenessV2", () => {
     },
   );
 
-  it("keeps settled work held open by a monitor", () => {
-    expect(
+  it("keeps settled work held open by a subagent but not by a monitor", () => {
+    const settled = (kind: "subagent" | "monitor") =>
       projectThreadAwarenessV2({
         environmentId: "env-1" as EnvironmentId,
         project,
         thread: v2Thread({
           status: "completed",
           settledOverride: "settled",
-          pendingBackgroundTasks: [{ taskId: "watch", kind: "monitor" }],
+          pendingBackgroundTasks: [{ taskId: "bg", kind }],
         }),
-      }),
-    ).toMatchObject({ phase: "running" });
+      });
+    expect(settled("subagent")).toMatchObject({ phase: "running" });
+    expect(settled("monitor")).toBeNull();
   });
 
   it.each([
     ["only a dev server", "completed", [{ taskId: "dev", kind: "command" }]],
-    ["a monitor", "running", [{ taskId: "watch", kind: "monitor" }]],
+    ["a monitor", "completed", [{ taskId: "watch", kind: "monitor" }]],
     [
       "a dev server and a subagent",
       "running",
