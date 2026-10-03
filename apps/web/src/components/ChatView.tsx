@@ -323,6 +323,7 @@ import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
 import { hasAvailableCompactionProvider } from "./chat/ContextWindowMeter.logic";
 import {
+  deriveLastTurnUsage,
   deriveLatestContextWindowSnapshot,
   hasDismissedResumeCompaction,
   latestProviderTurnTokenUsage,
@@ -2583,6 +2584,7 @@ export default function ChatView(props: ChatViewProps) {
         contextUsageBannerItem(
           `context-usage:${contextUsagePanel.threadKey}:${contextUsagePanel.openedAt}`,
           activeContextWindow,
+          serverProjection ? deriveLastTurnUsage(serverProjection) : null,
           selectedProvider,
           manualCompactionProviderAvailable ? compactBannerAction : null,
           () => setContextUsagePanel(null),
