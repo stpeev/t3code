@@ -76,6 +76,15 @@ export function backgroundWorkHoldsCompletion(
   return tasks.some((task) => backgroundWorkKindHoldsCompletion(task.kind));
 }
 
+/** The alert-only rule: a monitor's watch loop can outlive its turn by hours, so it doesn't hold. */
+export function backgroundWorkHoldsCompletionAlert(
+  tasks: ReadonlyArray<Pick<PendingBackgroundWorkTask, "kind">>,
+): boolean {
+  return tasks.some(
+    (task) => task.kind !== "monitor" && backgroundWorkKindHoldsCompletion(task.kind),
+  );
+}
+
 function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind"]): boolean {
   switch (kind) {
     case "command":

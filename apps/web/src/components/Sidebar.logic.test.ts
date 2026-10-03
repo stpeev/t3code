@@ -1257,7 +1257,7 @@ describe("resolveThreadStatusPill", () => {
       resolveThreadStatusPill({
         thread: {
           ...baseThread,
-          pendingBackgroundTasks: [{ taskId: "bg-1", description: "Watch build", kind: "monitor" }],
+          pendingBackgroundTasks: [{ taskId: "bg-1", description: "Review", kind: "subagent" }],
           runtime: {
             ...baseThread.runtime,
             status: "idle",
@@ -2075,7 +2075,8 @@ describe("navigation after parking a thread", () => {
 describe("unseen completion with background work", () => {
   it.each([
     { kind: "command", status: "ready", topStatus: "done", receded: false, pill: "Completed" },
-    { kind: "monitor", status: "waiting", topStatus: "waiting", receded: true, pill: "Waiting" },
+    { kind: "monitor", status: "ready", topStatus: "done", receded: false, pill: "Completed" },
+    { kind: "subagent", status: "waiting", topStatus: "waiting", receded: true, pill: "Waiting" },
   ] as const)("presents a completed thread with a $kind roster", (expected) => {
     const thread = presentThreadShell(localEnvironmentId, {
       ...makeThreadFixture().source,

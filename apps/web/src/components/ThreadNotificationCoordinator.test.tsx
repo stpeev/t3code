@@ -23,7 +23,7 @@ const state = vi.hoisted(() => ({
   turnError: false,
   limited: false,
   subagent: false,
-  background: [] as Array<{ taskId: string; kind: "command" | "monitor" }>,
+  background: [] as Array<{ taskId: string; kind: "command" | "monitor" | "subagent" }>,
   add: vi.fn(
     (_toast: {
       id: string;
@@ -280,13 +280,23 @@ describe("thread notifications", () => {
     });
   });
 
-  it("alerts when only a dev server is left running, not while a monitor can wake the agent", async () => {
+  it("alerts when only a dev server is left running, not while a subagent can wake the agent", async () => {
     await render();
-    state.background = [{ taskId: "watch", kind: "monitor" }];
+    state.background = [{ taskId: "review", kind: "subagent" }];
     await complete();
     expect(state.add).not.toHaveBeenCalled();
     state.background = [{ taskId: "dev", kind: "command" }];
     await render();
+    expect(state.add).toHaveBeenCalledTimes(1);
+    expect(state.add).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: "Thread completed" }),
+    );
+  });
+
+  it("alerts a settled turn while a monitor keeps watching", async () => {
+    await render();
+    state.background = [{ taskId: "watch", kind: "monitor" }];
+    await complete();
     expect(state.add).toHaveBeenCalledTimes(1);
     expect(state.add).toHaveBeenLastCalledWith(
       expect.objectContaining({ title: "Thread completed" }),

@@ -1,4 +1,4 @@
-import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
+import { backgroundWorkHoldsCompletionAlert } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestsOf } from "@t3tools/shared/threadPullRequests";
 import type {
   ThreadLinkedPullRequest,
@@ -175,7 +175,7 @@ function terminalRunStatus(status: OrchestrationV2RunStatus): boolean {
 // A failed latest run outranks the roster, so the failure stays visible.
 function shellRuntime(thread: OrchestrationV2ThreadShell): ThreadRuntimeSummary | null {
   const parkAtIdle =
-    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) &&
+    backgroundWorkHoldsCompletionAlert(thread.pendingBackgroundTasks ?? []) &&
     thread.status !== "failed";
   // A pull request watch can hold a thread that never ran.
   if (thread.latestRunId === null && thread.activeProviderThreadId === null && !parkAtIdle) {

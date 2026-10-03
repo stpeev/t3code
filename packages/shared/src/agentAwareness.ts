@@ -6,7 +6,7 @@ import type {
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 
-import { backgroundWorkHoldsCompletion } from "./orchestrationV2PendingBackgroundWork.ts";
+import { backgroundWorkHoldsCompletionAlert } from "./orchestrationV2PendingBackgroundWork.ts";
 
 export type AgentAwarenessPhase =
   | "starting"
@@ -105,7 +105,7 @@ function resolveThreadAwarenessPhaseV2(
       return "running";
     case "completed":
       // Work that will wake the agent keeps the run going; a dev server does not.
-      return backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])
+      return backgroundWorkHoldsCompletionAlert(thread.pendingBackgroundTasks ?? [])
         ? "running"
         : "completed";
     case "failed":
