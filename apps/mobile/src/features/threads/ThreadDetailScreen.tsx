@@ -128,6 +128,7 @@ import {
 } from "../../native/native-layout-metrics";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { collectProviderUsageLimits } from "@t3tools/shared/usageLimits";
+import type { ContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
 import type { ComposerEditorHandle } from "../../components/ComposerEditor";
 import type { StatusTone } from "../../components/StatusPill";
 import { getComposerDraftSnapshot, setFreshSessionPending } from "../../state/use-composer-drafts";
@@ -178,6 +179,7 @@ import { ManagedRuntimeModeNotice } from "./ManagedRuntimeModeNotice";
 import { FreshSessionNotice } from "./FreshSessionNotice";
 import { ComposerFeedback } from "./ComposerFeedback";
 import { ComposerUsageLimits } from "./ComposerUsageLimits";
+import { ComposerContextUsage } from "./ComposerContextUsage";
 import { PendingUserInputCard } from "./PendingUserInputCard";
 import { ProviderSubagentBar } from "./ProviderSubagentBar";
 import { ThreadCreationFailedCard } from "./ThreadCreationFailedCard";
@@ -238,6 +240,7 @@ export interface ThreadDetailScreenProps {
   readonly selectedThreadFeed: ReadonlyArray<ThreadFeedEntry>;
   readonly pendingHandoff?: HandoffEndpoints | null;
   readonly activityRun: ThreadFeedLatestRun | null;
+  readonly contextWindow: ContextWindowSnapshot | null;
   readonly activeWorkStartedAt: string | null;
   readonly runlessWorkActive?: boolean;
   readonly providerSubagentStatus?: ProviderSubagentStatus | null;
@@ -983,7 +986,14 @@ function ThreadDetailBody(
           usageLimitsPanel.now,
         )
       : null;
-  const showUsageLimits = (report: UsageLimitsReport | null) =>
+  // The open /context-usage card. It follows the live snapshot and closes on dismiss or thread
+  // change; the two cards share one slot, so opening either closes the other.
+  const [contextUsageThreadKey, setContextUsageThreadKey] = useState<string | null>(null);
+  if (contextUsageThreadKey !== null && contextUsageThreadKey !== selectedThreadKey) {
+    setContextUsageThreadKey(null);
+  }
+  const showUsageLimits = (report: UsageLimitsReport | null) => {
+    if (report !== null) setContextUsageThreadKey(null);
     setUsageLimitsPanel(
       report === null
         ? null
@@ -993,7 +1003,19 @@ function ThreadDetailBody(
             now: Date.parse(report.createdAt),
           },
     );
+  };
   const dismissUsageLimits = () => setUsageLimitsPanel(null);
+  const { contextWindow } = props;
+  const showContextUsage = () => {
+    if (contextWindow === null) {
+      Dialog.alert("No context usage yet", "This thread hasn't reported context usage yet.");
+      return false;
+    }
+    setUsageLimitsPanel(null);
+    setContextUsageThreadKey(selectedThreadKey);
+    return true;
+  };
+  const dismissContextUsage = () => setContextUsageThreadKey(null);
   // Late sends clear only their originating thread's limits panel.
   const clearUsageLimitsFor = (threadKey: string) =>
     setUsageLimitsPanel((current) =>
@@ -1698,8 +1720,7 @@ function ThreadDetailBody(
                       <ComposerFeedback
                         key={submission.id}
                         submission={submission}
-                        onDismiss={() => props.onDismissFeedback(submission.id)}
-                      />
+                        onDismiss={() => props.onDismissFeedback(submission.id)}                      />
                     ))}
                     {freshSessionAvailable ? (
                       <FreshSessionNotice threadKey={selectedThreadKey} />
@@ -1746,7 +1767,28 @@ function ThreadDetailBody(
                         />
                       </Animated.View>
                     ) : null}
-                    {props.creationState?.kind === "failed" ? (
+                    {contextUsageThreadKey === selectedThreadKey &&
+                  props.contextWindow !== null &&
+                  activeUserInputRequestId === null ? (
+                    <Animated.View
+                      className="shrink-0 px-4 pb-3"
+                      entering={FadeInDown.duration(220)}
+                      exiting={FadeOut.duration(140)}
+                    >
+                      <ComposerContextUsage
+                        snapshot={props.contextWindow}
+                        driver={
+                          props.serverConfig?.providers.find(
+                            (provider) =>
+                              provider.instanceId ===
+                              props.selectedThread.modelSelection.instanceId,
+                          )?.driver ?? null
+                        }
+                        onClose={dismissContextUsage}
+                      />
+                    </Animated.View>
+                  ) : null}
+                  {props.creationState?.kind === "failed" ? (
                       <Animated.View
                         className="shrink-0 px-4"
                         style={{ paddingBottom: composerBottomInset }}
@@ -1932,6 +1974,7 @@ function ThreadDetailBody(
                         onResumeQueue={props.onResumeQueue}
                         onSendMessage={handleSendMessage}
                         onShowUsageLimits={showUsageLimits}
+                        onShowContextUsage={showContextUsage}
                         canSwitchProvider={props.canSwitchThreadProvider}
                         onUpdateInteractionMode={props.onUpdateThreadInteractionMode}
                         onHeightChange={handleComposerHeightChange}

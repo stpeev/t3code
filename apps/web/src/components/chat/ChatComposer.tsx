@@ -258,7 +258,8 @@ import {
   resolveComposerDispatchMode,
   type ComposerDispatchMode,
 } from "@t3tools/client-runtime/state/composer-dispatch";
-import { deriveLatestContextWindowSnapshot } from "@t3tools/client-runtime/state/context-window";
+import { deriveLatestContextWindowSnapshot } from "../../lib/contextWindow";
+import type { ContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
 import {
   resolveProviderSkillsForCwd,
   resolveProviderSlashCommandsForCwd,
@@ -391,6 +392,8 @@ export interface ChatComposerProps {
   sideChatDisabledReason?: string | null;
   /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
   onFreshSession?: (() => void) | undefined;
+  /** Offers /context-usage; picking it opens the summary and leaves the draft empty. */
+  onContextUsageCommand?: (() => void) | undefined;
   environmentUnavailable: {
     readonly label: string;
     readonly connection: EnvironmentConnectionPresentation;
@@ -608,6 +611,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onFileOpen,
     editingQueuedAttachments,
     onRemoveEditingQueuedAttachment,
+    onContextUsageCommand,
   } = props;
   const activeContextWindow = deriveLatestContextWindowSnapshot(
     contextWindowEntries,
@@ -1164,6 +1168,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     sideChatDisabledReason: props.sideChatDisabledReason ?? null,
     freshSessionAvailable: props.onFreshSession !== undefined,
     compactSlashCommandAvailable,
+    contextUsageCommandAvailable: onContextUsageCommand !== undefined,
     selectedProvider,
     selectedProviderSkills,
     selectedProviderSlashCommands,
@@ -1959,6 +1964,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           { expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd) },
         );
         if (applied) setComposerHighlightedItemId(null);
+        return;
+      }
+      if (item.command === "context-usage") {
+        const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
+          expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
+          focusEditorAfterReplace: false,
+        });
+        if (applied) {
+          setComposerHighlightedItemId(null);
+          onContextUsageCommand?.();
+        }
         return;
       }
       if (!planModeUiEnabled) return;
