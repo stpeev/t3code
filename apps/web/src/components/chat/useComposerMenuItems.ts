@@ -2,6 +2,7 @@ import {
   matchComposerEnvironmentItems,
   matchComposerThreadItems,
 } from "@t3tools/client-runtime/composerThreadItems";
+import { CONTEXT_USAGE_COMMAND } from "@t3tools/client-runtime/context-window";
 import { useAtomValue } from "@effect/atom-react";
 import { useState } from "react";
 import type {
@@ -65,6 +66,7 @@ export function useComposerMenuItems({
   threadPullRequests,
   planModeUiEnabled,
   compactSlashCommandAvailable,
+  contextUsageCommandAvailable,
   selectedProvider,
   selectedProviderSkills,
   selectedProviderSlashCommands,
@@ -81,6 +83,7 @@ export function useComposerMenuItems({
   readonly threadPullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly planModeUiEnabled: boolean;
   readonly compactSlashCommandAvailable: boolean;
+  readonly contextUsageCommandAvailable: boolean;
   readonly selectedProvider: ProviderDriverKind;
   readonly selectedProviderSkills: ServerProvider["skills"];
   readonly selectedProviderSlashCommands: ServerProvider["slashCommands"];
@@ -233,6 +236,17 @@ export function useComposerMenuItems({
                 command: "default",
                 label: "/default",
                 description: "Switch this thread back to normal build mode",
+              },
+            ] as const)
+          : []),
+        ...(contextUsageCommandAvailable
+          ? ([
+              {
+                id: "slash:context-usage",
+                type: "slash-command",
+                command: "context-usage",
+                label: `/${CONTEXT_USAGE_COMMAND.name}`,
+                description: CONTEXT_USAGE_COMMAND.description,
               },
             ] as const)
           : []),

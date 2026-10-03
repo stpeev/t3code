@@ -51,6 +51,9 @@ import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { useChatShortcuts } from "./chat/useChatShortcuts";
+import { contextUsageBannerItem } from "./chat/ComposerContextUsage";
+import { Button } from "./ui/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
 import * as Schema from "effect/Schema";
 import {
@@ -318,7 +321,7 @@ import {
 import {
   deriveLatestContextWindowSnapshot,
   latestProviderTurnTokenUsage,
-} from "../lib/contextWindow";
+} from "@t3tools/client-runtime/context-window";
 import {
   MOBILE_COMPOSER_VIEW_TRANSITION_NAME,
   MOBILE_DRAFT_HEADLINE_VIEW_TRANSITION_NAME,
@@ -2474,6 +2477,58 @@ export default function ChatView(props: ChatViewProps) {
   };
   const toggleKeepFullHistory = () => setKeepFullHistory(routeThreadKey, !keepFullHistory);
   const toggleKeepFullHistoryStable = useStableCallback(toggleKeepFullHistory);
+  const compactBannerAction = (() => {
+    const button = (
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={compactDisabled}
+        onClick={() => {
+          if (compactDisabled) return;
+          composerRef.current?.compactContext();
+        }}
+      >
+        Compact
+      </Button>
+    );
+    return compactDisabledReason ? (
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex">{button}</span>} />
+        <TooltipPopup side="top">{compactDisabledReason}</TooltipPopup>
+      </Tooltip>
+    ) : (
+      button
+    );
+  })();
+  // The open /context-usage banner. Only the opening is stored, so the rows follow the live
+  // snapshot; it closes on dismiss or when the thread changes, not on a new turn.
+  const [contextUsagePanel, setContextUsagePanel] = useState<{
+    readonly threadKey: string;
+    readonly openedAt: number;
+  } | null>(null);
+  if (contextUsagePanel !== null && contextUsagePanel.threadKey !== routeThreadKey) {
+    setContextUsagePanel(null);
+  }
+  const openContextUsage = () => {
+    if (!activeContextWindow) {
+      toastManager.add({ type: "info", title: "No context usage reported for this thread yet" });
+      return false;
+    }
+    setContextUsagePanel({ threadKey: routeThreadKey, openedAt: Date.now() });
+    return true;
+  };
+  const openContextUsageStable = useStableCallback(openContextUsage);
+  const contextUsageBanner =
+    contextUsagePanel !== null && contextUsagePanel.threadKey === routeThreadKey && activeContextWindow
+      ? // A fresh id per opening: the stack keeps the last dismissed id as "exiting".
+        contextUsageBannerItem(
+          `context-usage:${contextUsagePanel.threadKey}:${contextUsagePanel.openedAt}`,
+          activeContextWindow,
+          selectedProvider,
+          manualCompactionProviderAvailable ? compactBannerAction : null,
+          () => setContextUsagePanel(null),
+        )
+      : null;
   const handleRestoreThreadBranch = () => {
     if (!canWriteSourceControl) return;
     if (gitStatusQuery.data?.hasWorkingTreeChanges) {
@@ -2561,14 +2616,14 @@ export default function ChatView(props: ChatViewProps) {
           ]
         : [];
     const limitRecoveryItems = limitRecoveryBanner === null ? [] : [limitRecoveryBanner];
-    const usageLimitsItems = usageLimitsBanner === null ? [] : [usageLimitsBanner];
+    const requestedItems = [usageLimitsBanner, contextUsageBanner].filter((item) => item !== null);
     const projectCloneItems = projectCloneBannerItem === null ? [] : [projectCloneBannerItem];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {
       return [
         ...feedbackBannerItems,
         ...fallbackItems,
         ...limitRecoveryItems,
-        ...usageLimitsItems,
+        ...requestedItems,
         ...projectCloneItems,
         ...systemComposerBannerItems,
       ];
@@ -2577,7 +2632,7 @@ export default function ChatView(props: ChatViewProps) {
       ...feedbackBannerItems,
       ...fallbackItems,
       ...limitRecoveryItems,
-      ...usageLimitsItems,
+      ...requestedItems,
       ...projectCloneItems,
       ...systemComposerBannerItems,
       branchMismatchBannerItem({
@@ -2841,6 +2896,7 @@ export default function ChatView(props: ChatViewProps) {
     usageLimitsKey,
     usageLimitsOffered,
     openUsageLimits,
+    openContextUsage,
     clearUsageLimitsFor,
     needsLoadBalancing,
     loadBalancing,
@@ -3532,6 +3588,9 @@ export default function ChatView(props: ChatViewProps) {
                                 !composerHasNonPromptContent
                                   ? openUsageLimits
                                   : undefined
+                              }
+                              onContextUsageCommand={
+                                composerHasNonPromptContent ? undefined : openContextUsageStable
                               }
                               environmentUnavailable={activeEnvironmentUnavailableState}
                               activePendingApproval={activePendingApproval}
