@@ -124,7 +124,7 @@ import {
 } from "../../native/native-layout-metrics";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { collectProviderUsageLimits } from "@t3tools/shared/usageLimits";
-import type { ContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
+import type { ContextWindowSnapshot, LastTurnUsage } from "@t3tools/client-runtime/context-window";
 import type { ComposerEditorHandle } from "../../components/ComposerEditor";
 import type { StatusTone } from "../../components/StatusPill";
 import { getComposerDraftSnapshot } from "../../state/use-composer-drafts";
@@ -227,6 +227,7 @@ export interface ThreadDetailScreenProps {
   readonly pendingHandoff?: HandoffEndpoints | null;
   readonly activityRun: ThreadFeedLatestRun | null;
   readonly contextWindow: ContextWindowSnapshot | null;
+  readonly contextWindowLastTurn: LastTurnUsage | null;
   readonly activeWorkStartedAt: string | null;
   readonly runlessWorkActive?: boolean;
   readonly providerSubagentStatus?: ProviderSubagentStatus | null;
@@ -1699,6 +1700,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                     >
                       <ComposerContextUsage
                         snapshot={props.contextWindow}
+                        lastTurn={props.contextWindowLastTurn}
                         driver={
                           props.serverConfig?.providers.find(
                             (provider) =>
