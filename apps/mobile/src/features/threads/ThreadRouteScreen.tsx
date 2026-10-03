@@ -6,7 +6,10 @@ import { buildProjectThreadStartTurnInput } from "../../lib/projectThreadStartTu
 import { useWorktreeSetup } from "./use-worktree-setup";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { AppBar } from "../../components/ui/AppBar";
-import { deriveLatestContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
+import {
+  deriveLastTurnUsage,
+  deriveLatestContextWindowSnapshot,
+} from "@t3tools/client-runtime/context-window";
 import {
   StackActions,
   useNavigation,
@@ -396,6 +399,10 @@ function ThreadRouteContent(
       ),
     );
   }, [selectedThreadDetail, selectedVisibleTurnItems]);
+  const contextWindowLastTurn = useMemo(
+    () => (selectedThreadDetail ? deriveLastTurnUsage(selectedThreadDetail) : null),
+    [selectedThreadDetail],
+  );
   const { selectedThreadCwd } = useSelectedThreadWorktree();
   const composer = useThreadComposerState();
   const gitState = useSelectedThreadGitState();
@@ -1024,6 +1031,7 @@ function ThreadRouteContent(
           pendingHandoff={composer.pendingHandoff}
           activityRun={composer.selectedThreadActivityRun}
           contextWindow={contextWindow}
+          contextWindowLastTurn={contextWindowLastTurn}
           activeWorkStartedAt={
             creationState?.kind === "preparing" ||
             (worktreeSetup !== null && setupTurnStartedAt === null)

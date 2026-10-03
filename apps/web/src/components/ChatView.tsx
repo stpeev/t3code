@@ -319,6 +319,7 @@ import {
   shouldOfferResumeCompaction,
 } from "./chat/ContextWindowMeter.logic";
 import {
+  deriveLastTurnUsage,
   deriveLatestContextWindowSnapshot,
   latestProviderTurnTokenUsage,
 } from "@t3tools/client-runtime/context-window";
@@ -2526,6 +2527,7 @@ export default function ChatView(props: ChatViewProps) {
         contextUsageBannerItem(
           `context-usage:${contextUsagePanel.threadKey}:${contextUsagePanel.openedAt}`,
           activeContextWindow,
+          serverProjection ? deriveLastTurnUsage(serverProjection) : null,
           selectedProvider,
           manualCompactionProviderAvailable ? compactBannerAction : null,
           () => setContextUsagePanel(null),
