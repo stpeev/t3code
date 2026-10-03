@@ -1,6 +1,8 @@
 import type {
+  OrchestrationV2ProviderTurn,
   OrchestrationV2ProviderTurnTokenUsage,
   OrchestrationV2ProviderThread,
+  OrchestrationV2ThreadProjection,
   OrchestrationV2TurnItem,
   ThreadTokenUsageSnapshot,
 } from "@t3tools/contracts";
@@ -55,7 +57,6 @@ export function deriveLatestContextWindowSnapshot(
       lastCachedInputTokens: null,
       lastOutputTokens: null,
       lastReasoningOutputTokens: null,
-      turnOutputTokens: null,
       toolUses: null,
       durationMs: null,
       compactsAutomatically: true,
@@ -91,7 +92,6 @@ export function deriveLatestContextWindowSnapshot(
       lastCachedInputTokens: asFiniteNumber(providerUsage.lastCachedInputTokens),
       lastOutputTokens: asFiniteNumber(providerUsage.lastOutputTokens),
       lastReasoningOutputTokens: asFiniteNumber(providerUsage.lastReasoningOutputTokens),
-      turnOutputTokens: asFiniteNumber(providerUsage.turnOutputTokens),
       toolUses: asFiniteNumber(providerUsage.toolUses),
       durationMs: asFiniteNumber(providerUsage.durationMs),
       compactsAutomatically: providerUsage.compactsAutomatically ?? null,
@@ -134,7 +134,6 @@ export function deriveLatestContextWindowSnapshot(
       lastCachedInputTokens: null,
       lastOutputTokens: null,
       lastReasoningOutputTokens: null,
-      turnOutputTokens: null,
       toolUses: null,
       durationMs: null,
       compactsAutomatically: true,
@@ -191,9 +190,9 @@ export interface ContextUsageSummary {
   readonly usedPercentage: number | null;
   readonly percentage: string | null;
   readonly remaining: string | null;
-  /** "Last turn" with the turn's whole output; snapshots without it only know the last request. */
+  /** "Last turn (#12)" once the turn settles with its whole output; until then the last request. */
   readonly recent: {
-    readonly label: "Last turn" | "Last request";
+    readonly label: string;
     /** Such as "68k in · 40k cached · 500 out". */
     readonly tokens: string;
   } | null;
@@ -210,8 +209,37 @@ function joinTokenParts(
   return present.length > 0 ? present.join(" · ") : null;
 }
 
-export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextUsageSummary {
-  const { autoCompactThreshold, maxTokens, toolUses, turnOutputTokens } = snapshot;
+export interface LastTurnUsage {
+  /** The run's ordinal, which the diff panel shows as "Turn N". */
+  readonly turnNumber: number | null;
+  /** Main-agent output across every request of the turn, reasoning included. */
+  readonly outputTokens: number;
+}
+
+/** The latest main-agent turn's whole output, or null while that turn has not settled. */
+export function deriveLastTurnUsage(
+  projection: Pick<OrchestrationV2ThreadProjection, "thread" | "providerTurns" | "nodes" | "runs">,
+): LastTurnUsage | null {
+  const providerThreadId = projection.thread.activeProviderThreadId;
+  if (providerThreadId === null) return null;
+  let latest: OrchestrationV2ProviderTurn | undefined;
+  for (const turn of projection.providerTurns) {
+    if (turn.providerThreadId !== providerThreadId) continue;
+    if (latest === undefined || turn.ordinal > latest.ordinal) latest = turn;
+  }
+  const outputTokens = latest?.turnTokenUsage?.outputTokens;
+  if (latest === undefined || outputTokens === undefined) return null;
+  const runId = projection.nodes.find((node) => node.id === latest.nodeId)?.runId;
+  const turnNumber = projection.runs.find((run) => run.id === runId)?.ordinal ?? null;
+  return { turnNumber, outputTokens };
+}
+
+export function summarizeContextUsage(
+  snapshot: ContextWindowSnapshot,
+  lastTurn: LastTurnUsage | null = null,
+): ContextUsageSummary {
+  const { autoCompactThreshold, maxTokens, toolUses } = snapshot;
+  const turnOutputTokens = lastTurn?.outputTokens;
   const percentage =
     maxTokens == null ? null : formatContextWindowPercentage(snapshot.usedPercentage);
   const used = formatContextWindowTokens(snapshot.usedTokens);
@@ -250,7 +278,15 @@ export function summarizeContextUsage(snapshot: ContextWindowSnapshot): ContextU
     recent:
       recentTokens === null
         ? null
-        : { label: turnOutputTokens == null ? "Last request" : "Last turn", tokens: recentTokens },
+        : {
+            label:
+              lastTurn === null
+                ? "Last request"
+                : lastTurn.turnNumber === null
+                  ? "Last turn"
+                  : `Last turn (#${lastTurn.turnNumber})`,
+            tokens: recentTokens,
+          },
     notes,
   };
 }

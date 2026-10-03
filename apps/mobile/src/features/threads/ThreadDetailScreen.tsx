@@ -90,7 +90,7 @@ import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspace
 import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { collectProviderUsageLimits } from "@t3tools/shared/usageLimits";
-import type { ContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
+import type { ContextWindowSnapshot, LastTurnUsage } from "@t3tools/client-runtime/context-window";
 import type { ComposerEditorHandle } from "../../components/ComposerEditor";
 import type { StatusTone } from "../../components/StatusPill";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
@@ -166,6 +166,7 @@ export interface ThreadDetailScreenProps {
   readonly selectedThreadFeed: ReadonlyArray<ThreadFeedEntry>;
   readonly activityRun: ThreadFeedLatestRun | null;
   readonly contextWindow: ContextWindowSnapshot | null;
+  readonly contextWindowLastTurn: LastTurnUsage | null;
   readonly activeWorkStartedAt: string | null;
   /** The live work is a provider-native subagent's runless root turn. */
   readonly runlessWorkActive?: boolean;
@@ -1354,6 +1355,7 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
                     >
                       <ComposerContextUsage
                         snapshot={props.contextWindow}
+                        lastTurn={props.contextWindowLastTurn}
                         driver={
                           props.serverConfig?.providers.find(
                             (provider) =>

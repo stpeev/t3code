@@ -2,7 +2,10 @@ import { makeTurnCommandMetadata } from "../../lib/commandMetadata";
 import { buildProjectThreadStartTurnInput } from "../../lib/projectThreadStartTurn";
 import { useWorktreeSetup } from "./use-worktree-setup";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
-import { deriveLatestContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
+import {
+  deriveLastTurnUsage,
+  deriveLatestContextWindowSnapshot,
+} from "@t3tools/client-runtime/context-window";
 import {
   StackActions,
   useFocusEffect,
@@ -260,6 +263,10 @@ function ThreadRouteContent(
       ),
     );
   }, [selectedThreadDetail, selectedVisibleTurnItems]);
+  const contextWindowLastTurn = useMemo(
+    () => (selectedThreadDetail ? deriveLastTurnUsage(selectedThreadDetail) : null),
+    [selectedThreadDetail],
+  );
   const { selectedThreadCwd } = useSelectedThreadWorktree();
   const composer = useThreadComposerState();
   const gitState = useSelectedThreadGitState();
@@ -958,6 +965,7 @@ function ThreadRouteContent(
           selectedThreadFeed={composer.selectedThreadFeed}
           activityRun={composer.selectedThreadActivityRun}
           contextWindow={contextWindow}
+          contextWindowLastTurn={contextWindowLastTurn}
           activeWorkStartedAt={
             creationState?.kind === "preparing" ||
             (worktreeSetup !== null && setupTurnStartedAt === null)

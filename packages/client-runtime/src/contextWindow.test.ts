@@ -3,10 +3,12 @@ import type { ThreadTokenUsageSnapshot } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 
 import {
+  deriveLastTurnUsage,
   deriveLatestContextWindowSnapshot,
   formatContextWindowTokens,
   isContextUsageCommand,
   summarizeContextUsage,
+  type LastTurnUsage,
 } from "./contextWindow.ts";
 
 describe("V2 context window presentation", () => {
@@ -89,13 +91,13 @@ describe("live provider-turn usage (#8144)", () => {
   });
 });
 
-function summarize(contextUsage: ThreadTokenUsageSnapshot) {
+function summarize(contextUsage: ThreadTokenUsageSnapshot, lastTurn: LastTurnUsage | null = null) {
   const snapshot = deriveLatestContextWindowSnapshot([], undefined, {
     contextUsage,
     updatedAt: DateTime.makeUnsafe("2026-08-23T00:00:00.000Z"),
   });
   if (!snapshot) throw new Error("expected a snapshot");
-  return summarizeContextUsage(snapshot);
+  return summarizeContextUsage(snapshot, lastTurn);
 }
 
 describe("summarizeContextUsage", () => {
@@ -122,15 +124,12 @@ describe("summarizeContextUsage", () => {
   });
 
   it("reports the turn's whole output next to the last request's input", () => {
-    const summary = summarize({
-      usedTokens: 203_015,
-      maxTokens: 1_000_000,
-      inputTokens: 202_941,
-      outputTokens: 74,
-      turnOutputTokens: 991,
-    });
+    const summary = summarize(
+      { usedTokens: 203_015, maxTokens: 1_000_000, inputTokens: 202_941, outputTokens: 74 },
+      { turnNumber: 384, outputTokens: 991 },
+    );
 
-    expect(summary.recent).toEqual({ label: "Last turn", tokens: "203k in · 991 out" });
+    expect(summary.recent).toEqual({ label: "Last turn (#384)", tokens: "203k in · 991 out" });
   });
 
   it("prefers the last-request split over the unprefixed one", () => {
@@ -162,6 +161,58 @@ describe("summarizeContextUsage", () => {
       recent: null,
       notes: [],
     });
+  });
+});
+
+describe("deriveLastTurnUsage", () => {
+  function projection(
+    turns: ReadonlyArray<{ ordinal: number; nodeId: string; outputTokens?: number }>,
+  ) {
+    return {
+      thread: { activeProviderThreadId: "provider-thread" },
+      providerTurns: [
+        ...turns.map((turn) => ({
+          providerThreadId: "provider-thread",
+          ordinal: turn.ordinal,
+          nodeId: turn.nodeId,
+          ...(turn.outputTokens === undefined
+            ? {}
+            : { turnTokenUsage: { outputTokens: turn.outputTokens } }),
+        })),
+        // A subagent's provider thread never counts as the main agent's last turn.
+        { providerThreadId: "subagent-thread", ordinal: 99, nodeId: "node-sub" },
+      ],
+      nodes: [
+        { id: "node-1", runId: "run-1" },
+        { id: "node-2", runId: "run-2" },
+      ],
+      runs: [
+        { id: "run-1", ordinal: 7 },
+        { id: "run-2", ordinal: 8 },
+      ],
+    } as never;
+  }
+
+  it("numbers the latest settled turn by its run, as the diff panel does", () => {
+    expect(
+      deriveLastTurnUsage(
+        projection([
+          { ordinal: 1, nodeId: "node-1", outputTokens: 120 },
+          { ordinal: 2, nodeId: "node-2", outputTokens: 991 },
+        ]),
+      ),
+    ).toEqual({ turnNumber: 8, outputTokens: 991 });
+  });
+
+  it("waits for a running turn instead of reporting the previous one", () => {
+    expect(
+      deriveLastTurnUsage(
+        projection([
+          { ordinal: 1, nodeId: "node-1", outputTokens: 120 },
+          { ordinal: 2, nodeId: "node-2" },
+        ]),
+      ),
+    ).toBeNull();
   });
 });
 
