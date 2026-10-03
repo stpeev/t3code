@@ -173,4 +173,23 @@ describe("mobile model mentions", () => {
   ] as const)("does not suggest a preserved selection whose provider is %s", (_, providers) => {
     expect(buildComposerModelItems([option("traex:gpt-6.1")], "gpt", providers)).toEqual([]);
   });
+
+  it("offers /context-usage only where the composer can show it", () => {
+    const contextUsageIds = (offersContextUsage: boolean, atMessageStart: boolean) =>
+      buildComposerSlashCommandItems({
+        query: "context",
+        atMessageStart,
+        hasThread: offersContextUsage,
+        offersContextUsage,
+        allowInteractionMode: true,
+        selectedProviderStatus: {
+          driver: ProviderDriverKind.make("claudeAgent"),
+          slashCommands: [{ name: "context", description: "Claude's context view" }],
+        },
+      }).map((item) => item.id);
+
+    expect(contextUsageIds(true, true)).toEqual(["cmd:context-usage", "pcmd:context"]);
+    expect(contextUsageIds(true, false)).toEqual(["cmd:context-usage"]);
+    expect(contextUsageIds(false, true)).toEqual(["pcmd:context"]);
+  });
 });

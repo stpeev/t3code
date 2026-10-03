@@ -49,7 +49,7 @@ const PACE_LABEL = {
 
 type Driver = ServerProvider["driver"];
 
-function useBarColor(driver: Driver): string | null {
+export function useBarColor(driver: Driver | null): string | null {
   const colors = useProviderColors();
   const kind = usageProviderKind(driver);
   return kind ? colors[kind] : null;
