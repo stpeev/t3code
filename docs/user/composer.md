@@ -135,6 +135,11 @@ Type `/` for commands or `$` for skills from the selected environment and provid
 - After adding or changing skills, plugins, or MCP servers, run **Restart agent session** from the command palette so your next message picks up the new config.
 - Turn on **Settings → Appearance → Thread details → Context window** to view reported context usage. For automatic idle compaction on Claude, see [compact long conversations](./providers-claude.md#compact-long-conversations).
 
+Send `/context-usage` in an existing thread to see how full its context window is, including what
+the last request used and how far it is from compacting automatically. The summary opens above the
+composer and stays until you dismiss it or switch threads. It reads the usage the provider last
+reported, so it doesn't run the agent. Providers that don't report usage have nothing to show.
+
 ## Goals
 
 With Codex, Claude, and OpenCode 2.2.5+, send `/goal <criteria>` (for example, `/goal all tests in packages/api pass`) so the agent keeps working across turns until the goal is met.

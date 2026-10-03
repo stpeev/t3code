@@ -30,6 +30,7 @@ import {
   useComposerDraftSelection,
 } from "../../state/use-composer-drafts";
 import { USAGE_LIMITS_COMMAND } from "@t3tools/shared/usageLimits";
+import { CONTEXT_USAGE_COMMAND } from "@t3tools/client-runtime/context-window";
 import {
   detectComposerTrigger,
   replaceTextRange,
@@ -55,7 +56,6 @@ import {
 } from "@t3tools/client-runtime/composer-model-mentions";
 import { useAtomRefresh } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
-import { msg, useGT, useMessages } from "gt-react-native";
 import { useEffect, useState } from "react";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
@@ -66,9 +66,10 @@ import {
   useThreadSearch,
 } from "../../state/queries";
 import type { ModelOption } from "../../lib/modelOptions";
-import { m, type MessageResolver } from "../../i18n/messages";
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { scoreSlashSkillQuery } from "./composerSlashSkillSearch";
+import { msg, useMessages } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
@@ -99,46 +100,49 @@ export function resolveComposerMenuSelection(input: {
   return { start: Math.min(input.local.start, length), end: Math.min(input.local.end, length) };
 }
 
-const PULL_REQUEST_STATE_LABELS = {
-  open: msg("open", { $context: "pull request state" }),
-  closed: msg("closed", { $context: "pull request state" }),
-  merged: msg("merged", { $context: "pull request state" }),
-} as const;
-
-export function buildComposerSlashCommandItems(
-  input: {
-    readonly query: string;
-    readonly atMessageStart: boolean;
-    readonly hasThread: boolean;
-    readonly hasCompactableConversation?: boolean;
-    readonly offersUsageLimits?: boolean;
-    /** T3's `/clear` replaces the provider's, which would clear a session T3 still treats as live. */
-    readonly offersFreshSession?: boolean;
-    readonly offersSideChat?: boolean;
-    readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
-  },
-  resolve: MessageResolver = m,
-): ComposerCommandItem[] {
+export function buildComposerSlashCommandItems(input: {
+  readonly query: string;
+  readonly atMessageStart: boolean;
+  readonly hasThread: boolean;
+  readonly hasCompactableConversation?: boolean;
+  readonly offersUsageLimits?: boolean;
+  /** T3's `/clear` replaces the provider's, which would clear a session T3 still treats as live. */
+  readonly offersFreshSession?: boolean;
+  readonly offersSideChat?: boolean;
+  /** Whether the composer can show /context-usage; only threads have usage to report. */
+  readonly offersContextUsage?: boolean;
+  readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
+}): ComposerCommandItem[] {
   const query = input.query.toLowerCase();
-  const items: ComposerCommandItem[] = "model".includes(query)
-    ? [
-        {
-          id: "cmd:model",
-          type: "slash-command",
-          command: "model",
-          label: "/model",
-          description: resolve(msg("Switch model")),
-        },
-      ]
-    : [];
+  const builtIn = [
+    {
+      id: "cmd:model",
+      type: "slash-command",
+      command: "model",
+      label: "/model",
+      description: m(msg("Switch model")),
+    },
+    {
+      id: "cmd:context-usage",
+      type: "slash-command",
+      command: CONTEXT_USAGE_COMMAND.name,
+      label: `/${CONTEXT_USAGE_COMMAND.name}`,
+      description: m(msg("Show context usage")),
+    },
+  ] satisfies ComposerCommandItem[];
+  const items: ComposerCommandItem[] = builtIn.filter((item) => {
+    if (!item.command.includes(query)) return false;
+    if (item.command === CONTEXT_USAGE_COMMAND.name) return input.offersContextUsage === true;
+    return true;
+  });
 
   // Providers expand commands only at the start of a message. T3 commands
   // change local state and do not have this restriction, except `/clear`.
   if (!input.atMessageStart) return items;
   if (input.offersSideChat) {
     for (const [command, description] of [
-      ["side", resolve(msg("Ask a side question in a new side chat"))],
-      ["btw", resolve(msg("Same as /side"))],
+      ["side", "Ask a side question in a new side chat"],
+      ["btw", "Same as /side"],
     ] as const) {
       if (!command.includes(query)) continue;
       items.push({
@@ -156,7 +160,7 @@ export function buildComposerSlashCommandItems(
       type: "slash-command",
       command: "clear",
       label: "/clear",
-      description: resolve(msg("Start a fresh session")),
+      description: m(msg("Start a fresh session")),
     });
   }
   for (const command of input.selectedProviderStatus?.slashCommands ?? []) {
@@ -272,6 +276,7 @@ export function useComposerCommandMenu({
   modelProviders,
   onFreshSession,
   offersSideChat = false,
+  onContextUsage,
 }: {
   readonly draftMessage: string;
   readonly ownerKey: string | null;
@@ -299,8 +304,10 @@ export function useComposerCommandMenu({
   /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
   readonly onFreshSession?: () => void;
   readonly offersSideChat?: boolean;
+  /** Offers /context-usage on threads; picking it opens the summary and clears the command. */
+  readonly onContextUsage?: () => void;
 }) {
-  const gt = useGT();
+  const offersContextUsage = hasThread && onContextUsage !== undefined;
   const messages = useMessages();
   const [localSelection, setLocalSelection] = useState(() => ({
     ownerKey,
@@ -388,7 +395,7 @@ export function useComposerCommandMenu({
           isDraft: entry.isDraft,
         },
         label: `#${entry.number}`,
-        description: `${entry.isDraft ? gt("Draft", { $context: "pull request state" }) : messages(PULL_REQUEST_STATE_LABELS[entry.state])} · ${
+        description: `${entry.isDraft ? "Draft" : entry.state} · ${
           entry.repository.toLowerCase() === pullRequestRepository?.toLowerCase()
             ? ""
             : `${entry.repository} · `
@@ -399,27 +406,25 @@ export function useComposerCommandMenu({
     if (trigger.kind === "slash-command") {
       const q = trigger.query.toLowerCase();
       const visibleSkills = getProviderSkillsForSlashMenu(skills, true);
-      const commandItems = buildComposerSlashCommandItems(
-        {
-          query: q,
-          atMessageStart: trigger.rangeStart === 0,
-          hasThread,
-          hasCompactableConversation,
-          offersUsageLimits,
-          offersFreshSession: onFreshSession !== undefined,
-          offersSideChat,
-          selectedProviderStatus: selectedProviderStatus
-            ? {
-                ...selectedProviderStatus,
-                slashCommands: getProviderSlashCommandsForSlashMenu(
-                  resolveProviderSlashCommandsForCwd(selectedProviderStatus, projectCwd),
-                  visibleSkills,
-                ),
-              }
-            : null,
-        },
-        messages,
-      );
+      const commandItems = buildComposerSlashCommandItems({
+        query: q,
+        atMessageStart: trigger.rangeStart === 0,
+        hasThread,
+        hasCompactableConversation,
+        offersUsageLimits,
+        offersFreshSession: onFreshSession !== undefined,
+        offersSideChat,
+        offersContextUsage,
+        selectedProviderStatus: selectedProviderStatus
+          ? {
+              ...selectedProviderStatus,
+              slashCommands: getProviderSlashCommandsForSlashMenu(
+                resolveProviderSlashCommandsForCwd(selectedProviderStatus, projectCwd),
+                visibleSkills,
+              ),
+            }
+          : null,
+      });
 
       const skillItems = visibleSkills
         .flatMap((skill) => {
@@ -523,17 +528,14 @@ export function useComposerCommandMenu({
 
     if (trigger.kind === "path") {
       const threadItems = environmentId
-        ? matchComposerThreadItems(
-            {
-              shells: threadShells,
-              environmentId,
-              linkedEnvironments,
-              excludeThreadId: currentThreadId,
-              query: trigger.query,
-              now,
-            },
-            messages,
-          )
+        ? matchComposerThreadItems({
+            shells: threadShells,
+            environmentId,
+            linkedEnvironments,
+            excludeThreadId: currentThreadId,
+            query: trigger.query,
+            now,
+          })
         : [];
       const environmentItems = environmentId
         ? matchComposerEnvironmentItems(
@@ -575,8 +577,8 @@ export function useComposerCommandMenu({
       const alreadyAttached = existing.some((entry) => entry.contextId === record.contextId);
       if (!alreadyAttached && existing.length >= COMPOSER_CONTEXT_MAX_RECORDS) {
         Dialog.alert(
-          gt("Too many context items"),
-          gt("Remove some context from the draft and try again."),
+          m(msg("Too many context items")),
+          m(msg("Remove some context from the draft and try again.")),
         );
         return;
       }
@@ -610,8 +612,8 @@ export function useComposerCommandMenu({
       const alreadyAttached = existing.some((entry) => entry.contextId === record.contextId);
       if (!alreadyAttached && existing.length >= COMPOSER_CONTEXT_MAX_RECORDS) {
         Dialog.alert(
-          gt("Too many context items"),
-          gt("Remove some context from the draft and try again."),
+          m(msg("Too many context items")),
+          m(msg("Remove some context from the draft and try again.")),
         );
         return;
       }
@@ -645,8 +647,8 @@ export function useComposerCommandMenu({
         COMPOSER_CONTEXT_MAX_RECORDS
       ) {
         Dialog.alert(
-          gt("Too many context items"),
-          gt("Remove some context from the draft and try again."),
+          m(msg("Too many context items")),
+          m(msg("Remove some context from the draft and try again.")),
         );
         return;
       }
@@ -689,6 +691,18 @@ export function useComposerCommandMenu({
       return;
     }
 
+    if (
+      item.type === "slash-command" &&
+      item.command === CONTEXT_USAGE_COMMAND.name &&
+      onContextUsage
+    ) {
+      const cleared = replaceTextRange(draftMessage, trigger.rangeStart, trigger.rangeEnd, "");
+      setSelection({ start: cleared.cursor, end: cleared.cursor });
+      onChangeDraftMessage(cleared.text);
+      onContextUsage();
+      return;
+    }
+
     const result = resolveComposerCommandSelection({ draftMessage, trigger, item });
     setSelection({ start: result.cursor, end: result.cursor });
     onChangeDraftMessage(result.text);
@@ -705,7 +719,7 @@ export function useComposerCommandMenu({
     error:
       trigger?.kind === "pull-request"
         ? pullRequestProjectId === null || pullRequestRepository === null
-          ? gt("Pull requests are unavailable for this project.")
+          ? m(msg("Pull requests are unavailable for this project."))
           : pullRequestSearch.error
         : null,
     onSelect,

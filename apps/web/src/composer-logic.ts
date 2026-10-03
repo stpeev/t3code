@@ -26,7 +26,14 @@ import {
 } from "./keybindings";
 
 export type ComposerTriggerKind = "path" | "pull-request" | "slash-command" | "skill";
-export type ComposerSlashCommand = "model" | "side" | "btw" | "clear";
+export type ComposerSlashCommand =
+  | "model"
+  | "plan"
+  | "default"
+  | "side"
+  | "btw"
+  | "clear"
+  | "context-usage";
 export type ComposerSubmissionIntent = "foreground" | "background" | "alternate";
 
 export interface ComposerTrigger {
@@ -322,6 +329,17 @@ export function composerStateAtPromptEnd(
   };
 }
 
+export function parseStandaloneComposerSlashCommand(
+  text: string,
+): Exclude<ComposerSlashCommand, "model" | "side" | "btw" | "clear" | "context-usage"> | null {
+  const match = /^\/(plan|default)\s*$/i.exec(text.trim());
+  if (!match) {
+    return null;
+  }
+  const command = match[1]?.toLowerCase();
+  if (command === "plan") return "plan";
+  return "default";
+}
 /**
  * A replacement ending in a space swallows one space already after the range, so inserting
  * `@file ` before existing text does not leave a double space.

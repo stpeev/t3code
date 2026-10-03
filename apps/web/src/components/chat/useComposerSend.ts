@@ -21,6 +21,7 @@ import {
   makeThreadErrorSetter,
 } from "../ChatView.logic";
 import { isUsageLimitsCommand } from "@t3tools/shared/usageLimits";
+import { isContextUsageCommand } from "@t3tools/client-runtime/context-window";
 import {
   AuthOrchestrationOperateScope,
   DEFAULT_MODEL,
@@ -256,6 +257,7 @@ interface ComposerSendInput {
   readonly usageLimitsKey: string | null;
   readonly usageLimitsOffered: boolean;
   readonly openUsageLimits: UsageLimitsPanel["open"];
+  readonly openContextUsage: () => boolean;
   readonly clearUsageLimitsFor: UsageLimitsPanel["clearFor"];
   readonly needsLoadBalancing: boolean;
   readonly loadBalancing: DraftEnvironmentRouting["loadBalancing"];
@@ -354,6 +356,7 @@ export function useComposerSend(input: ComposerSendInput) {
     usageLimitsKey,
     usageLimitsOffered,
     openUsageLimits,
+    openContextUsage,
     clearUsageLimitsFor,
     needsLoadBalancing,
     loadBalancing,
@@ -452,6 +455,18 @@ export function useComposerSend(input: ComposerSendInput) {
           promptRef.current = "";
           composerRef.current?.resetCursorState();
         }
+      }
+      return;
+    }
+    if (
+      !directAnnotation &&
+      !draftHasNonPromptContent(composerDraftTarget) &&
+      isContextUsageCommand(promptRef.current)
+    ) {
+      if (openContextUsage()) {
+        promptRef.current = "";
+        setComposerDraftPrompt(composerDraftTarget, "");
+        composerRef.current?.resetCursorState();
       }
       return;
     }
