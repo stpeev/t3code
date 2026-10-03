@@ -23,6 +23,7 @@ import {
   setComposerDraftContext,
 } from "../../state/use-composer-drafts";
 import { USAGE_LIMITS_COMMAND } from "@t3tools/shared/usageLimits";
+import { CONTEXT_USAGE_COMMAND } from "@t3tools/client-runtime/context-window";
 import {
   detectComposerTrigger,
   replaceTextRange,
@@ -66,6 +67,8 @@ export function buildComposerSlashCommandItems(input: {
   readonly hasCompactableConversation?: boolean;
   /** Whether T3 itself offers /usage-limits for the selected provider. */
   readonly offersUsageLimits?: boolean;
+  /** Whether the composer can show /context-usage; only threads have usage to report. */
+  readonly offersContextUsage?: boolean;
   readonly allowInteractionMode: boolean;
   readonly selectedProviderStatus: Pick<
     ServerProvider,
@@ -97,10 +100,19 @@ export function buildComposerSlashCommandItems(input: {
       label: "/default",
       description: "Switch to default mode",
     },
+    {
+      id: "cmd:context-usage",
+      type: "slash-command",
+      command: CONTEXT_USAGE_COMMAND.name,
+      label: `/${CONTEXT_USAGE_COMMAND.name}`,
+      description: "Show context usage",
+    },
   ] satisfies ComposerCommandItem[];
-  const items: ComposerCommandItem[] = builtIn.filter(
-    (item) => item.command.includes(query) && (item.command === "model" || allowInteractionMode),
-  );
+  const items: ComposerCommandItem[] = builtIn.filter((item) => {
+    if (!item.command.includes(query)) return false;
+    if (item.command === CONTEXT_USAGE_COMMAND.name) return input.offersContextUsage === true;
+    return item.command === "model" || allowInteractionMode;
+  });
 
   // Providers expand commands only at the start of a message. T3 commands
   // change local state and do not have this restriction.
@@ -187,6 +199,7 @@ export function useComposerCommandMenu({
   onChangeDraftMessage,
   onUpdateInteractionMode,
   onUsageLimits,
+  onContextUsage,
 }: {
   readonly draftMessage: string;
   readonly ownerKey: string | null;
@@ -208,7 +221,10 @@ export function useComposerCommandMenu({
   readonly onUpdateInteractionMode?: (mode: ProviderInteractionMode) => void;
   /** Picking /usage-limits is the action itself; the draft keeps nothing of it. */
   readonly onUsageLimits?: () => void;
+  /** Offers /context-usage on threads; picking it opens the summary and clears the command. */
+  readonly onContextUsage?: () => void;
 }) {
+  const offersContextUsage = hasThread && onContextUsage !== undefined;
   const [selection, setSelection] = useState(() => composerSelectionAtEnd(draftMessage));
   const previousOwnerKeyRef = useRef(ownerKey);
   const onSelectionChange = useCallback((nextSelection: ComposerEditorSelection) => {
@@ -390,6 +406,7 @@ export function useComposerCommandMenu({
         hasThread,
         hasCompactableConversation,
         offersUsageLimits,
+        offersContextUsage,
         allowInteractionMode: onUpdateInteractionMode !== undefined,
         selectedProviderStatus: selectedProviderStatus
           ? {
@@ -537,6 +554,7 @@ export function useComposerCommandMenu({
     selectedProviderStatus,
     skills,
     trigger,
+    offersContextUsage,
     offersUsageLimits,
   ]);
 
@@ -624,6 +642,18 @@ export function useComposerCommandMenu({
         return;
       }
 
+      if (
+        item.type === "slash-command" &&
+        item.command === CONTEXT_USAGE_COMMAND.name &&
+        onContextUsage
+      ) {
+        const cleared = replaceTextRange(draftMessage, trigger.rangeStart, trigger.rangeEnd, "");
+        setSelection({ start: cleared.cursor, end: cleared.cursor });
+        onChangeDraftMessage(cleared.text);
+        onContextUsage();
+        return;
+      }
+
       const result = resolveComposerCommandSelection({
         draftMessage,
         trigger,
@@ -643,6 +673,7 @@ export function useComposerCommandMenu({
       ownerKey,
       items,
       onChangeDraftMessage,
+      onContextUsage,
       onUpdateInteractionMode,
       onUsageLimits,
       selectedProviderStatus?.showInteractionModeToggle,

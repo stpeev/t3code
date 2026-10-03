@@ -1119,7 +1119,10 @@ import {
   resolveComposerDispatchMode,
   type ComposerDispatchMode,
 } from "@t3tools/client-runtime/state/composer-dispatch";
-import type { ContextWindowSnapshot } from "../../lib/contextWindow";
+import {
+  CONTEXT_USAGE_COMMAND,
+  type ContextWindowSnapshot,
+} from "@t3tools/client-runtime/context-window";
 import {
   getProviderSlashCommandsForSlashMenu,
   getProviderSkillsForSlashMenu,
@@ -1561,6 +1564,8 @@ export interface ChatComposerProps {
   onToggleKeepFullHistory: () => void;
   /** Picking /usage-limits from the menu is the action itself; the draft keeps nothing of it. */
   onUsageLimitsCommand?: (() => void) | undefined;
+  /** Offers /context-usage; picking it opens the summary and leaves the draft empty. */
+  onContextUsageCommand?: (() => void) | undefined;
   environmentUnavailable: {
     readonly label: string;
     readonly connection: EnvironmentConnectionPresentation;
@@ -1807,6 +1812,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onFileOpen,
     editingQueuedAttachments,
     onRemoveEditingQueuedAttachment,
+    onContextUsageCommand,
   } = props;
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const composerDraftTargetKey = composerTargetKey(composerDraftTarget);
@@ -2716,6 +2722,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               },
             ] as const)
           : []),
+        ...(onContextUsageCommand
+          ? ([
+              {
+                id: "slash:context-usage",
+                type: "slash-command",
+                command: "context-usage",
+                label: `/${CONTEXT_USAGE_COMMAND.name}`,
+                description: CONTEXT_USAGE_COMMAND.description,
+              },
+            ] as const)
+          : []),
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
       const slashMenuSkills = getProviderSkillsForSlashMenu(
         selectedProviderSkills,
@@ -2825,6 +2842,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     environmentId,
     environmentThreadShells,
     exactPullRequestLookup.data,
+    onContextUsageCommand,
     planModeUiEnabled,
     pullRequestLookup.data,
     pullRequestProjectId,
@@ -4031,6 +4049,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           }
           return;
         }
+        if (item.command === "context-usage") {
+          const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
+            expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
+            focusEditorAfterReplace: false,
+          });
+          if (applied) {
+            setComposerHighlightedItemId(null);
+            onContextUsageCommand?.();
+          }
+          return;
+        }
         if (!planModeUiEnabled) return;
         void handleInteractionModeChange(item.command === "plan" ? "plan" : "default");
         const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
@@ -4151,6 +4180,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerDraftTarget,
       handleInteractionModeChange,
       planModeUiEnabled,
+      onContextUsageCommand,
       onUsageLimitsCommand,
       resolveActiveComposerTrigger,
     ],
