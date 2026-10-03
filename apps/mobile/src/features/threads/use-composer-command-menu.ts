@@ -29,6 +29,7 @@ import {
   useComposerDraftSelection,
 } from "../../state/use-composer-drafts";
 import { USAGE_LIMITS_COMMAND } from "@t3tools/shared/usageLimits";
+import { CONTEXT_USAGE_COMMAND } from "@t3tools/client-runtime/context-window";
 import {
   detectComposerTrigger,
   replaceTextRange,
@@ -105,20 +106,52 @@ export function buildComposerSlashCommandItems(input: {
   /** T3's `/clear` replaces the provider's, which would clear a session T3 still treats as live. */
   readonly offersFreshSession?: boolean;
   readonly offersSideChat?: boolean;
-  readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
+  /** Whether the composer can show /context-usage; only threads have usage to report. */
+  readonly offersContextUsage?: boolean;
+  readonly allowInteractionMode: boolean;
+  readonly selectedProviderStatus: Pick<
+    ServerProvider,
+    "driver" | "slashCommands" | "showInteractionModeToggle"
+  > | null;
 }): ComposerCommandItem[] {
   const query = input.query.toLowerCase();
-  const items: ComposerCommandItem[] = "model".includes(query)
-    ? [
-        {
-          id: "cmd:model",
-          type: "slash-command",
-          command: "model",
-          label: "/model",
-          description: "Switch model",
-        },
-      ]
-    : [];
+  const allowInteractionMode =
+    input.allowInteractionMode && input.selectedProviderStatus?.showInteractionModeToggle !== false;
+  const builtIn = [
+    {
+      id: "cmd:model",
+      type: "slash-command",
+      command: "model",
+      label: "/model",
+      description: "Switch model",
+    },
+    {
+      id: "cmd:plan",
+      type: "slash-command",
+      command: "plan",
+      label: "/plan",
+      description: "Switch to plan mode",
+    },
+    {
+      id: "cmd:default",
+      type: "slash-command",
+      command: "default",
+      label: "/default",
+      description: "Switch to default mode",
+    },
+    {
+      id: "cmd:context-usage",
+      type: "slash-command",
+      command: CONTEXT_USAGE_COMMAND.name,
+      label: `/${CONTEXT_USAGE_COMMAND.name}`,
+      description: "Show context usage",
+    },
+  ] satisfies ComposerCommandItem[];
+  const items: ComposerCommandItem[] = builtIn.filter((item) => {
+    if (!item.command.includes(query)) return false;
+    if (item.command === CONTEXT_USAGE_COMMAND.name) return input.offersContextUsage === true;
+    return item.command === "model" || allowInteractionMode;
+  });
 
   // Providers expand commands only at the start of a message. T3 commands
   // change local state and do not have this restriction, except `/clear`.
@@ -259,6 +292,7 @@ export function useComposerCommandMenu({
   modelProviders,
   onFreshSession,
   offersSideChat = false,
+  onContextUsage,
 }: {
   readonly draftMessage: string;
   readonly ownerKey: string | null;
@@ -284,7 +318,10 @@ export function useComposerCommandMenu({
   /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
   readonly onFreshSession?: () => void;
   readonly offersSideChat?: boolean;
+  /** Offers /context-usage on threads; picking it opens the summary and clears the command. */
+  readonly onContextUsage?: () => void;
 }) {
+  const offersContextUsage = hasThread && onContextUsage !== undefined;
   const [localSelection, setLocalSelection] = useState(() => ({
     ownerKey,
     ...composerSelectionAtEnd(draftMessage),
@@ -389,6 +426,8 @@ export function useComposerCommandMenu({
         offersUsageLimits,
         offersFreshSession: onFreshSession !== undefined,
         offersSideChat,
+        offersContextUsage,
+        allowInteractionMode: onUpdateInteractionMode !== undefined,
         selectedProviderStatus: selectedProviderStatus
           ? {
               ...selectedProviderStatus,
@@ -645,7 +684,26 @@ export function useComposerCommandMenu({
       return;
     }
 
-    const result = resolveComposerCommandSelection({ draftMessage, trigger, item });
+    if (
+      item.type === "slash-command" &&
+      item.command === CONTEXT_USAGE_COMMAND.name &&
+      onContextUsage
+    ) {
+      const cleared = replaceTextRange(draftMessage, trigger.rangeStart, trigger.rangeEnd, "");
+      setSelection({ start: cleared.cursor, end: cleared.cursor });
+      onChangeDraftMessage(cleared.text);
+      onContextUsage();
+      return;
+    }
+
+    const result = resolveComposerCommandSelection({
+      draftMessage,
+      trigger,
+      item,
+      allowInteractionMode:
+        onUpdateInteractionMode !== undefined &&
+        selectedProviderStatus?.showInteractionModeToggle !== false,
+    });
     setSelection({ start: result.cursor, end: result.cursor });
     onChangeDraftMessage(result.text);
   };
