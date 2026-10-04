@@ -7,6 +7,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
 import type {
+  ProjectId,
   ReviewBranchCommitsResult,
   ScopedThreadRef,
   RunId,
@@ -112,7 +113,6 @@ import { observeIntersection } from "~/lib/observeIntersection";
 import { useReviewFilePatches } from "./diffs/useReviewFilePatches";
 import { DiffFileLoadingBoundary } from "./diffs/DiffFileLoadingBoundary";
 import { DiffFileStatus } from "./diffs/DiffFileStatus";
-import { useThreadRouteRef } from "../hooks/useThreadRouteTarget";
 import { projectCommitUrl } from "@t3tools/client-runtime/change-request-links";
 import { useOpenLink } from "../browser/useOpenLink";
 
@@ -217,6 +217,10 @@ function DiffFileHeaderSuffix({
 
 interface DiffPanelProps {
   mode?: DiffPanelMode;
+  /** The chat's thread, which may still be a local draft with no server record. */
+  threadRef: ScopedThreadRef | null;
+  projectId: ProjectId | null;
+  worktreePath: string | null;
   composerDraftTarget: ScopedThreadRef | DraftId;
   workspaceMutationId: string | null;
   visible: boolean;
@@ -224,6 +228,9 @@ interface DiffPanelProps {
 
 export default function DiffPanel({
   mode = "inline",
+  threadRef,
+  projectId: activeProjectId,
+  worktreePath,
   composerDraftTarget,
   workspaceMutationId,
   visible,
@@ -261,64 +268,63 @@ export default function DiffPanel({
   });
   const [codeViewRevision, setCodeViewRevision] = useState(0);
 
-  const routeThreadRef = useThreadRouteRef();
-  const activeThreadId = routeThreadRef?.threadId ?? null;
-  const activeThread = useQuietThreadShell(routeThreadRef);
-  const fileAccess = useFilesystemReadAccess(activeThread?.environmentId ?? null);
+  const activeThreadId = threadRef?.threadId ?? null;
+  const environmentId = threadRef?.environmentId ?? null;
+  // Subscribing to a draft's id gets a 404 that parks the shared thread state as deleted,
+  // which then outlives the draft's promotion to a server thread.
+  const isServerThread = useQuietThreadShell(threadRef) != null;
+  const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
-  const activeProjectId = activeThread?.projectId ?? null;
   const activeProject = useProject(
-    activeThread && activeProjectId
+    threadRef && activeProjectId
       ? {
-          environmentId: activeThread.environmentId,
+          environmentId: threadRef.environmentId,
           projectId: activeProjectId,
         }
       : null,
   );
-  const activeCwd = activeThread?.worktreePath ?? activeProject?.workspaceRoot;
-  const activeRepositoryRoot = activeThread?.worktreePath
+  const activeCwd = worktreePath ?? activeProject?.workspaceRoot;
+  const activeRepositoryRoot = worktreePath
     ? undefined
     : activeProject?.repositoryIdentity?.rootPath;
-  const serverConfig = useAtomValue(
-    serverEnvironment.configValueAtom(activeThread?.environmentId ?? null),
-  );
-  const onFileContextMenu = useFileContextMenuHandler(activeThread?.environmentId ?? null);
+  const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
+  const onFileContextMenu = useFileContextMenuHandler(environmentId);
   const openInPreferredEditor = useOpenInPreferredEditor(
-    activeThread?.environmentId ?? null,
+    environmentId,
     serverConfig?.availableEditors ?? [],
   );
   const getDiffFileContents = useAtomCommand(reviewEnvironment.diffFileContents);
   const gitStatusQuery = useEnvironmentQuery(
-    activeThread !== null && activeThread !== undefined && activeCwd != null
+    environmentId !== null && activeCwd != null
       ? vcsEnvironment.status({
-          environmentId: activeThread.environmentId,
+          environmentId,
           input: { cwd: activeCwd },
         })
       : null,
   );
   const diffSelection = useDiffPanelStore((state) =>
-    selectThreadDiffPanelSelection(state.byThreadKey, routeThreadRef),
+    selectThreadDiffPanelSelection(state.byThreadKey, threadRef),
   );
   const rememberedBaseRef = useDiffPanelStore((state) =>
-    selectThreadBranchBaseRef(state, routeThreadRef),
+    selectThreadBranchBaseRef(state, threadRef),
   );
   const toolCallSelection = diffSelection.kind === "tool-call" ? diffSelection : null;
   const isGitSelection =
     diffSelection.kind === "branch" ||
     diffSelection.kind === "unstaged" ||
     diffSelection.kind === "commit";
-  const toolCallItems = useQuietThreadVisibleTurnItems(toolCallSelection ? routeThreadRef : null);
+  const toolCallItems = useQuietThreadVisibleTurnItems(toolCallSelection ? threadRef : null);
   const toolCallDetail = useTurnItemDetail(
-    toolCallSelection && routeThreadRef
+    toolCallSelection && threadRef
       ? {
           ...resolveToolCallDiffTarget(toolCallSelection, toolCallItems),
-          environmentId: routeThreadRef.environmentId,
+          environmentId: threadRef.environmentId,
         }
       : null,
   );
   const toolCallItem = toolCallDetail.data?.item;
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
-  const turnDiffSummaries = useThreadCheckpointSummaries(routeThreadRef);
+  const turnDiffSummaries = useThreadCheckpointSummaries(isServerThread ? threadRef : null);
   const orderedTurnDiffSummaries = turnDiffSummaries.toSorted((left, right) => {
     if (left.checkpointTurnCount !== right.checkpointTurnCount) {
       return right.checkpointTurnCount - left.checkpointTurnCount;
@@ -328,12 +334,12 @@ export default function DiffPanel({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- rewrites the persisted diff store selection to the latest turn when the selected turn disappears
   useEffect(() => {
-    if (!routeThreadRef || diffSelection.kind !== "turn") return;
+    if (!threadRef || diffSelection.kind !== "turn") return;
     useDiffPanelStore.getState().reconcileTurnSelection(
-      routeThreadRef,
+      threadRef,
       orderedTurnDiffSummaries.map((summary) => summary.runId),
     );
-  }, [diffSelection, orderedTurnDiffSummaries, routeThreadRef]);
+  }, [diffSelection, orderedTurnDiffSummaries, threadRef]);
 
   const selectedRunId = diffSelection.kind === "turn" ? diffSelection.turnId : null;
   const selectedGitScope =
@@ -345,15 +351,13 @@ export default function DiffPanel({
     diffSelection.kind === "branch" || diffSelection.kind === "commit"
       ? diffSelection.baseRef
       : null;
-  const listBaseRef = useDiffPanelStore((state) =>
-    selectThreadBranchBaseRef(state, routeThreadRef),
-  );
+  const listBaseRef = useDiffPanelStore((state) => selectThreadBranchBaseRef(state, threadRef));
   const [commitContextLimit, setCommitContextLimit] = useState(COMMIT_CONTEXT_PAGE_SIZE);
   const gitStatus = gitStatusQuery.data;
   const commitList = useEnvironmentQuery(
-    isGitRepo && activeThread && activeCwd && gitStatus?.isRepo
+    isGitRepo && environmentId && activeCwd && gitStatus?.isRepo
       ? vcsEnvironment.listCommits({
-          environmentId: activeThread.environmentId,
+          environmentId,
           input: {
             request: {
               cwd: activeCwd,
@@ -411,8 +415,8 @@ export default function DiffPanel({
       : selectedCommitSha !== null
         ? `commit:${selectedCommitSha}`
         : selectedGitScope;
-  const collapseScopeKey = routeThreadRef
-    ? `${routeThreadRef.environmentId}:${routeThreadRef.threadId}:${reviewSectionId}`
+  const collapseScopeKey = threadRef
+    ? `${threadRef.environmentId}:${threadRef.threadId}:${reviewSectionId}`
     : null;
   const codeViewMountKey = `${collapseScopeKey ?? reviewSectionId}:${codeViewRevision}`;
   const selectedCheckpointRange =
@@ -424,7 +428,7 @@ export default function DiffPanel({
       : null;
   const activeCheckpointDiff = useCheckpointDiff(
     {
-      environmentId: activeThread?.environmentId ?? null,
+      environmentId,
       threadId: activeThreadId,
       fromTurnCount: selectedCheckpointRange?.fromTurnCount ?? null,
       toTurnCount: selectedCheckpointRange?.toTurnCount ?? null,
@@ -434,7 +438,7 @@ export default function DiffPanel({
     { enabled: isGitRepo && selectedTurn !== undefined },
   );
   const branchDiffPreviewInput =
-    canReadFiles && isGitSelection && activeThread && activeCwd
+    canReadFiles && isGitSelection && environmentId && activeCwd
       ? {
           cwd: activeCwd,
           ...(selectedBaseRef ? { baseRef: selectedBaseRef } : {}),
@@ -452,14 +456,14 @@ export default function DiffPanel({
         }
       : undefined;
   const canRefreshGitDiff =
-    isGitRepo && isGitSelection && activeThread != null && activeCwd != null;
+    isGitRepo && isGitSelection && environmentId !== null && activeCwd != null;
   // Read under the workspace mutation id, so each mutation refetches the diff; the panel stays
   // mounted while hidden, so a mutation made then is already reflected when it shows.
   const branchDiffPreview = useEnvironmentQuery(
-    branchDiffPreviewInput && activeThread
+    branchDiffPreviewInput && environmentId
       ? revisionedQuery(
           reviewEnvironment.diffPreview({
-            environmentId: activeThread.environmentId,
+            environmentId,
             input: branchDiffPreviewInput,
           }),
           canRefreshGitDiff ? workspaceMutationId : undefined,
@@ -467,9 +471,9 @@ export default function DiffPanel({
       : null,
   );
   const branchCommitsQuery = useEnvironmentQuery(
-    visible && isGitRepo && canReadFiles && activeThread && activeCwd
+    visible && isGitRepo && canReadFiles && threadRef && activeCwd
       ? reviewEnvironment.branchCommits({
-          environmentId: activeThread.environmentId,
+          environmentId: threadRef.environmentId,
           input: {
             cwd: activeCwd,
             ...(rememberedBaseRef ? { baseRef: rememberedBaseRef } : {}),
@@ -478,8 +482,8 @@ export default function DiffPanel({
       : null,
   );
   const branchCommits = openCommitMenu ?? branchCommitsQuery.data;
-  const activeThreadRefreshKey = routeThreadRef
-    ? `${routeThreadRef.environmentId}:${routeThreadRef.threadId}`
+  const activeThreadRefreshKey = threadRef
+    ? `${threadRef.environmentId}:${threadRef.threadId}`
     : null;
 
   const selectedGitSource = branchDiffPreview.data?.sources.find(
@@ -522,7 +526,7 @@ export default function DiffPanel({
     headerCommitSha !== null
       ? projectCommitUrl(activeProject?.repositoryIdentity, headerCommitSha)
       : null;
-  const openLink = useOpenLink(routeThreadRef);
+  const openLink = useOpenLink(threadRef);
   // A SHA link goes to the code host; it must not route back into this pane's commit selection.
   const openCommitUrl = (event: MouseEvent<HTMLElement>, url: string) => {
     event.stopPropagation();
@@ -605,9 +609,9 @@ export default function DiffPanel({
         )
       : null;
   const currentLoadDiffFiles =
-    isGitSelection && activeThread && preview && selectedGitSource && canReadFiles
+    isGitSelection && environmentId && preview && selectedGitSource && canReadFiles
       ? createGitDiffFileContentsLoader(getDiffFileContents, {
-          environmentId: activeThread.environmentId,
+          environmentId,
           cwd: preview.cwd,
           sourceKind: selectedGitSource.kind,
           baseRef: selectedGitSource.baseRef,
@@ -630,7 +634,7 @@ export default function DiffPanel({
     remainingFileCount,
     loadNextFiles,
   } = useReviewFilePatches({
-    environmentId: activeThread?.environmentId,
+    environmentId: environmentId ?? undefined,
     cwd: branchDiffPreview.data?.cwd,
     source: lazySource,
     baseRef:
@@ -776,7 +780,7 @@ export default function DiffPanel({
 
   const openDiffFile = (filePath: string) => {
     openDiffFilePrimaryAction({
-      threadRef: routeThreadRef,
+      threadRef,
       filePath,
       activeCwd,
       repositoryRoot: activeRepositoryRoot,
@@ -786,10 +790,10 @@ export default function DiffPanel({
           if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
             console.warn("Failed to open diff file in editor.", {
               operation: "open-diff-file",
-              ...(routeThreadRef
+              ...(threadRef
                 ? {
-                    environmentId: routeThreadRef.environmentId,
-                    threadId: routeThreadRef.threadId,
+                    environmentId: threadRef.environmentId,
+                    threadId: threadRef.threadId,
                   }
                 : {}),
               ...safeErrorLogAttributes(squashAtomCommandFailure(result)),
@@ -849,25 +853,25 @@ export default function DiffPanel({
   };
 
   const selectTurn = (runId: RunId) => {
-    if (!routeThreadRef) return;
-    useDiffPanelStore.getState().selectTurn(routeThreadRef, runId);
+    if (!threadRef) return;
+    useDiffPanelStore.getState().selectTurn(threadRef, runId);
   };
   const selectGitScope = (scope: "branch" | "unstaged") => {
-    if (!routeThreadRef) return;
-    useDiffPanelStore.getState().selectGitScope(routeThreadRef, scope);
+    if (!threadRef) return;
+    useDiffPanelStore.getState().selectGitScope(threadRef, scope);
   };
   const selectBranchBaseRef = (baseRef: string | null) => {
-    if (!routeThreadRef) return;
-    useDiffPanelStore.getState().selectBranchBaseRef(routeThreadRef, baseRef);
+    if (!threadRef) return;
+    useDiffPanelStore.getState().selectBranchBaseRef(threadRef, baseRef);
   };
   const setListBaseRef = (baseRef: string | null) => {
-    if (!routeThreadRef) return;
+    if (!threadRef) return;
     setCommitContextLimit(COMMIT_CONTEXT_PAGE_SIZE);
-    useDiffPanelStore.getState().setBranchBaseRef(routeThreadRef, baseRef);
+    useDiffPanelStore.getState().setBranchBaseRef(threadRef, baseRef);
   };
   const selectCommit = (sha: string) => {
-    if (!routeThreadRef) return;
-    useDiffPanelStore.getState().selectCommit(routeThreadRef, sha);
+    if (!threadRef) return;
+    useDiffPanelStore.getState().selectCommit(threadRef, sha);
   };
   const selectedTurnValue = selectedTurn ? `turn:${selectedTurn.runId}` : "";
   const selectedCommitValue =
@@ -885,8 +889,8 @@ export default function DiffPanel({
     } else if (value === selectedCommitValue) {
       selectGitScope("branch");
     } else if (value.startsWith("commit:")) {
-      if (routeThreadRef) {
-        useDiffPanelStore.getState().selectCommit(routeThreadRef, value.slice("commit:".length));
+      if (threadRef) {
+        useDiffPanelStore.getState().selectCommit(threadRef, value.slice("commit:".length));
       }
     } else if (value === "latest") {
       if (latestTurn) selectTurn(latestTurn.runId);
@@ -1123,9 +1127,9 @@ export default function DiffPanel({
                 {`${comparisonHeadRef} → ${comparisonBaseRef}`}
               </TooltipPopup>
             </Tooltip>
-            {activeThread && branchDiffPreview.data?.cwd ? (
+            {environmentId && branchDiffPreview.data?.cwd ? (
               <BaseRefCombobox
-                environmentId={activeThread.environmentId}
+                environmentId={environmentId}
                 cwd={branchDiffPreview.data.cwd}
                 headRef={selectedGitSource.headRef}
                 value={selectedBaseRef}
@@ -1323,7 +1327,7 @@ export default function DiffPanel({
 
   return (
     <DiffPanelShell mode={mode} header={headerRow}>
-      {!activeThread ? (
+      {!environmentId ? (
         <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
           Select a thread to inspect turn diffs.
         </div>
@@ -1457,7 +1461,7 @@ export default function DiffPanel({
                     event.preventDefault();
                     onFileContextMenu(
                       {
-                        environmentId: activeThread?.environmentId ?? null,
+                        environmentId,
                         filePath,
                         workspaceRoot: activeCwd,
                         repositoryRoot: activeRepositoryRoot,
@@ -1608,9 +1612,9 @@ export default function DiffPanel({
                   )
                 }
                 renderBasePicker={(baseRef) =>
-                  activeThread && activeCwd ? (
+                  environmentId && activeCwd ? (
                     <BaseRefCombobox
-                      environmentId={activeThread.environmentId}
+                      environmentId={environmentId}
                       cwd={activeCwd}
                       headRef={gitStatus?.refName ?? null}
                       value={listBaseRef}
