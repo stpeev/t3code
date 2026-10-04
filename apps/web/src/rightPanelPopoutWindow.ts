@@ -90,6 +90,7 @@ export function openRightPanelPopout(
     mirrorStylesheets(doc),
     forwardKeyboardEvents(popup),
     mirrorShadowStyles(popup as Window & typeof globalThis, root),
+    shareDomClasses(popup as Window & typeof globalThis),
   ];
 
   const readBounds = (): RightPanelPopoutBounds => ({
@@ -243,6 +244,25 @@ function mirrorShadowStyles(popup: Window & typeof globalThis, root: HTMLElement
   });
   observer.observe(root, { childList: true, subtree: true });
   return () => observer.disconnect();
+}
+
+// Libraries test nodes with `instanceof HTMLElement`, which fails for popout nodes built from the popout's own classes.
+// Defined on Node, so every DOM subclass inherits it and checks against its same-named popout class.
+function shareDomClasses(popup: Window & typeof globalThis): () => void {
+  const defaultHasInstance = Function.prototype[Symbol.hasInstance];
+  Object.defineProperty(Node, Symbol.hasInstance, {
+    configurable: true,
+    value(this: Function, value: unknown): boolean {
+      if (defaultHasInstance.call(this, value)) return true;
+      if (popup.closed || typeof value !== "object" || value === null) return false;
+      if (Reflect.get(window, this.name) !== this) return false;
+      const popupClass: unknown = Reflect.get(popup, this.name);
+      return typeof popupClass === "function" && defaultHasInstance.call(popupClass, value);
+    },
+  });
+  return () => {
+    Reflect.deleteProperty(Node, Symbol.hasInstance);
+  };
 }
 
 // App shortcuts listen on the main window; replay unhandled popout keys there so they work in both.
