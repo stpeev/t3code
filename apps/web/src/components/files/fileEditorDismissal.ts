@@ -16,10 +16,8 @@ function dismissFileEditorInteraction({
   editor.setSelections([]);
 
   const file = root.querySelector<HTMLElement>("diffs-container");
-  const activeElement = file?.shadowRoot?.activeElement;
-  if (activeElement instanceof HTMLElement) {
-    activeElement.blur();
-  }
+  const activeElement = file?.shadowRoot?.activeElement as HTMLElement | null | undefined;
+  activeElement?.blur?.();
 }
 
 function isFileEditorFocused(root: HTMLElement): boolean {
@@ -44,10 +42,12 @@ export function installFileEditorDismissal({
     dismissFileEditorInteraction({ root, editor, onDismiss });
   };
 
-  document.addEventListener("pointerdown", handlePointerDown, true);
-  document.addEventListener("keydown", handleKeyDown, true);
+  // The root's own document: the panel may render in the popout window.
+  const ownerDocument = root.ownerDocument;
+  ownerDocument.addEventListener("pointerdown", handlePointerDown, true);
+  ownerDocument.addEventListener("keydown", handleKeyDown, true);
   return () => {
-    document.removeEventListener("pointerdown", handlePointerDown, true);
-    document.removeEventListener("keydown", handleKeyDown, true);
+    ownerDocument.removeEventListener("pointerdown", handlePointerDown, true);
+    ownerDocument.removeEventListener("keydown", handleKeyDown, true);
   };
 }
