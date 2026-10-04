@@ -106,7 +106,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
 
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
   const onToggleDiff = () => {
-    if (!isServerThread) {
+    if (!isGitRepo) {
       return;
     }
     if (!diffOpen) {
