@@ -19,6 +19,8 @@ import {
   useRightPanelStore,
 } from "../../rightPanelStore";
 import { requestWorkspaceContentFocus, requestWorkspaceFocus } from "../../lib/workspaceFocus";
+import { useRightPanelPopoutStore } from "../../rightPanelPopoutStore";
+import { focusRightPanelPopout } from "../../rightPanelPopoutWindow";
 import { setActivePreviewTab } from "../../previewStateStore";
 import { isBrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
@@ -51,6 +53,7 @@ interface RightPanelActionsInput {
   readonly diffOpen: boolean;
   readonly previewPanelOpen: boolean;
   readonly rightPanelOpen: boolean;
+  readonly rightPanelPoppedOut: boolean;
   readonly canMaximizeRightPanel: boolean;
   readonly rightPanelMaximized: boolean;
   readonly supportsPullRequests: boolean;
@@ -84,6 +87,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     diffOpen,
     previewPanelOpen,
     rightPanelOpen,
+    rightPanelPoppedOut,
     canMaximizeRightPanel,
     rightPanelMaximized,
     supportsPullRequests,
@@ -211,6 +215,10 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   const activateRightPanelSurfaceStable = useStableCallback(activateRightPanelSurface);
   const toggleRightPanel = () => {
     if (!activeThreadRef) return;
+    if (rightPanelPoppedOut && rightPanelOpen) {
+      focusRightPanelPopout();
+      return;
+    }
     if (rightPanelOpen) {
       closePreviewPanel();
       return;
@@ -235,6 +243,11 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     store.toggleThreadPanel(activeThreadRef, threadPanelPresentation);
   };
   const toggleThreadPanelStable = useStableCallback(toggleThreadPanel);
+  const toggleRightPanelPopout = () => {
+    const popout = useRightPanelPopoutStore.getState();
+    if (popout.location === "popout") popout.dock();
+    else popout.popOut();
+  };
   const toggleRightPanelMaximized = () => {
     if (!canMaximizeRightPanel || !activeThreadRef) return;
     if (!rightPanelMaximized) requestWorkspaceFocus({ area: "panel" });
@@ -344,6 +357,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     openChangesFromThreadPanelStable,
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,
+    toggleRightPanelPopout,
     toggleRightPanelStable,
     toggleThreadPanelStable,
   };
