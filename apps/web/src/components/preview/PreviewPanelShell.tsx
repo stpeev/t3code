@@ -20,7 +20,7 @@ import { cn } from "~/lib/utils";
 
 import { RightPanelResizeHandle } from "./RightPanelResizeHandle";
 
-export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
+export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded" | "window";
 
 /**
  * Shell for the preview panel. In inline mode the panel is user-resizable

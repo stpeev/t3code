@@ -26,6 +26,7 @@ const entries: DiffFileTreeEntry[] = [
 ];
 
 class TreeRow {
+  readonly nodeType = 1;
   constructor(readonly path: string) {}
 
   getAttribute(name: string) {

@@ -74,6 +74,8 @@ import {
   PaletteIcon,
   RotateCcwIcon,
   SettingsIcon,
+  SquareArrowDownLeftIcon,
+  SquareArrowOutUpRightIcon,
   SquarePenIcon,
   SunIcon,
   TextSearchIcon,
@@ -152,6 +154,7 @@ import {
   selectActiveRightPanel,
   useRightPanelStore,
 } from "../rightPanelStore";
+import { useRightPanelPopoutStore } from "../rightPanelPopoutStore";
 import { getLatestThreadForProject, sortThreads } from "../lib/threadSort";
 import {
   cn,
@@ -1804,6 +1807,7 @@ function OpenCommandPaletteDialog(props: {
   }, [clearOpenIntent, browseNavigation, openIntent, projectThreadItems, pushPaletteView]);
 
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
+  const rightPanelPoppedOut = useRightPanelPopoutStore((state) => state.location === "popout");
 
   if (projects.length > 0) {
     const activeProjectTitle =
@@ -2203,6 +2207,38 @@ function OpenCommandPaletteDialog(props: {
       });
     },
   });
+
+  actionItems.push(
+    rightPanelPoppedOut
+      ? {
+          kind: "action",
+          value: "action:right-panel-dock",
+          searchTerms: ["dock", "panel", "window", "right panel", "main window", "attach"],
+          title: "Dock panel in main window",
+          icon: <SquareArrowDownLeftIcon className={ITEM_ICON_CLASS} />,
+          run: async () => {
+            useRightPanelPopoutStore.getState().dock();
+          },
+        }
+      : {
+          kind: "action",
+          value: "action:right-panel-pop-out",
+          searchTerms: [
+            "pop out",
+            "panel",
+            "window",
+            "right panel",
+            "monitor",
+            "detach",
+            "separate",
+          ],
+          title: "Open panel in separate window",
+          icon: <SquareArrowOutUpRightIcon className={ITEM_ICON_CLASS} />,
+          run: async () => {
+            useRightPanelPopoutStore.getState().popOut();
+          },
+        },
+  );
 
   if (
     environments.some(

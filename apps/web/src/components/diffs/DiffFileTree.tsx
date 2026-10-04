@@ -4,6 +4,7 @@ import { ChevronsDownUp, ChevronsUpDown } from "lucide";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useTheme } from "~/hooks/useTheme";
+import { asElement } from "~/lib/crossWindowElement";
 import { cn } from "~/lib/utils";
 import { T3_PIERRE_ICONS } from "~/pierre-icons";
 import { PIERRE_TREE_UNSAFE_CSS, pierreTreeStyle } from "~/pierre-tree-theme";
@@ -224,9 +225,7 @@ export function DiffFileTree({
           if (!path || !filePathsRef.current.has(path)) return;
           const clickedSelectedRow = event.nativeEvent
             .composedPath()
-            .some(
-              (node) => node instanceof HTMLElement && node.getAttribute("data-item-path") === path,
-            );
+            .some((node) => asElement(node)?.getAttribute("data-item-path") === path);
           if (clickedSelectedRow) onSelectFileRef.current(path);
         }}
         className="min-h-0 flex-1 overflow-hidden"

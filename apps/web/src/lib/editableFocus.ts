@@ -1,3 +1,5 @@
+import { asElement } from "./crossWindowElement";
+
 const EDITABLE_SELECTOR = [
   "input",
   "textarea",
@@ -15,7 +17,7 @@ const EDITABLE_SELECTOR = [
  * to the shadow host, so the host's focused descendant is what is typed into.
  */
 export function isEditableFocused(target: EventTarget | null = document.activeElement): boolean {
-  let element = target instanceof Element ? target : null;
+  let element = asElement(target);
   while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
   return element !== null && element.closest(EDITABLE_SELECTOR) !== null;
 }
