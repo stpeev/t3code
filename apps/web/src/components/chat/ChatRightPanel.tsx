@@ -3,7 +3,7 @@ import { RightPanelSheet } from "../RightPanelSheet";
 import { RightPanelTabs, type RightPanelTabsProps } from "../RightPanelTabs";
 
 type ChatRightPanelProps = Omit<RightPanelTabsProps, "mode" | "inlineSize" | "maximized"> & {
-  readonly sheet: boolean;
+  readonly placement: "inline" | "sheet" | "window";
   readonly maximized: boolean;
   readonly workspaceLayoutElement: HTMLElement | null;
   readonly widthStorageKey: string;
@@ -11,14 +11,11 @@ type ChatRightPanelProps = Omit<RightPanelTabsProps, "mode" | "inlineSize" | "ma
   readonly onCloseSheet: () => void;
 };
 
-/**
- * The right panel, inline beside the chat column or as a sheet on narrow
- * layouts. Its width follows a resize drag every frame, so the width state
- * lives here rather than in ChatView.
- */
+// The right panel inline, as a narrow-layout sheet, or in its popout window.
+// Its width follows a resize drag every frame, so the width state lives here rather than in ChatView.
 export function ChatRightPanel(props: ChatRightPanelProps) {
   const {
-    sheet,
+    placement,
     workspaceLayoutElement,
     widthStorageKey,
     sheetAnimationDurationMs,
@@ -31,7 +28,10 @@ export function ChatRightPanel(props: ChatRightPanelProps) {
     container: workspaceLayoutElement,
     widthStorageKey,
   });
-  if (!sheet) {
+  if (placement === "window") {
+    return <RightPanelTabs {...tabs} mode="window" layoutControls={layoutControls} />;
+  }
+  if (placement === "inline") {
     return <RightPanelTabs {...tabs} mode="inline" maximized={maximized} inlineSize={inlineSize} />;
   }
   return (

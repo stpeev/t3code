@@ -73,6 +73,8 @@ import {
   MonitorIcon,
   PinIcon,
   PinOffIcon,
+  SquareArrowDownLeftIcon,
+  SquareArrowOutUpRightIcon,
   SquarePenIcon,
   TextSearchIcon,
   UserPlusIcon,
@@ -162,6 +164,7 @@ import {
   useCommandPaletteStore,
 } from "../commandPaletteStore";
 import { PULL_REQUESTS_PANEL_REF, useRightPanelStore } from "../rightPanelStore";
+import { useRightPanelPopoutStore } from "../rightPanelPopoutStore";
 import { getLatestThreadForProject, sortThreads } from "@t3tools/client-runtime/state/thread-sort";
 import {
   cn,
@@ -1251,6 +1254,7 @@ function OpenCommandPaletteDialog(props: {
   };
 
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
+  const rightPanelPoppedOut = useRightPanelPopoutStore((state) => state.location === "popout");
 
   if (projects.length > 0) {
     const activeProjectTitle =
@@ -1566,6 +1570,38 @@ function OpenCommandPaletteDialog(props: {
   actionItems.push(changeAppearanceItem);
 
   actionItems.push(themeEditorItem);
+
+  actionItems.push(
+    rightPanelPoppedOut
+      ? {
+          kind: "action",
+          value: "action:right-panel-dock",
+          searchTerms: ["dock", "panel", "window", "right panel", "main window", "attach"],
+          title: "Dock panel in main window",
+          icon: <SquareArrowDownLeftIcon className={ITEM_ICON_CLASS} />,
+          run: async () => {
+            useRightPanelPopoutStore.getState().dock();
+          },
+        }
+      : {
+          kind: "action",
+          value: "action:right-panel-pop-out",
+          searchTerms: [
+            "pop out",
+            "panel",
+            "window",
+            "right panel",
+            "monitor",
+            "detach",
+            "separate",
+          ],
+          title: "Open panel in separate window",
+          icon: <SquareArrowOutUpRightIcon className={ITEM_ICON_CLASS} />,
+          run: async () => {
+            useRightPanelPopoutStore.getState().popOut();
+          },
+        },
+  );
 
   if (environments.some((environment) => environment.serverConfig !== null)) {
     actionItems.push({
