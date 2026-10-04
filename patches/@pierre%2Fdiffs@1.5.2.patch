@@ -859,6 +859,36 @@ index df1ba63..676751b 100644
  			this.#inputElement.focus();
  			this.#inputElement.select();
  		};
+diff --git a/dist/managers/InteractionManager.js b/dist/managers/InteractionManager.js
+--- a/dist/managers/InteractionManager.js
++++ b/dist/managers/InteractionManager.js
+@@ -619,16 +619,20 @@
+ 	}
+ 	attachDocumentPointerListeners() {
+ 		if (this.hasDocumentPointerListeners) return;
+-		document.addEventListener("pointermove", this.handleDocumentPointerMove);
+-		document.addEventListener("pointerup", this.handleDocumentPointerUp);
+-		document.addEventListener("pointercancel", this.handleDocumentPointerCancel);
++		const doc = this.pre?.ownerDocument ?? document;
++		doc.addEventListener("pointermove", this.handleDocumentPointerMove);
++		doc.addEventListener("pointerup", this.handleDocumentPointerUp);
++		doc.addEventListener("pointercancel", this.handleDocumentPointerCancel);
++		this.pointerListenerDocument = doc;
+ 		this.hasDocumentPointerListeners = true;
+ 	}
+ 	detachDocumentPointerListeners() {
+ 		if (!this.hasDocumentPointerListeners) return;
+-		document.removeEventListener("pointermove", this.handleDocumentPointerMove);
+-		document.removeEventListener("pointerup", this.handleDocumentPointerUp);
+-		document.removeEventListener("pointercancel", this.handleDocumentPointerCancel);
++		const doc = this.pointerListenerDocument ?? document;
++		doc.removeEventListener("pointermove", this.handleDocumentPointerMove);
++		doc.removeEventListener("pointerup", this.handleDocumentPointerUp);
++		doc.removeEventListener("pointercancel", this.handleDocumentPointerCancel);
++		this.pointerListenerDocument = void 0;
+ 		this.hasDocumentPointerListeners = false;
+ 	}
+ 	clearPointerSession() {
 diff --git a/dist/managers/ResizeManager.d.ts b/dist/managers/ResizeManager.d.ts
 index 3efafc4..9e5b751 100644
 --- a/dist/managers/ResizeManager.d.ts
