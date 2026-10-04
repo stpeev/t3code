@@ -6,6 +6,7 @@ import type * as React from "react";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "./button";
+import { usePortalContainer } from "./portal-container";
 
 const Menu = MenuPrimitive.Root;
 
@@ -35,8 +36,9 @@ function MenuPopup({
   anchor?: MenuPrimitive.Positioner.Props["anchor"];
   keepMounted?: boolean;
 }) {
+  const container = usePortalContainer();
   return (
-    <MenuPrimitive.Portal keepMounted={keepMounted}>
+    <MenuPrimitive.Portal container={container} keepMounted={keepMounted}>
       <MenuPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}

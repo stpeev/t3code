@@ -153,6 +153,7 @@ import {
   Fragment,
   lazy,
   memo,
+  type ReactNode,
   type SetStateAction,
   Suspense,
   useCallback,
@@ -257,6 +258,14 @@ import {
   type RightPanelSurface,
   useRightPanelStore,
 } from "../rightPanelStore";
+import {
+  resolveRightPanelPopoutSync,
+  type RightPanelPopoutSyncSnapshot,
+  useRightPanelPopoutStore,
+} from "../rightPanelPopoutStore";
+import { focusRightPanelPopout } from "../rightPanelPopoutWindow";
+import { asElement } from "../lib/crossWindowElement";
+import { RightPanelPopout, RightPanelPopoutUnsupported } from "./RightPanelPopout";
 import {
   isPreviewSupportedInRuntime,
   setActivePreviewTab,
@@ -459,6 +468,7 @@ import {
   PanelLayoutControls,
   type PanelLayoutControlsProps,
   RightPanelMaximizeControl,
+  RightPanelPopoutControl,
 } from "./chat/PanelLayoutControls";
 import { expandedImageKey, type ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ThreadDetailsPanel, type ThreadDetailsPanelProps } from "./chat/ThreadDetailsPanel";
@@ -2359,7 +2369,44 @@ export default function ChatView(props: ChatViewProps) {
     [allocatableActiveTerminalIds, canReuseTerminal, environmentId],
   );
   const previewPanelOpen = activeRightPanelKind === "preview" && browserAvailable;
-  const rightPanelOpen = rightPanelState.isOpen;
+  const rightPanelPoppedOut = useRightPanelPopoutStore((state) => state.location === "popout");
+  const rightPanelPopoutOpen = useRightPanelPopoutStore((state) => state.open);
+  const rightPanelUserActionRevision = useRightPanelStore((state) =>
+    activeThreadRef ? state.getUserActionRevision(activeThreadRef) : 0,
+  );
+  const rightPanelOpen = rightPanelPoppedOut
+    ? rightPanelPopoutOpen && rightPanelState.isOpen
+    : rightPanelState.isOpen;
+  const rightPanelInline = !rightPanelPoppedOut && !shouldUsePlanSidebarSheet;
+  const rightPanelInSheet = !rightPanelPoppedOut && shouldUsePlanSidebarSheet;
+  const popoutSyncRef = useRef<RightPanelPopoutSyncSnapshot | null>(null);
+  useEffect(() => {
+    if (!rightPanelPoppedOut || !activeThreadRef || !activeThreadKey) {
+      popoutSyncRef.current = null;
+      return;
+    }
+    const snapshot = {
+      threadKey: activeThreadKey,
+      popoutOpen: rightPanelPopoutOpen,
+      threadOpen: rightPanelState.isOpen,
+      revision: rightPanelUserActionRevision,
+      surfaceCount: rightPanelState.surfaces.length,
+    };
+    const action = resolveRightPanelPopoutSync(popoutSyncRef.current, snapshot);
+    popoutSyncRef.current = snapshot;
+    if (action === "open-window") useRightPanelPopoutStore.getState().setOpen(true);
+    else if (action === "close-window") useRightPanelPopoutStore.getState().setOpen(false);
+    else if (action === "show-thread-panel") useRightPanelStore.getState().show(activeThreadRef);
+    else if (action === "hide-thread-panel") useRightPanelStore.getState().close(activeThreadRef);
+  }, [
+    activeThreadKey,
+    activeThreadRef,
+    rightPanelPoppedOut,
+    rightPanelPopoutOpen,
+    rightPanelState.isOpen,
+    rightPanelState.surfaces.length,
+    rightPanelUserActionRevision,
+  ]);
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
     usePanelAnimationSettings();
   const activeTerminalDrawerPresence = usePanelPresence(
@@ -2384,18 +2431,17 @@ export default function ChatView(props: ChatViewProps) {
     panelAnimationDurationMs,
   );
   const rightPanelPresent = rightPanelPresence.present;
-  const rightPanelControlsInPanel =
-    shouldUsePlanSidebarSheet && rightPanelPresent && rightPanelOpen;
-  const rightPanelControlsAtRoot = rightPanelPresent && !shouldUsePlanSidebarSheet;
+  const rightPanelControlsInPanel = rightPanelInSheet && rightPanelPresent && rightPanelOpen;
+  const rightPanelControlsAtRoot = rightPanelPresent && rightPanelInline;
   const renderedRightPanelSurface = rightPanelPresence.value?.activeSurface ?? null;
   const renderedRightPanelSurfaces = rightPanelPresence.value?.surfaces ?? [];
   const previewMiniPlayerVisible = shouldRenderPreviewMiniPlayer(
     activePreviewMiniPlayer?.source ?? null,
     renderedRightPanelSurface,
   );
-  const canMaximizeRightPanel = rightPanelOpen && !shouldUsePlanSidebarSheet;
+  const canMaximizeRightPanel = rightPanelOpen && rightPanelInline;
   const rightPanelMaximized = canMaximizeRightPanel && rightPanelState.maximized === true;
-  const inlineRightPanelOwnsTitleBar = rightPanelOpen && !shouldUsePlanSidebarSheet;
+  const inlineRightPanelOwnsTitleBar = rightPanelOpen && rightPanelInline;
   const [threadPanelPresentation, setThreadPanelPresentation] =
     useState<ThreadPanelPresentation>("inline");
   const [threadPanelPopoverHandle] = useState(PopoverCreateHandle);
@@ -6049,16 +6095,25 @@ export default function ChatView(props: ChatViewProps) {
   );
   const toggleRightPanel = useCallback(() => {
     if (!activeThreadRef) return;
+    if (rightPanelPoppedOut && rightPanelOpen) {
+      focusRightPanelPopout();
+      return;
+    }
     if (rightPanelOpen) {
       closePreviewPanel();
       return;
     }
     useRightPanelStore.getState().toggleVisibility(activeThreadRef);
-  }, [activeThreadRef, closePreviewPanel, rightPanelOpen]);
+  }, [activeThreadRef, closePreviewPanel, rightPanelOpen, rightPanelPoppedOut]);
   const toggleThreadPanel = useCallback(() => {
     if (!activeThreadRef) return;
     useRightPanelStore.getState().toggleThreadPanel(activeThreadRef, threadPanelPresentation);
   }, [activeThreadRef, threadPanelPresentation]);
+  const toggleRightPanelPopout = useCallback(() => {
+    const popout = useRightPanelPopoutStore.getState();
+    if (popout.location === "popout") popout.dock();
+    else popout.popOut();
+  }, []);
   // A thread started for a link the OS opened shows its browser maximized, like a browser window.
   useEffect(() => {
     if (!canMaximizeRightPanel) return;
@@ -8055,6 +8110,8 @@ export default function ChatView(props: ChatViewProps) {
       previewFocus: isPreviewFocused(),
       previewOpen: previewPanelOpen,
       editableFocus: isEditableFocused(eventTarget),
+      // This listener runs before the diff's own find handler, so it must see diff focus too.
+      diffFocus: asElement(eventTarget)?.closest("[data-diff-find-scope]") != null,
       modelPickerOpen: composerRef.current?.isModelPickerOpen() ?? false,
       composerFocus: document.activeElement?.getAttribute("data-testid") === "composer-editor",
       draftThreadRoute: routeKind === "draft",
@@ -11087,8 +11144,19 @@ export default function ChatView(props: ChatViewProps) {
     return <NoActiveThreadState />;
   }
 
+  const popoutUnsupportedLabel = !rightPanelPoppedOut
+    ? null
+    : renderedRightPanelSurface?.kind === "preview"
+      ? "The browser"
+      : renderedRightPanelSurface?.kind === "terminal"
+        ? "The terminal"
+        : renderedRightPanelSurface?.kind === "device"
+          ? "The device"
+          : null;
   const rightPanelContent = activeThreadRef ? (
-    renderedRightPanelSurface?.kind === "preview" ? (
+    popoutUnsupportedLabel !== null ? (
+      <RightPanelPopoutUnsupported label={popoutUnsupportedLabel} />
+    ) : renderedRightPanelSurface?.kind === "preview" ? (
       <Suspense fallback={null}>
         <PreviewPanel
           mode="embedded"
@@ -11304,6 +11372,7 @@ export default function ChatView(props: ChatViewProps) {
     threadPanelShortcutLabel: shortcutLabelForCommand(keybindings, "threadPanel.toggle"),
     rightPanelAvailable: activeProject !== null,
     rightPanelOpen,
+    rightPanelPoppedOut,
     rightPanelShortcutLabel: shortcutLabelForCommand(keybindings, "rightPanel.toggle"),
     onToggleTerminal: toggleTerminalVisibility,
     onToggleThreadPanel: toggleThreadPanel,
@@ -11336,11 +11405,11 @@ export default function ChatView(props: ChatViewProps) {
       )}
       data-workspace-titlebar-controls
     >
-      {!shouldUsePlanSidebarSheet ? (
+      {rightPanelInline ? (
         <span
           aria-hidden={!rightPanelOpen}
           className={cn(
-            "flex shrink-0",
+            "flex shrink-0 gap-1",
             panelAnimationsActive &&
               "motion-safe:transition-opacity motion-safe:duration-(--panel-animation-duration) motion-safe:ease-out",
             // Closed, the control leaves the flex flow so the cluster is only as wide as the two
@@ -11352,6 +11421,7 @@ export default function ChatView(props: ChatViewProps) {
           )}
           inert={!rightPanelOpen}
         >
+          <RightPanelPopoutControl poppedOut={false} onToggle={toggleRightPanelPopout} />
           <RightPanelMaximizeControl
             maximized={rightPanelMaximized}
             onToggle={toggleRightPanelMaximized}
@@ -11361,6 +11431,23 @@ export default function ChatView(props: ChatViewProps) {
       <div className="pointer-events-auto flex h-full items-center">{panelToggleControls}</div>
     </div>
   );
+
+  // The popout host stays mounted while popped out so it can close its window when the panel closes.
+  const placeRightPanel = (tabs: ReactNode) =>
+    rightPanelPoppedOut ? (
+      <RightPanelPopout title={activeThread.title}>{tabs}</RightPanelPopout>
+    ) : tabs === null || rightPanelInline ? (
+      tabs
+    ) : (
+      <RightPanelSheet
+        animationDurationMs={panelAnimationsActive ? panelAnimationDurationMs : 0}
+        open={rightPanelOpen}
+        onClose={closePreviewPanel}
+      >
+        {tabs}
+      </RightPanelSheet>
+    );
+
   const workspaceFileDropHandlers = makeWorkspaceFileDropHandlers({
     setDragActive: setIsWorkspaceFileDragActive,
     addFiles: (files) => composerRef.current?.addDroppedFiles(files),
@@ -11423,7 +11510,7 @@ export default function ChatView(props: ChatViewProps) {
           {isElectron && rightPanelControlsAtRoot ? (
             <span
               aria-hidden
-              className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-28 [-webkit-app-region:no-drag]"
+              className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-36 [-webkit-app-region:no-drag]"
             />
           ) : null}
           {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
@@ -12056,73 +12143,41 @@ export default function ChatView(props: ChatViewProps) {
         ))}
       </div>
 
-      {rightPanelPresent && !shouldUsePlanSidebarSheet && activeThreadRef ? (
-        <RightPanelTabs
-          mode="inline"
-          open={rightPanelOpen}
-          keybindings={keybindings}
-          getShortcutContext={getShortcutContext}
-          maximized={rightPanelMaximized}
-          inlineSize={previewPanelInlineSize}
-          surfaces={renderedRightPanelSurfaces}
-          environmentId={activeThreadRef.environmentId}
-          activeSurfaceId={renderedRightPanelSurface?.id ?? null}
-          pendingSurfaceIds={pendingFileSurfaceIds}
-          previewSessions={activePreviewState.sessions}
-          desktopByTabId={activePreviewState.desktopByTabId}
-          previewRuntimeTabId={resolvePreviewRuntimeTabId}
-          terminalLabelsById={activeTerminalLabelsById}
-          onActivate={activateRightPanelSurface}
-          onCloseSurface={closeRightPanelSurface}
-          onRenameDevice={(surfaceId, title) => {
-            if (activeThreadRef)
-              useRightPanelStore.getState().renameDevice(activeThreadRef, surfaceId, title);
-          }}
-          onCloseOtherSurfaces={closeOtherRightPanelSurfaces}
-          onCloseSurfacesToRight={closeRightPanelSurfacesToRight}
-          onCloseAllSurfaces={closeAllRightPanelSurfaces}
-          onMoveSurface={moveRightPanelSurface}
-          onCopyFilePath={copyRightPanelFilePath}
-          onAddBrowser={() => createBrowserSurface()}
-          onAddBrowserInProfile={createBrowserSurface}
-          onAddTerminal={addTerminalSurface}
-          onAddDiff={addDiffSurface}
-          onAddFiles={addFilesSurface}
-          onAddPullRequest={addPullRequestSurface}
-          onAddPullRequests={addPullRequestsSurface}
-          onAddDevice={addDeviceSurface}
-          browserAvailable={canOperatePreview && browserAvailable}
-          terminalAvailable={activeProject !== null && canOperateTerminal}
-          diffAvailable={isServerThread && isGitRepo}
-          filesAvailable={activeProject !== null}
-          pullRequestAvailable={pullRequestSurfaceAvailable}
-          pullRequestsAvailable={pullRequestsSurfaceAvailable}
-          deviceAvailable={activeThreadRef !== null}
-        >
-          {rightPanelContent}
-        </RightPanelTabs>
-      ) : null}
-      {rightPanelPresent && shouldUsePlanSidebarSheet && activeThreadRef ? (
-        <RightPanelSheet
-          animationDurationMs={panelAnimationsActive ? panelAnimationDurationMs : 0}
-          open={rightPanelOpen}
-          onClose={closePreviewPanel}
-        >
+      {placeRightPanel(
+        rightPanelPresent && activeThreadRef ? (
           <RightPanelTabs
-            mode="sheet"
-            open={rightPanelOpen}
+            {...(rightPanelInline
+              ? {
+                  mode: "inline" as const,
+                  inlineSize: previewPanelInlineSize,
+                  open: rightPanelOpen,
+                  maximized: rightPanelMaximized,
+                }
+              : rightPanelInSheet
+                ? {
+                    mode: "sheet" as const,
+                    open: rightPanelOpen,
+                    inlineSize: previewPanelInlineSize,
+                    // Same effective inset as the closed-state titlebar controls (pr-3 in the tab bar plus this
+                    // pixel equals the absolute right inset plus mr-px), so the cluster doesn't creep on open.
+                    layoutControls: rightPanelOpen ? (
+                      <div className="mr-px flex items-center gap-1">
+                        <RightPanelPopoutControl
+                          poppedOut={false}
+                          onToggle={toggleRightPanelPopout}
+                        />
+                        {panelToggleControls}
+                      </div>
+                    ) : null,
+                  }
+                : {
+                    mode: "window" as const,
+                    layoutControls: (
+                      <RightPanelPopoutControl poppedOut onToggle={toggleRightPanelPopout} />
+                    ),
+                  })}
             keybindings={keybindings}
             getShortcutContext={getShortcutContext}
-            inlineSize={previewPanelInlineSize}
-            // Same effective inset as the closed-state titlebar controls
-            // (pr-3 in the tab bar plus this pixel equals the absolute
-            // right inset plus mr-px), so the cluster does not creep when
-            // the sheet opens.
-            layoutControls={
-              rightPanelOpen ? (
-                <div className="mr-px flex items-center">{panelToggleControls}</div>
-              ) : null
-            }
             surfaces={renderedRightPanelSurfaces}
             environmentId={activeThreadRef.environmentId}
             activeSurfaceId={renderedRightPanelSurface?.id ?? null}
@@ -12160,8 +12215,8 @@ export default function ChatView(props: ChatViewProps) {
           >
             {rightPanelContent}
           </RightPanelTabs>
-        </RightPanelSheet>
-      ) : null}
+        ) : null,
+      )}
 
       <AlertDialog
         open={pendingRevert !== null && pendingRevert.routeThreadKey === routeThreadKey}

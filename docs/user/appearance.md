@@ -36,6 +36,15 @@ The main sidebar, right panel, and terminal drawer open and close immediately by
 in your operating system. Moving between threads always snaps to the selected thread's panel state
 without replaying its transitions.
 
+## Right panel in its own window
+
+On web and desktop, select **Open panel in separate window** next to the right panel's maximize
+button, or use the command palette, to move the right panel into a window you can place on another
+display. The panel window follows the thread you select. Closing it hides the panel, and opening the
+panel again from any thread reopens the window. Select **Dock panel in main window** to bring the
+panel back. The browser, terminal, and device tabs work only while the panel is docked. On web, allow
+pop-ups for T3 Code if your browser blocks the window.
+
 ## Custom themes
 
 On web and desktop, choose **Create theme** to adjust a palette, or import a T3 Code or VS Code

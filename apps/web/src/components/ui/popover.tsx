@@ -3,6 +3,7 @@
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 
 import { cn } from "~/lib/utils";
+import { usePortalContainer } from "./portal-container";
 
 const PopoverCreateHandle = PopoverPrimitive.createHandle;
 
@@ -65,8 +66,9 @@ function PopoverPopup({
   // Viewport rekeys its children when the active trigger clears on close. Persistent
   // single-trigger forms need a stable container to retain drafts and submit guards.
   const Viewport = keepMounted ? "div" : PopoverPrimitive.Viewport;
+  const container = usePortalContainer();
   return (
-    <PopoverPrimitive.Portal keepMounted={keepMounted}>
+    <PopoverPrimitive.Portal container={container} keepMounted={keepMounted}>
       <PopoverPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}

@@ -206,6 +206,39 @@ export function resolveInitialMainWindowBounds(
   return DesktopAppSettings.DEFAULT_MAIN_WINDOW_SIZE;
 }
 
+/** Must match `RIGHT_PANEL_POPOUT_WINDOW_NAME` in apps/web/src/rightPanelPopoutWindow.ts. */
+export const RIGHT_PANEL_POPOUT_FRAME_NAME = "t3code-right-panel";
+
+const RIGHT_PANEL_POPOUT_DEFAULT_SIZE = { width: 720, height: 900 };
+
+// Bounds for the right-panel popout from its `window.open` features. Bounds that don't fit a connected
+// display are centered on the main window's display instead.
+export function resolveRightPanelPopoutBounds(
+  features: string,
+  displays: readonly DisplayBounds[],
+  mainDisplay: DisplayBounds,
+): DesktopAppSettings.DesktopWindowBounds {
+  const values = new Map(
+    features.split(",").flatMap((entry) => {
+      const [key, raw] = entry.split("=");
+      const value = Number(raw);
+      return key && Number.isFinite(value) ? [[key.trim(), Math.round(value)] as const] : [];
+    }),
+  );
+  const width = values.get("width") ?? RIGHT_PANEL_POPOUT_DEFAULT_SIZE.width;
+  const height = values.get("height") ?? RIGHT_PANEL_POPOUT_DEFAULT_SIZE.height;
+  const requested = { x: values.get("left") ?? NaN, y: values.get("top") ?? NaN, width, height };
+  if (displays.some((display) => windowFitsWithinDisplay(requested, display))) return requested;
+  const fittedWidth = Math.min(width, mainDisplay.width);
+  const fittedHeight = Math.min(height, mainDisplay.height);
+  return {
+    x: Math.round(mainDisplay.x + (mainDisplay.width - fittedWidth) / 2),
+    y: Math.round(mainDisplay.y + (mainDisplay.height - fittedHeight) / 2),
+    width: fittedWidth,
+    height: fittedHeight,
+  };
+}
+
 // A self-contained "Connecting to WSL" splash, shown immediately in wsl-only
 // mode while the WSL backend (which serves the renderer) cold-boots. Inlined as
 // a data URL so it needs no bundled asset and no backend — pure CSS, no JS.
@@ -626,11 +659,43 @@ export const make = Effect.gen(function* () {
       void runPromise(previewManager.prepareWebview(contents));
     });
 
-    window.webContents.setWindowOpenHandler(({ url }) => {
+    const openSafeExternalUrl = (url: string) => {
       if (Option.isSome(ElectronShell.parseSafeExternalUrl(url))) {
         void runPromise(electronShell.openExternal(url));
       }
+    };
+    window.webContents.setWindowOpenHandler(({ url, frameName, features }) => {
+      // The renderer's right-panel popout: a blank same-origin document it fills itself.
+      if (frameName === RIGHT_PANEL_POPOUT_FRAME_NAME && url === "about:blank") {
+        const displays = Electron.screen.getAllDisplays().map((display) => display.workArea);
+        const mainDisplay = Electron.screen.getDisplayMatching(window.getBounds()).workArea;
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            ...resolveRightPanelPopoutBounds(features, displays, mainDisplay),
+            minWidth: 360,
+            minHeight: 320,
+            autoHideMenuBar: true,
+            backgroundColor: getInitialWindowBackgroundColor(
+              Electron.nativeTheme.shouldUseDarkColors,
+            ),
+            ...iconOption,
+          },
+        };
+      }
+      openSafeExternalUrl(url);
       return { action: "deny" };
+    });
+    window.webContents.on("did-create-window", (popup) => {
+      popup.webContents.setWindowOpenHandler(({ url }) => {
+        openSafeExternalUrl(url);
+        return { action: "deny" };
+      });
+      // The popout is a blank document the main window renders into; a link must never navigate it away.
+      popup.webContents.on("will-navigate", (event, url) => {
+        event.preventDefault();
+        openSafeExternalUrl(url);
+      });
     });
     window.webContents.on("will-navigate", (event, url) => {
       if (

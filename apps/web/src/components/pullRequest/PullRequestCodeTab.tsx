@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useClientSettings, useUpdateClientSettings } from "~/hooks/useSettings";
 import { useTheme } from "~/hooks/useTheme";
+import { asElement } from "~/lib/crossWindowElement";
 import { areAllDiffFilesCollapsed } from "~/lib/diffCollapse";
 import { pullRequestFindingKey, type PullRequestFinding } from "./pullRequestDetail.logic";
 import { canEditPullRequestComment, canResolvePullRequestThread } from "./pullRequestEditing.logic";
@@ -1581,12 +1582,13 @@ function PullRequestCodeTab({
           // listener walks `composedPath` — the only way to see through the shadow boundary.
           onClickCapture={(event) => {
             const composedPath = event.nativeEvent.composedPath?.() ?? [];
-            for (const node of composedPath) {
-              if (!(node instanceof HTMLElement)) continue;
+            for (const target of composedPath) {
+              const node = asElement(target);
+              if (!node) continue;
               // A control inside the header — the collapse chevron — handles itself, and
               // this capture listener fires before its own click does. Leave it alone or
               // the two toggles cancel out.
-              if (node instanceof HTMLButtonElement || node instanceof HTMLAnchorElement) {
+              if (node.tagName === "BUTTON" || node.tagName === "A") {
                 return;
               }
               // A label answers for the control it names and this listener runs before it hears

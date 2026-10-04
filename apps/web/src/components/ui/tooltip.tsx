@@ -2,6 +2,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { createContext, use, useEffect, useRef, type ComponentProps, type RefObject } from "react";
 
 import { cn } from "~/lib/utils";
+import { usePortalContainer } from "./portal-container";
 
 const TooltipProvider = TooltipPrimitive.Provider;
 
@@ -97,8 +98,9 @@ function TooltipPopup({
   variant?: "default" | "glass" | "code";
   anchor?: TooltipPrimitive.Positioner.Props["anchor"];
 }) {
+  const container = usePortalContainer();
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}

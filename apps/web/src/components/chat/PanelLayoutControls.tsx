@@ -1,4 +1,10 @@
-import { PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "lucide-react";
+import {
+  PanelBottomIcon,
+  PanelRightIcon,
+  SquareArrowDownLeftIcon,
+  SquareArrowOutUpRightIcon,
+  SquareMenuIcon,
+} from "lucide-react";
 import { Maximize2, Minimize2 } from "lucide";
 import { MorphIcon } from "~/components/MorphIcon";
 import { memo, type ReactElement } from "react";
@@ -23,6 +29,8 @@ export interface PanelLayoutControlsProps {
   rightPanelOpen: boolean;
   rightPanelShortcutLabel: string | null;
   rightPanelUnavailableLabel?: string;
+  /** The panel lives in its own window, so an open toggle brings that window forward. */
+  rightPanelPoppedOut?: boolean;
   onToggleTerminal: () => void;
   onToggleThreadPanel: () => void;
   onToggleRightPanel: () => void;
@@ -43,6 +51,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   rightPanelOpen,
   rightPanelShortcutLabel,
   rightPanelUnavailableLabel = "Right panel is unavailable",
+  rightPanelPoppedOut = false,
   onToggleTerminal,
   onToggleThreadPanel,
   onToggleRightPanel,
@@ -122,7 +131,9 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
           </TooltipTrigger>
           <TooltipPopup side="bottom">
             {rightPanelAvailable
-              ? `Toggle right panel${rightPanelShortcutLabel ? ` (${rightPanelShortcutLabel})` : ""}`
+              ? `${rightPanelPoppedOut && rightPanelOpen ? "Show panel window" : "Toggle right panel"}${
+                  rightPanelShortcutLabel ? ` (${rightPanelShortcutLabel})` : ""
+                }`
               : rightPanelUnavailableLabel}
           </TooltipPopup>
         </Tooltip>
@@ -152,6 +163,40 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
             size="sm"
           >
             <MorphIcon className="size-4" icon={maximized ? Minimize2 : Maximize2} />
+          </Toggle>
+        }
+      />
+      <TooltipPopup side="bottom">{label}</TooltipPopup>
+    </Tooltip>
+  );
+});
+
+/** Moves the right panel between the main window and its own window. */
+export const RightPanelPopoutControl = memo(function RightPanelPopoutControl({
+  poppedOut,
+  onToggle,
+}: {
+  poppedOut: boolean;
+  onToggle: () => void;
+}) {
+  const label = poppedOut ? "Dock panel in main window" : "Open panel in separate window";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Toggle
+            className="shrink-0 [-webkit-app-region:no-drag]"
+            pressed={poppedOut}
+            onPressedChange={onToggle}
+            aria-label={label}
+            variant="ghost"
+            size="sm"
+          >
+            {poppedOut ? (
+              <SquareArrowDownLeftIcon className="size-4" />
+            ) : (
+              <SquareArrowOutUpRightIcon className="size-4" />
+            )}
           </Toggle>
         }
       />

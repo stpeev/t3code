@@ -611,6 +611,27 @@ describe("DesktopWindow", () => {
     );
   });
 
+  it("opens the right-panel popout where it was, or centered when that display is gone", () => {
+    const displays = [
+      { x: 0, y: 0, width: 1920, height: 1080 },
+      { x: 1920, y: 0, width: 2560, height: 1440 },
+    ];
+    const features = "popup,left=2100,top=40,width=800,height=1000";
+
+    assert.deepEqual(
+      DesktopWindow.resolveRightPanelPopoutBounds(features, displays, displays[0]!),
+      { x: 2100, y: 40, width: 800, height: 1000 },
+    );
+    assert.deepEqual(
+      DesktopWindow.resolveRightPanelPopoutBounds(features, [displays[0]!], displays[0]!),
+      { x: 560, y: 40, width: 800, height: 1000 },
+    );
+    assert.deepEqual(
+      DesktopWindow.resolveRightPanelPopoutBounds("popup", [displays[0]!], displays[0]!),
+      { x: 600, y: 90, width: 720, height: 900 },
+    );
+  });
+
   it("recognizes only same-origin renderer navigations", () => {
     assert.isTrue(
       DesktopWindow.isSameOriginRendererNavigation({

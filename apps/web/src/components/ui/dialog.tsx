@@ -3,6 +3,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { usePortalContainer } from "~/components/ui/portal-container";
 import { Button } from "~/components/ui/button";
 import {
   DIALOG_BACKDROP_CLASS,
@@ -68,8 +69,9 @@ function DialogPopup({
   bottomStickOnMobile?: boolean;
   variant?: "default" | "media";
 }) {
+  const container = usePortalContainer();
   return (
-    <DialogPortal>
+    <DialogPortal container={container}>
       {/* Media opens from inside other overlays (a composer chip, a popover), so it sits above them. */}
       <DialogBackdrop className={variant === "media" ? "z-[60]" : undefined} variant={variant} />
       <DialogViewport
