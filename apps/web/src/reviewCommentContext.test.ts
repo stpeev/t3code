@@ -7,6 +7,7 @@ import {
   formatReviewCommentFence,
   inferReviewCommentFenceLanguage,
   restoreDiffReviewCommentRange,
+  reviewCommentFileLine,
 } from "./reviewCommentContext";
 
 describe("review comment context parsing", () => {
@@ -34,6 +35,39 @@ describe("review comment context parsing", () => {
       `\`\`\`\`ts\n${contents}\n\`\`\`\``,
     );
   });
+
+  it("resolves the current-file line a comment points at", () => {
+    const fileComment = buildFileReviewComment({
+      id: "file-line",
+      filePath: "docs/plan.md",
+      startLine: 15,
+      endLine: 17,
+      text: "Check this.",
+      contents: "line\n".repeat(20),
+    });
+    expect(reviewCommentFileLine(fileComment)).toBe(15);
+
+    const diffComment = { ...fileComment, sectionId: "turn:run-1", fenceLanguage: "diff" };
+    expect(
+      reviewCommentFileLine({
+        ...diffComment,
+        selection: { start: 9, side: "additions", end: 4, endSide: "additions" },
+      }),
+    ).toBe(4);
+    expect(
+      reviewCommentFileLine({
+        ...diffComment,
+        selection: { start: 3, side: "deletions", end: 6, endSide: "additions" },
+      }),
+    ).toBe(6);
+    expect(
+      reviewCommentFileLine({
+        ...diffComment,
+        selection: { start: 3, side: "deletions", end: 4, endSide: "deletions" },
+      }),
+    ).toBeNull();
+  });
+
   it("formats mixed diff-side selections with the mobile review-comment contract", () => {
     const [fileDiff] = parsePatchFiles(
       [

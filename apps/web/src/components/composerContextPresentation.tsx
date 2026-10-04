@@ -3,8 +3,15 @@ import { ReadOnlySourcePreview } from "./files/AttachmentFilePreview";
 import type { PreviewAnnotationPayload, ThreadContextRecord } from "@t3tools/contracts";
 import { formatAttachmentSize } from "@t3tools/client-runtime/state/attachments";
 import { videoMimeType } from "@t3tools/shared/video";
-import { MessageCircleIcon, MousePointerClickIcon } from "lucide-react";
-import { createContext, type MouseEvent, type ReactElement, type ReactNode, use } from "react";
+import { MessageCircleIcon, MousePointerClickIcon, PencilIcon } from "lucide-react";
+import {
+  createContext,
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+  use,
+  useState,
+} from "react";
 import type { EnvironmentId } from "@t3tools/contracts";
 
 import type { ComposerFileAttachment, ComposerImageAttachment } from "~/composerDraftStore";
@@ -37,6 +44,8 @@ import {
   type ContextPresentationCapability,
 } from "./contextPresentationRegistry";
 import type { ContextChipKind } from "./ContextChip";
+import { DiffCommentAnnotation } from "./diffs/DiffCommentAnnotation";
+import { Button } from "./ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import {
   ContextChipPopover,
@@ -73,6 +82,8 @@ export interface ComposerContextActions {
   openFile: (fileId: string) => void;
   openMention: (path: string) => void;
   openPullRequest: (event: MouseEvent<HTMLElement>, url: string) => void;
+  openReviewComment: (comment: ReviewCommentContext) => void;
+  updateReviewComment: (comment: ReviewCommentContext) => void;
 }
 
 export const ComposerContextActionsContext = createContext<ComposerContextActions>({
@@ -82,6 +93,8 @@ export const ComposerContextActionsContext = createContext<ComposerContextAction
   openFile: () => {},
   openMention: () => {},
   openPullRequest: () => {},
+  openReviewComment: () => {},
+  updateReviewComment: () => {},
 });
 
 export type ComposerDraftContextRecords = ReadonlyMap<string, ComposerDraftContextRecord>;
@@ -281,15 +294,51 @@ function previewAnnotationTooltip(annotation: PreviewAnnotationPayload): string 
 }
 
 function ComposerReviewCommentDetails({ comment }: { comment: ReviewCommentContext }) {
+  const actions = use(ComposerContextActionsContext);
+  const [editText, setEditText] = useState<string | null>(null);
   return (
     <div className="space-y-2 overflow-hidden rounded-lg border border-border/70 bg-background/70 p-3">
-      <div className="space-y-1">
-        <div className="truncate text-xs font-medium text-foreground">{comment.filePath}</div>
-        <div className="text-secondary-label text-2xs">
-          {comment.sectionTitle} · {comment.rangeLabel}
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <button
+            type="button"
+            className="block max-w-full truncate text-left text-xs font-medium text-foreground underline-offset-2 hover:underline"
+            title={`Open ${comment.filePath}`}
+            onClick={() => actions.openReviewComment(comment)}
+          >
+            {comment.filePath}
+          </button>
+          <div className="text-secondary-label text-2xs">
+            {comment.sectionTitle} · {comment.rangeLabel}
+          </div>
         </div>
+        {editText === null ? (
+          <Button
+            variant="ghost-muted"
+            size="icon-xs"
+            aria-label="Edit comment"
+            onClick={() => setEditText(comment.text)}
+          >
+            <PencilIcon />
+          </Button>
+        ) : null}
       </div>
-      {comment.text.trim() ? <ChatMarkdown text={comment.text.trim()} cwd={undefined} /> : null}
+      {editText !== null ? (
+        <DiffCommentAnnotation
+          kind="draft"
+          rangeLabel={comment.rangeLabel}
+          text={editText}
+          submitLabel="Save"
+          onTextChange={setEditText}
+          onCancel={() => setEditText(null)}
+          onComment={(text) => {
+            actions.updateReviewComment({ ...comment, text });
+            setEditText(null);
+          }}
+        />
+      ) : comment.text.trim() ? (
+        <ChatMarkdown text={comment.text.trim()} cwd={undefined} />
+      ) : null}
       {comment.diff.trim() ? (
         <div className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border border-border">
           <ReadOnlySourcePreview name="review.diff" text={comment.diff} />
