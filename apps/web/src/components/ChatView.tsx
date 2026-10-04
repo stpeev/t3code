@@ -4473,7 +4473,7 @@ export default function ChatView(props: ChatViewProps) {
     [keybindings, terminalShortcutLabelOptions],
   );
   const onToggleDiff = () => {
-    if (!isServerThread) {
+    if (!isGitRepo) {
       return;
     }
     if (!diffOpen) {
@@ -5423,7 +5423,7 @@ export default function ChatView(props: ChatViewProps) {
   };
   const createBrowserSurfaceStable = useStableCallback(createBrowserSurface);
   const addDiffSurface = () => {
-    if (!activeThreadRef || !isServerThread || !isGitRepo) return;
+    if (!activeThreadRef || !isGitRepo) return;
     useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
     useRightPanelStore.getState().open(activeThreadRef, "diff");
     onDiffPanelOpen?.();
@@ -11022,6 +11022,9 @@ export default function ChatView(props: ChatViewProps) {
         <DiffPanel
           key={activeThreadKey}
           mode="embedded"
+          threadRef={activeThreadRef}
+          projectId={activeThread?.projectId ?? null}
+          worktreePath={activeThreadWorktreePath}
           composerDraftTarget={composerDraftTarget}
           workspaceMutationId={workspaceMutationId}
         />
@@ -11185,7 +11188,7 @@ export default function ChatView(props: ChatViewProps) {
       ? { onCheckoutPullRequestRequest: openPullRequestDialogStable }
       : {}),
     onComposerFocusRequest: scheduleComposerFocusStable,
-    ...(isServerThread && isGitRepo ? { onOpenChanges: openChangesFromThreadPanelStable } : {}),
+    ...(isGitRepo ? { onOpenChanges: openChangesFromThreadPanelStable } : {}),
     onRunProjectScript: runProjectScriptStable,
     onAddProjectScript: saveProjectScriptStable,
     onUpdateProjectScript: updateProjectScriptStable,
@@ -12054,7 +12057,7 @@ export default function ChatView(props: ChatViewProps) {
             onAddDevice={addDeviceSurfaceStable}
             browserAvailable={canOperatePreview && browserAvailable}
             terminalAvailable={activeProject !== null && canOperateTerminal}
-            diffAvailable={isServerThread && isGitRepo}
+            diffAvailable={isGitRepo}
             filesAvailable={activeProject !== null}
             pullRequestAvailable={pullRequestSurfaceAvailable}
             pullRequestsAvailable={pullRequestsSurfaceAvailable}
