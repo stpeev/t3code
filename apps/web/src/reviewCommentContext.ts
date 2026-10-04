@@ -81,6 +81,23 @@ export function buildFileReviewComment(input: {
   };
 }
 
+export function isFileReviewComment(comment: ReviewCommentContext): boolean {
+  return comment.sectionId === `file:${comment.filePath}`;
+}
+
+/** The current-file line a comment starts on, or null when it only exists in the old version. */
+export function reviewCommentFileLine(comment: ReviewCommentContext): number | null {
+  if (isFileReviewComment(comment)) return comment.startIndex + 1;
+  const selection = comment.selection;
+  if (!selection) return null;
+  if (selection.side === "additions" && selection.endSide === "additions") {
+    return Math.min(selection.start, selection.end);
+  }
+  if (selection.side === "additions") return selection.start;
+  if (selection.endSide === "additions") return selection.end;
+  return null;
+}
+
 export function inferReviewCommentFenceLanguage(filePath: string): string {
   const normalizedPath = filePath.replaceAll("\\", "/");
   const fileName = normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1).toLowerCase();

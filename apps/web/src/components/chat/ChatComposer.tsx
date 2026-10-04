@@ -1164,7 +1164,7 @@ import { usePanelAnimationSettings } from "../../panelAnimations";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { readEnvironmentScope } from "../../state/session";
 import { serverEnvironment } from "../../state/server";
-import type { ReviewCommentContext } from "../../reviewCommentContext";
+import { reviewCommentFileLine, type ReviewCommentContext } from "../../reviewCommentContext";
 
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
 
@@ -1985,8 +1985,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       openPullRequest: (event: React.MouseEvent<HTMLElement>, url: string) => {
         openPrLink(event, url);
       },
+      openReviewComment: (comment: ReviewCommentContext) =>
+        useRightPanelStore
+          .getState()
+          .openFile(routeThreadRef, comment.filePath, reviewCommentFileLine(comment) ?? undefined),
+      updateReviewComment: (comment: ReviewCommentContext) =>
+        useComposerDraftStore
+          .getState()
+          .addReviewComment(composerDraftTarget, comment, { appendReference: false }),
     }),
     [
+      composerDraftTarget,
       composerFiles,
       composerImages,
       gitCwd,
