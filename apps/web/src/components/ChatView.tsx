@@ -3234,6 +3234,8 @@ export default function ChatView(props: ChatViewProps) {
       activeSurfaceId={activeRightPanelSurface?.id ?? null}
       threadRef={activeThreadRef}
       environmentId={activeThread.environmentId}
+      projectId={activeThread?.projectId ?? null}
+      worktreePath={activeThreadWorktreePath}
       visible={rightPanelOpen}
       composerDraftTarget={composerDraftTarget}
       keybindings={keybindings}
@@ -3919,9 +3921,7 @@ export default function ChatView(props: ChatViewProps) {
                 ? { onCheckoutPullRequestRequest: openPullRequestDialogStable }
                 : {})}
               onComposerFocusRequest={scheduleComposerFocusStable}
-              {...(isServerThread && isGitRepo
-                ? { onOpenChanges: openChangesFromThreadPanelStable }
-                : {})}
+              {...(isGitRepo ? { onOpenChanges: openChangesFromThreadPanelStable } : {})}
               onRunProjectScript={runProjectScriptStable}
               onAddProjectScript={saveProjectScriptStable}
               onUpdateProjectScript={updateProjectScriptStable}
@@ -4014,7 +4014,7 @@ export default function ChatView(props: ChatViewProps) {
             onAddDevice={addDeviceSurfaceStable}
             browserAvailable={canOperatePreview && browserAvailable}
             terminalAvailable={activeProject !== null && canOperateTerminal}
-            diffAvailable={isServerThread && isGitRepo}
+            diffAvailable={isGitRepo}
             filesAvailable={activeProject !== null}
             pullRequestAvailable={pullRequestSurfaceAvailable}
             pullRequestsAvailable={pullRequestsSurfaceAvailable}
