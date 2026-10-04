@@ -1,11 +1,12 @@
 import {
   PanelBottomIcon,
   PanelRightIcon,
+  SquareArrowDownLeftIcon,
+  SquareArrowOutUpRightIcon,
   SquareMenuIcon,
   Maximize2Icon,
   Minimize2Icon,
 } from "lucide-react";
-import { useGT } from "gt-react";
 import { memo, type ReactNode, useLayoutEffect, useRef } from "react";
 
 import { cn } from "~/lib/utils";
@@ -15,6 +16,8 @@ import { PopoverCreateHandle, PopoverTrigger } from "../ui/popover";
 import { useMobileSidebarSheetMounted } from "../ui/sidebar";
 import { Toggle } from "../ui/toggle";
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
+import { msg, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /** Matches the right inset of `ThreadPanelHeaderControl`. */
 const THREAD_PANEL_HEADER_INSET_PX = 12;
@@ -34,6 +37,8 @@ export interface PanelLayoutControlsProps {
   rightPanelOpen: boolean;
   rightPanelShortcutLabel: string | null;
   rightPanelUnavailableLabel?: string;
+  /** The panel lives in its own window, so an open toggle brings that window forward. */
+  rightPanelPoppedOut?: boolean;
   onToggleTerminal: () => void;
   onToggleThreadPanel: () => void;
   onToggleRightPanel: () => void;
@@ -53,7 +58,8 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   rightPanelAvailable,
   rightPanelOpen,
   rightPanelShortcutLabel,
-  rightPanelUnavailableLabel,
+  rightPanelUnavailableLabel = m(msg("Right panel is unavailable")),
+  rightPanelPoppedOut = false,
   onToggleTerminal,
   onToggleThreadPanel,
   onToggleRightPanel,
@@ -64,7 +70,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
       className="relative shrink-0 [-webkit-app-region:no-drag]"
       pressed={threadPanelOpen}
       onPressedChange={threadPanelPresentation === "popover" ? undefined : onToggleThreadPanel}
-      aria-label={gt("Toggle thread details panel")}
+      aria-label={msg("Toggle thread details panel")}
       variant="ghost"
       size="sm"
     >
@@ -125,9 +131,13 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
           render={<span className="flex shrink-0" />}
           label={
             rightPanelAvailable
-              ? rightPanelShortcutLabel
-                ? gt("Toggle right panel ({shortcut})", { shortcut: rightPanelShortcutLabel })
-                : gt("Toggle right panel")
+              ? rightPanelPoppedOut && rightPanelOpen
+                ? rightPanelShortcutLabel
+                  ? gt("Show panel window ({shortcut})", { shortcut: rightPanelShortcutLabel })
+                  : gt("Show panel window")
+                : rightPanelShortcutLabel
+                  ? gt("Toggle right panel ({shortcut})", { shortcut: rightPanelShortcutLabel })
+                  : gt("Toggle right panel")
               : (rightPanelUnavailableLabel ?? gt("Right panel is unavailable"))
           }
           side="bottom"
@@ -157,8 +167,7 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
   maximized: boolean;
   onToggle: () => void;
 }) {
-  const gt = useGT();
-  const label = maximized ? gt("Restore panel size") : gt("Maximize panel");
+  const label = maximized ? "Restore panel size" : "Maximize panel";
   return (
     <SharedTooltipTrigger
       render={
@@ -202,6 +211,7 @@ export function WorkspaceTitlebarControls(props: {
   readonly animationsActive: boolean;
   readonly maximized: boolean;
   readonly onToggleMaximized: () => void;
+  readonly onTogglePopout: () => void;
   readonly children: ReactNode;
 }) {
   const { rightPanelOpen, maximized } = props;
@@ -241,7 +251,7 @@ export function WorkspaceTitlebarControls(props: {
           aria-hidden={!props.rightPanelOpen}
           // Fading out on close would show it beside the thread details toggle that replaces it.
           className={cn(
-            "flex shrink-0",
+            "flex shrink-0 gap-1",
             props.rightPanelOpen &&
               props.animationsActive &&
               "motion-safe:transition-opacity motion-safe:duration-(--panel-animation-duration) motion-safe:ease-out",
@@ -251,6 +261,7 @@ export function WorkspaceTitlebarControls(props: {
           )}
           inert={!props.rightPanelOpen}
         >
+          <RightPanelPopoutControl poppedOut={false} onToggle={props.onTogglePopout} />
           <RightPanelMaximizeControl
             maximized={props.maximized}
             onToggle={props.onToggleMaximized}
@@ -261,3 +272,32 @@ export function WorkspaceTitlebarControls(props: {
     </div>
   );
 }
+
+/** Moves the right panel between the main window and its own window. */
+export const RightPanelPopoutControl = memo(function RightPanelPopoutControl({
+  poppedOut,
+  onToggle,
+}: {
+  poppedOut: boolean;
+  onToggle: () => void;
+}) {
+  const label = poppedOut ? "Dock panel in main window" : "Open panel in separate window";
+  return (
+    <SharedTooltipTrigger render={<span className="flex shrink-0" />} label={label} side="bottom">
+      <Toggle
+        className="shrink-0 [-webkit-app-region:no-drag]"
+        pressed={poppedOut}
+        onPressedChange={onToggle}
+        aria-label={label}
+        variant="ghost"
+        size="sm"
+      >
+        {poppedOut ? (
+          <SquareArrowDownLeftIcon className="size-4" />
+        ) : (
+          <SquareArrowOutUpRightIcon className="size-4" />
+        )}
+      </Toggle>
+    </SharedTooltipTrigger>
+  );
+});

@@ -269,10 +269,46 @@ export function resolveInitialMainWindowBounds(
   return DesktopAppSettings.DEFAULT_MAIN_WINDOW_SIZE;
 }
 
+
+/** Must match `RIGHT_PANEL_POPOUT_WINDOW_NAME` in apps/web/src/rightPanelPopoutWindow.ts. */
+const RIGHT_PANEL_POPOUT_FRAME_NAME = "t3code-right-panel";
+
+const RIGHT_PANEL_POPOUT_DEFAULT_SIZE = { width: 720, height: 900 };
+
+// Bounds for the right-panel popout from its `window.open` features. Bounds that don't fit a connected
+// display are centered on the main window's display instead.
+export function resolveRightPanelPopoutBounds(
+  features: string,
+  displays: readonly DisplayBounds[],
+  mainDisplay: DisplayBounds,
+): DesktopAppSettings.DesktopWindowBounds {
+  const values = new Map(
+    features.split(",").flatMap((entry) => {
+      const [key, raw] = entry.split("=");
+      const value = Number(raw);
+      return key && Number.isFinite(value) ? [[key.trim(), Math.round(value)] as const] : [];
+    }),
+  );
+  const width = values.get("width") ?? RIGHT_PANEL_POPOUT_DEFAULT_SIZE.width;
+  const height = values.get("height") ?? RIGHT_PANEL_POPOUT_DEFAULT_SIZE.height;
+  const requested = { x: values.get("left") ?? NaN, y: values.get("top") ?? NaN, width, height };
+  if (displays.some((display) => windowFitsWithinDisplay(requested, display))) return requested;
+  const fittedWidth = Math.min(width, mainDisplay.width);
+  const fittedHeight = Math.min(height, mainDisplay.height);
+  return {
+    x: Math.round(mainDisplay.x + (mainDisplay.width - fittedWidth) / 2),
+    y: Math.round(mainDisplay.y + (mainDisplay.height - fittedHeight) / 2),
+    width: fittedWidth,
+    height: fittedHeight,
+  };
+}
+
+
 function buildConnectingSplashDataUrl(
   shouldUseDarkColors: boolean,
   progress: DatabaseMigrationProgress | null,
 ): string {
+
   const background = getInitialWindowBackgroundColor(shouldUseDarkColors);
   const label = shouldUseDarkColors ? "#9ca3af" : "#6b7280";
   const accent = shouldUseDarkColors ? "#f8fafc" : "#1f2937";
@@ -786,9 +822,32 @@ export const make = Effect.gen(function* () {
       void runPromise(previewManager.prepareWebview(contents));
     });
 
+    const openSafeExternalUrl = (url: string) => {
+      if (Option.isSome(ElectronShell.parseSafeExternalUrl(url))) {
+        void runPromise(electronShell.openExternal(url));
+      }
+    };
     // Popups from every frame in this window arrive here without a caller, so only web links
-    // pass. The app opens editors and other applications over IPC.
-    window.webContents.setWindowOpenHandler(({ url }) => {
+    // pass. The app opens editors and other applications over IPC. The renderer's right-panel
+    // popout is the exception: a blank same-origin document it fills itself.
+    window.webContents.setWindowOpenHandler(({ url, frameName, features }) => {
+      if (frameName === RIGHT_PANEL_POPOUT_FRAME_NAME && url === "about:blank") {
+        const displays = Electron.screen.getAllDisplays().map((display) => display.workArea);
+        const mainDisplay = Electron.screen.getDisplayMatching(window.getBounds()).workArea;
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            ...resolveRightPanelPopoutBounds(features, displays, mainDisplay),
+            minWidth: 360,
+            minHeight: 320,
+            autoHideMenuBar: true,
+            backgroundColor: getInitialWindowBackgroundColor(
+              Electron.nativeTheme.shouldUseDarkColors,
+            ),
+            ...iconOption,
+          },
+        };
+      }
       if (Option.isSome(ElectronShell.parseWebExternalUrl(url))) {
         void runPromise(electronShell.openExternal(url));
       }
@@ -799,6 +858,17 @@ export const make = Effect.gen(function* () {
     window.webContents.session.setPermissionRequestHandler((_contents, permission, callback) =>
       callback(permission !== "openExternal"),
     );
+    window.webContents.on("did-create-window", (popup) => {
+      popup.webContents.setWindowOpenHandler(({ url }) => {
+        openSafeExternalUrl(url);
+        return { action: "deny" };
+      });
+      // The popout is a blank document the main window renders into; a link must never navigate it away.
+      popup.webContents.on("will-navigate", (event, url) => {
+        event.preventDefault();
+        openSafeExternalUrl(url);
+      });
+    });
     window.webContents.on("will-navigate", (event, url) => {
       if (
         isSameOriginRendererNavigation({
