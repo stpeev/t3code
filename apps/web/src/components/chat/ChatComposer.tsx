@@ -261,7 +261,7 @@ import { useSoftwareKeyboardOpen } from "../../hooks/useSoftwareKeyboardOpen";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { usePanelAnimationSettings } from "../../panelAnimations";
 import { readEnvironmentScope } from "../../state/session";
-import type { ReviewCommentContext } from "../../reviewCommentContext";
+import { reviewCommentFileLine, type ReviewCommentContext } from "../../reviewCommentContext";
 import { useComposerRestingTransition } from "./useComposerRestingTransition";
 import { ComposerCommandMenuLayer } from "./ComposerCommandMenuLayer";
 import { useRestingComposerControlsLayout } from "./useRestingComposerControlsLayout";
@@ -748,6 +748,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     openPullRequest: (event: React.MouseEvent<HTMLElement>, url: string) => {
       openPrLink(event, url);
     },
+    openReviewComment: (comment: ReviewCommentContext) =>
+      useRightPanelStore
+        .getState()
+        .openFile(routeThreadRef, comment.filePath, reviewCommentFileLine(comment) ?? undefined),
+    updateReviewComment: (comment: ReviewCommentContext) =>
+      useComposerDraftStore
+        .getState()
+        .addReviewComment(composerDraftTarget, comment, { appendReference: false }),
   };
   const composerContextRecords = composerContextRecordsFromDraft({
     terminalContexts: composerTerminalContexts,
