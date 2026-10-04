@@ -1,4 +1,4 @@
-import type { ThreadStructure, ThreadStructureTurnItem } from "@t3tools/client-runtime/state/shell";
+import type { ThreadStructure, ThreadStructureTurnItem } from "./state/models.ts";
 import type {
   OrchestrationV2ProviderTurn,
   OrchestrationV2ProviderTurnTokenUsage,
@@ -247,7 +247,7 @@ export interface LastTurnUsage {
 
 /** The latest main-agent turn's whole output, or null while that turn has not settled. */
 export function deriveLastTurnUsage(
-  projection: Pick<OrchestrationV2ThreadProjection, "thread" | "providerTurns" | "nodes" | "runs">,
+  projection: Pick<ThreadStructure, "thread" | "providerTurns" | "nodes" | "runs">,
 ): LastTurnUsage | null {
   const providerThreadId = projection.thread.activeProviderThreadId;
   if (providerThreadId === null) return null;

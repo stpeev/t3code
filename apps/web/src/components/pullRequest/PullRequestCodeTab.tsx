@@ -44,6 +44,7 @@ import {
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useClientSettings, updateClientSettings } from "~/hooks/useSettings";
 import { useRenderedAppearance } from "~/hooks/useTheme";
+import { asElement } from "~/lib/crossWindowElement";
 import { areAllDiffFilesCollapsed } from "~/lib/diffCollapse";
 import { pullRequestFindingKey, type PullRequestFinding } from "./pullRequestDetail.logic";
 import { canEditPullRequestComment, canResolvePullRequestThread } from "./pullRequestEditing.logic";
@@ -1460,12 +1461,13 @@ function PullRequestCodeTab({
           // `composedPath` — the only way to see through the shadow boundary.
           onClickCapture={(event) => {
             const composedPath = event.nativeEvent.composedPath?.() ?? [];
-            for (const node of composedPath) {
-              if (!(node instanceof HTMLElement)) continue;
+            for (const target of composedPath) {
+              const node = asElement(target);
+              if (!node) continue;
               // A control inside the header — the collapse chevron — handles itself, and
               // this capture listener fires before its own click does. Leave it alone or
               // the two toggles cancel out.
-              if (node instanceof HTMLButtonElement || node instanceof HTMLAnchorElement) {
+              if (node.tagName === "BUTTON" || node.tagName === "A") {
                 return;
               }
               if (node.hasAttribute("data-viewed-toggle")) return;

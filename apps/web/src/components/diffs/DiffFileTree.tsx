@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { useTheme } from "~/hooks/useTheme";
+import { asElement } from "~/lib/crossWindowElement";
 import { cn } from "~/lib/utils";
 import { PIERRE_TREE_UNSAFE_CSS, pierreTreeStyle } from "~/pierre-tree-theme";
 
@@ -237,9 +238,7 @@ export function DiffFileTree({
           if (!path || !modelPaths.includes(path)) return;
           const clickedSelectedRow = event.nativeEvent
             .composedPath()
-            .some(
-              (node) => node instanceof HTMLElement && node.getAttribute("data-item-path") === path,
-            );
+            .some((node) => asElement(node)?.getAttribute("data-item-path") === path);
           if (clickedSelectedRow) onSelectFile(presented.selectionPath(path));
         }}
         className="min-h-0 flex-1 overflow-hidden"

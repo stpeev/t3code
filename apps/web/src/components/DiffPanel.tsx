@@ -28,6 +28,7 @@ import { useFileContextMenuHandler } from "../fileContextMenu";
 import { type DraftId } from "../composerDraftStore";
 import { openDiffFilePrimaryAction } from "../diffFileActions";
 import { useCheckpointDiff } from "~/lib/checkpointDiffState";
+import { asElement } from "~/lib/crossWindowElement";
 import { cn } from "~/lib/utils";
 import {
   selectThreadBranchBaseRef,
@@ -1078,26 +1079,24 @@ export default function DiffPanel({
                   onClickCapture={(event) => {
                     const composedPath = event.nativeEvent.composedPath?.() ?? [];
                     for (const node of composedPath) {
-                      if (!(node instanceof HTMLElement)) continue;
+                      const element = asElement(node);
                       // Header controls keep their own actions. In particular, the chevron must
                       // not also trigger the row handler or the two toggles cancel each other.
-                      if (node instanceof HTMLButtonElement || node instanceof HTMLAnchorElement) {
+                      if (element?.tagName === "BUTTON" || element?.tagName === "A") {
                         return;
                       }
                     }
-                    const title = composedPath.find(
-                      (node): node is HTMLElement =>
-                        node instanceof HTMLElement && node.hasAttribute("data-title"),
-                    );
+                    const title = composedPath
+                      .map(asElement)
+                      .find((element) => element?.hasAttribute("data-title"));
                     const filePath = title?.textContent;
                     if (filePath) {
                       openDiffFile(filePath);
                       return;
                     }
-                    const header = composedPath.find(
-                      (node): node is HTMLElement =>
-                        node instanceof HTMLElement && node.hasAttribute("data-diffs-header"),
-                    );
+                    const header = composedPath
+                      .map(asElement)
+                      .find((element) => element?.hasAttribute("data-diffs-header"));
                     const headerFilePath = header?.querySelector("[data-title]")?.textContent;
                     if (!headerFilePath) return;
                     const file = codeViewFiles.find(
@@ -1107,10 +1106,9 @@ export default function DiffPanel({
                   }}
                   onContextMenuCapture={(event) => {
                     const composedPath = event.nativeEvent.composedPath?.() ?? [];
-                    const title = composedPath.find(
-                      (node): node is HTMLElement =>
-                        node instanceof HTMLElement && node.hasAttribute("data-title"),
-                    );
+                    const title = composedPath
+                      .map(asElement)
+                      .find((element) => element?.hasAttribute("data-title"));
                     const filePath = title?.textContent?.trim();
                     if (!filePath) return;
                     event.preventDefault();

@@ -1,4 +1,10 @@
-import { PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "lucide-react";
+import {
+  PanelBottomIcon,
+  PanelRightIcon,
+  SquareArrowDownLeftIcon,
+  SquareArrowOutUpRightIcon,
+  SquareMenuIcon,
+} from "lucide-react";
 import { Maximize2, Minimize2 } from "lucide";
 import { MorphIcon } from "~/components/MorphIcon";
 import { memo, type ReactElement, type ReactNode } from "react";
@@ -25,6 +31,8 @@ export interface PanelLayoutControlsProps {
   rightPanelOpen: boolean;
   rightPanelShortcutLabel: string | null;
   rightPanelUnavailableLabel?: string;
+  /** The panel lives in its own window, so an open toggle brings that window forward. */
+  rightPanelPoppedOut?: boolean;
   onToggleTerminal: () => void;
   onToggleThreadPanel: () => void;
   onToggleRightPanel: () => void;
@@ -45,6 +53,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   rightPanelOpen,
   rightPanelShortcutLabel,
   rightPanelUnavailableLabel = "Right panel is unavailable",
+  rightPanelPoppedOut = false,
   onToggleTerminal,
   onToggleThreadPanel,
   onToggleRightPanel,
@@ -125,7 +134,9 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
           </TooltipTrigger>
           <TooltipPopup side="bottom">
             {rightPanelAvailable
-              ? `Toggle right panel${rightPanelShortcutLabel ? ` (${rightPanelShortcutLabel})` : ""}`
+              ? `${rightPanelPoppedOut && rightPanelOpen ? "Show panel window" : "Toggle right panel"}${
+                  rightPanelShortcutLabel ? ` (${rightPanelShortcutLabel})` : ""
+                }`
               : rightPanelUnavailableLabel}
           </TooltipPopup>
         </Tooltip>
@@ -182,6 +193,7 @@ export function WorkspaceTitlebarControls(props: {
   readonly animationsActive: boolean;
   readonly maximized: boolean;
   readonly onToggleMaximized: () => void;
+  readonly onTogglePopout: () => void;
   readonly children: ReactNode;
 }) {
   return (
@@ -193,7 +205,7 @@ export function WorkspaceTitlebarControls(props: {
         <span
           aria-hidden={!props.rightPanelOpen}
           className={cn(
-            "flex shrink-0",
+            "flex shrink-0 gap-1",
             props.animationsActive &&
               "motion-safe:transition-opacity motion-safe:duration-(--panel-animation-duration) motion-safe:ease-out",
             props.rightPanelOpen
@@ -202,6 +214,7 @@ export function WorkspaceTitlebarControls(props: {
           )}
           inert={!props.rightPanelOpen}
         >
+          <RightPanelPopoutControl poppedOut={false} onToggle={props.onTogglePopout} />
           <RightPanelMaximizeControl
             maximized={props.maximized}
             onToggle={props.onToggleMaximized}
@@ -212,3 +225,37 @@ export function WorkspaceTitlebarControls(props: {
     </div>
   );
 }
+
+/** Moves the right panel between the main window and its own window. */
+export const RightPanelPopoutControl = memo(function RightPanelPopoutControl({
+  poppedOut,
+  onToggle,
+}: {
+  poppedOut: boolean;
+  onToggle: () => void;
+}) {
+  const label = poppedOut ? "Dock panel in main window" : "Open panel in separate window";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Toggle
+            className="shrink-0 [-webkit-app-region:no-drag]"
+            pressed={poppedOut}
+            onPressedChange={onToggle}
+            aria-label={label}
+            variant="ghost"
+            size="sm"
+          >
+            {poppedOut ? (
+              <SquareArrowDownLeftIcon className="size-4" />
+            ) : (
+              <SquareArrowOutUpRightIcon className="size-4" />
+            )}
+          </Toggle>
+        }
+      />
+      <TooltipPopup side="bottom">{label}</TooltipPopup>
+    </Tooltip>
+  );
+});
