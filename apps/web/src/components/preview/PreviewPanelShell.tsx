@@ -9,7 +9,7 @@ import { cn } from "~/lib/utils";
 
 import { RightPanelResizeHandle } from "./RightPanelResizeHandle";
 
-export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
+export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded" | "window";
 
 interface PreviewPanelShellProps {
   workspaceArea?: boolean;

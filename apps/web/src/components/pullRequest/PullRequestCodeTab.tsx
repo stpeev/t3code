@@ -48,6 +48,7 @@ import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { useClientSettings, updateClientSettings } from "~/hooks/useSettings";
 import { useRenderedAppearance } from "~/hooks/useTheme";
+import { asElement } from "~/lib/crossWindowElement";
 import { areAllDiffFilesCollapsed } from "~/lib/diffCollapse";
 import { pullRequestFindingKey, type PullRequestFinding } from "./pullRequestDetail.logic";
 import {
@@ -1517,9 +1518,10 @@ function PullRequestCodeTab({
           // Headers live in shadow DOM; composedPath crosses that boundary.
           onClickCapture={(event) => {
             const composedPath = event.nativeEvent.composedPath?.() ?? [];
-            for (const node of composedPath) {
-              if (!(node instanceof HTMLElement)) continue;
-              if (node instanceof HTMLButtonElement || node instanceof HTMLAnchorElement) {
+            for (const target of composedPath) {
+              const node = asElement(target);
+              if (!node) continue;
+              if (node.tagName === "BUTTON" || node.tagName === "A") {
                 return;
               }
               if (node.hasAttribute("data-viewed-toggle")) return;
