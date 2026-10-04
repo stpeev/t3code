@@ -35,6 +35,22 @@ export function formatFileCommentRange(startLine: number, endLine: number): stri
   return startLine === endLine ? `L${startLine}` : `L${startLine} to L${endLine}`;
 }
 
+/** Groups entries into one annotation per end line, keeping each line's entries in input order. */
+export function groupFileCommentEntries(
+  entries: ReadonlyArray<FileCommentAnnotationEntry>,
+): FileCommentLineAnnotation[] {
+  const byLine = new Map<number, FileCommentAnnotationEntry[]>();
+  for (const entry of entries) {
+    const lineEntries = byLine.get(entry.endLine);
+    if (lineEntries) lineEntries.push(entry);
+    else byLine.set(entry.endLine, [entry]);
+  }
+  return Array.from(byLine, ([lineNumber, lineEntries]) => ({
+    lineNumber,
+    metadata: { entries: lineEntries },
+  }));
+}
+
 export function remapFileCommentAnnotations(
   annotations: ReadonlyArray<FileCommentLineAnnotation>,
 ): FileCommentLineAnnotation[] {
