@@ -6301,18 +6301,7 @@ export default function ChatView(props: ChatViewProps) {
     [activeThreadRef],
   );
   const copyRightPanelFilePath = useCallback((relativePath: string) => {
-    if (typeof window === "undefined" || !navigator.clipboard?.writeText) {
-      toastManager.add(
-        stackedThreadToast({
-          type: "error",
-          title: "Failed to copy path",
-          description: "Clipboard API unavailable.",
-        }),
-      );
-      return;
-    }
-
-    void navigator.clipboard.writeText(relativePath).then(
+    void writeTextToClipboard(relativePath, "path").then(
       () => {
         toastManager.add({
           type: "success",
