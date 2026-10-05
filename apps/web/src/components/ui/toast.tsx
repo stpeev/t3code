@@ -22,6 +22,11 @@ import { Button, buttonVariants } from "~/components/ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
+import {
+  getFocusedRightPanelPopout,
+  getRightPanelPopout,
+  subscribeRightPanelPopout,
+} from "~/rightPanelPopoutWindow";
 import { resolveThreadRouteTarget } from "~/threadRoutes";
 import {
   buildVisibleToastLayout,
@@ -531,8 +536,40 @@ function ToastProvider({
   );
 }
 
+// Toasts follow focus, so feedback for an action taken in the popout shows up there.
+function useFocusedPopoutRoot(): HTMLElement | null {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const sync = () => setRoot(getFocusedRightPanelPopout()?.root ?? null);
+    let detachPopout = () => {};
+    const attachPopout = () => {
+      detachPopout();
+      const popout = getRightPanelPopout()?.window;
+      if (popout) {
+        popout.addEventListener("focus", sync);
+        popout.addEventListener("blur", sync);
+        detachPopout = () => {
+          popout.removeEventListener("focus", sync);
+          popout.removeEventListener("blur", sync);
+        };
+      }
+      sync();
+    };
+    attachPopout();
+    window.addEventListener("focus", sync);
+    const unsubscribe = subscribeRightPanelPopout(attachPopout);
+    return () => {
+      detachPopout();
+      window.removeEventListener("focus", sync);
+      unsubscribe();
+    };
+  }, []);
+  return root;
+}
+
 function Toasts({ position }: { position: ToastPosition }) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
+  const popoutRoot = useFocusedPopoutRoot();
   const activeThreadRef = useActiveThreadRefFromRoute();
   const isTop = position.startsWith("top");
   const visibleToasts = toasts.filter((toast) =>
@@ -550,7 +587,7 @@ function Toasts({ position }: { position: ToastPosition }) {
   }, [toasts]);
 
   return (
-    <Toast.Portal data-slot="toast-portal">
+    <Toast.Portal data-slot="toast-portal" container={popoutRoot}>
       <Toast.Viewport
         className={cn(
           "fixed z-100 mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-90 [--toast-header-offset:var(--workspace-topbar-height)] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",

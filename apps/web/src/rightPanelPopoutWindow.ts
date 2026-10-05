@@ -37,6 +37,12 @@ export function getRightPanelPopout(): RightPanelPopout | null {
   return current;
 }
 
+/** The popout while it has focus; UI and clipboard calls for what the user is doing there belong in it. */
+export function getFocusedRightPanelPopout(): RightPanelPopout | null {
+  if (!current || current.window.closed || !current.window.document.hasFocus()) return null;
+  return current;
+}
+
 export function focusRightPanelPopout(): void {
   current?.window.focus();
 }
