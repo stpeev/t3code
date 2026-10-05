@@ -40,7 +40,7 @@ import { mediaFileReference } from "@t3tools/client-runtime/media-reference";
 import { FolderTree, Globe2, WrapTextIcon } from "lucide-react";
 import { Code2, Eye, Table2 } from "lucide";
 import * as Schema from "effect/Schema";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
@@ -429,12 +429,139 @@ interface FileRevealState {
   latestRequestId: number | null;
 }
 
+/** Session-lived, so switching tabs, threads or popout windows reopens a file where it was left. */
+const fileScrollMemory = new Map<string, { top: number; revealRequestId: number }>();
+
+interface FileScrollTracker {
+  key: string;
+  container: HTMLElement;
+  /** False while a remembered position is still being restored, so clamped tops aren't recorded. */
+  recording: boolean;
+  /** The reveal request the restored position already honored. */
+  restoredRequestId: number | null;
+  /** The surface's current reveal request, stamped on each recorded position. */
+  revealRequestId: number;
+  dispose: () => void;
+}
+
+/** Holds a scroll target briefly against late programmatic resets; real user input releases it. */
+function holdScrollTarget(
+  scrollContainer: HTMLElement,
+  resolveTarget: () => number | null,
+): () => void {
+  let framesLeft = REVEAL_GUARD_FRAMES;
+  let frameId: number | null = null;
+  const release = () => {
+    if (frameId !== null) {
+      cancelAnimationFrame(frameId);
+      frameId = null;
+    }
+    scrollContainer.removeEventListener("wheel", release);
+    scrollContainer.removeEventListener("touchstart", release);
+    scrollContainer.removeEventListener("pointerdown", release, true);
+    window.removeEventListener("keydown", release, true);
+  };
+  scrollContainer.addEventListener("wheel", release, { passive: true });
+  scrollContainer.addEventListener("touchstart", release, { passive: true });
+  // Pierre stops gutter pointer events from bubbling. Listen in capture
+  // so starting a comment releases the hold before the row expands.
+  scrollContainer.addEventListener("pointerdown", release, { passive: true, capture: true });
+  window.addEventListener("keydown", release, true);
+  const hold = () => {
+    frameId = null;
+    framesLeft -= 1;
+    if (framesLeft <= 0 || !scrollContainer.isConnected) {
+      release();
+      return;
+    }
+    const targetTop = resolveTarget();
+    if (
+      targetTop !== null &&
+      Math.abs(scrollContainer.scrollTop - targetTop) > REVEAL_GUARD_TOLERANCE_PX
+    ) {
+      scrollContainer.scrollTop = targetTop;
+    }
+    frameId = requestAnimationFrame(hold);
+  };
+  frameId = requestAnimationFrame(hold);
+  return release;
+}
+
 function useFileLineReveal(
+  scrollKey: string | null,
   relativePath: string | null,
   revealLine: number | null,
   revealRequestId: number,
 ): FilePostRender {
   const [revealStatesByPath] = useState(() => new Map<string, FileRevealState>());
+  const scrollTrackerRef = useRef<FileScrollTracker | null>(null);
+  // Stop recording before the next file's render can clamp the shared container's scrollTop.
+  useLayoutEffect(
+    () => () => {
+      scrollTrackerRef.current?.dispose();
+      scrollTrackerRef.current = null;
+    },
+    [scrollKey],
+  );
+
+  // Returns whether a remembered position covers this reveal request, so the reveal is skipped.
+  const trackFileScroll = useCallback(
+    (key: string, scrollContainer: HTMLElement, revealRequestId: number): boolean => {
+      const current = scrollTrackerRef.current;
+      if (current?.key === key && current.container === scrollContainer) {
+        current.revealRequestId = revealRequestId;
+        return current.restoredRequestId === revealRequestId;
+      }
+      current?.dispose();
+
+      const saved = fileScrollMemory.get(key);
+      const restoring = saved !== undefined && saved.revealRequestId === revealRequestId;
+      let restoreFrameId: number | null = null;
+      let releaseHold: (() => void) | null = null;
+      const tracker: FileScrollTracker = {
+        key,
+        container: scrollContainer,
+        recording: !restoring,
+        restoredRequestId: restoring ? saved.revealRequestId : null,
+        revealRequestId,
+        dispose: () => {
+          if (restoreFrameId !== null) cancelAnimationFrame(restoreFrameId);
+          releaseHold?.();
+          scrollContainer.removeEventListener("scroll", onScroll);
+        },
+      };
+      const onScroll = () => {
+        if (!tracker.recording) return;
+        fileScrollMemory.set(key, {
+          top: scrollContainer.scrollTop,
+          revealRequestId: tracker.revealRequestId,
+        });
+      };
+      scrollContainer.addEventListener("scroll", onScroll, { passive: true });
+      scrollTrackerRef.current = tracker;
+      if (!restoring) return false;
+
+      // Virtualized content can be shorter than the saved top for a few frames after mount.
+      const restore = (attempt: number) => {
+        restoreFrameId = requestAnimationFrame(() => {
+          restoreFrameId = null;
+          if (!scrollContainer.isConnected) return;
+          scrollContainer.scrollTop = saved.top;
+          const reached =
+            Math.abs(scrollContainer.scrollTop - saved.top) <= REVEAL_GUARD_TOLERANCE_PX;
+          if (!reached && attempt < REVEAL_MAX_ATTEMPTS) {
+            restore(attempt + 1);
+            return;
+          }
+          tracker.recording = true;
+          releaseHold = holdScrollTarget(scrollContainer, () => saved.top);
+        });
+      };
+      restore(0);
+      return true;
+    },
+    [],
+  );
 
   return useCallback<FilePostRender>(
     (fileContainer, instance, phase) => {
@@ -459,6 +586,8 @@ function useFileLineReveal(
 
       if (phase === "unmount") {
         cancelPendingReveal();
+        scrollTrackerRef.current?.dispose();
+        scrollTrackerRef.current = null;
         return;
       }
 
@@ -475,12 +604,18 @@ function useFileLineReveal(
         state.handledRequestId = null;
       }
 
+      const scrollContainer = fileContainer.closest<HTMLElement>(".file-preview-virtualizer");
+      const restoredScroll =
+        scrollKey !== null &&
+        scrollContainer !== null &&
+        trackFileScroll(scrollKey, scrollContainer, revealRequestId);
+      if (restoredScroll) state.handledRequestId = revealRequestId;
+
       if (revealLine === null) {
         fileContainer.style.minHeight = "";
         return;
       }
 
-      const scrollContainer = fileContainer.closest<HTMLElement>(".file-preview-virtualizer");
       if (!scrollContainer) return;
       fileContainer.style.minHeight = `${Math.ceil(
         Math.max(instance.height, scrollContainer.clientHeight),
@@ -522,46 +657,11 @@ function useFileLineReveal(
       };
 
       const guardScrollTarget = (line: number) => {
-        let framesLeft = REVEAL_GUARD_FRAMES;
-        let guardFrameId: number | null = null;
-        const cancelGuard = () => {
-          if (guardFrameId !== null) {
-            cancelAnimationFrame(guardFrameId);
-            guardFrameId = null;
-          }
-          scrollContainer.removeEventListener("wheel", cancelGuard);
-          scrollContainer.removeEventListener("touchstart", cancelGuard);
-          scrollContainer.removeEventListener("pointerdown", cancelGuard, true);
-          window.removeEventListener("keydown", cancelGuard, true);
-          if (state.cancelGuard === cancelGuard) state.cancelGuard = null;
+        const release = holdScrollTarget(scrollContainer, () => resolveScrollTarget(line));
+        state.cancelGuard = () => {
+          release();
+          state.cancelGuard = null;
         };
-        scrollContainer.addEventListener("wheel", cancelGuard, { passive: true });
-        scrollContainer.addEventListener("touchstart", cancelGuard, { passive: true });
-        // Pierre stops gutter pointer events from bubbling. Listen in capture
-        // so starting a comment cancels the reveal guard before the row expands.
-        scrollContainer.addEventListener("pointerdown", cancelGuard, {
-          passive: true,
-          capture: true,
-        });
-        window.addEventListener("keydown", cancelGuard, true);
-        const holdTarget = () => {
-          guardFrameId = null;
-          framesLeft -= 1;
-          if (framesLeft <= 0 || !scrollContainer.isConnected) {
-            cancelGuard();
-            return;
-          }
-          const targetTop = resolveScrollTarget(line);
-          if (
-            targetTop !== null &&
-            Math.abs(scrollContainer.scrollTop - targetTop) > REVEAL_GUARD_TOLERANCE_PX
-          ) {
-            scrollContainer.scrollTop = targetTop;
-          }
-          guardFrameId = requestAnimationFrame(holdTarget);
-        };
-        guardFrameId = requestAnimationFrame(holdTarget);
-        state.cancelGuard = cancelGuard;
       };
 
       const scheduleReveal = (attempt: number) => {
@@ -592,7 +692,7 @@ function useFileLineReveal(
 
       scheduleReveal(0);
     },
-    [revealStatesByPath, relativePath, revealLine, revealRequestId],
+    [revealStatesByPath, relativePath, revealLine, revealRequestId, scrollKey, trackFileScroll],
   );
 }
 
@@ -1124,7 +1224,14 @@ export default function FilePreviewPanel({
     isBrowserPreviewFile(previewPath);
   const absolutePath =
     relativePath && attachment === undefined ? resolvePathLinkTarget(relativePath, cwd) : null;
-  const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
+  const onFilePostRender = useFileLineReveal(
+    relativePath === null
+      ? null
+      : `${environmentId}:${attachment ? `attachment:${attachment.id}` : cwd}:${relativePath}`,
+    relativePath,
+    revealLine,
+    revealRequestId,
+  );
   useWorkspaceMutationRefresh({
     enabled:
       attachment === undefined &&
