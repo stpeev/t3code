@@ -811,7 +811,102 @@ diff --git a/dist/editor/editor.js b/dist/editor/editor.js
 index 8f04a6f..c203023 100644
 --- a/dist/editor/editor.js
 +++ b/dist/editor/editor.js
-@@ -1899,7 +1899,11 @@ var Editor = class {
+@@ -79,6 +79,8 @@ var Editor = class {
+ 	#popoverManager;
+ 	#editorEventDisposes;
+ 	#globalEventDisposes;
++	#listenedDocument;
++	#listenDocument;
+ 	#selectEventDisposes;
+ 	#detach;
+ 	#attachState = {
+@@ -676,6 +678,8 @@ var Editor = class {
+ 		this.#getPopoverManager().setViewportElements(fileContainer, codeElement);
+ 		if (this.#fileContainer !== fileContainer) {
+ 			this.#fileContainer = fileContainer;
++			const ownerDocument = fileContainer.ownerDocument ?? document;
++			if (this.#globalEventDisposes !== void 0 && ownerDocument !== this.#listenedDocument) this.#listenDocument?.(ownerDocument);
+ 			if (this.#globalStyleElement !== void 0) fileContainer.appendChild(this.#globalStyleElement);
+ 			if (this.#editorStyleElement !== void 0) shadowRoot.appendChild(this.#editorStyleElement);
+ 			if (this.#themeStyleElement !== void 0) shadowRoot.appendChild(this.#themeStyleElement);
+@@ -957,21 +961,25 @@ var Editor = class {
+ 			if (refocusEditor) this.#focus();
+ 			if (this.#options.enabledSelectionAction === true && this.#selections !== void 0 && this.#selections.length > 0 && !isCollapsedSelection(this.#selections.at(-1))) this.#updateSelections(this.#selections);
+ 		};
++		// Selection and pointer events fire on the document that renders the editor, which may be another window's.
++		this.#listenDocument = (doc) => {
++		this.#globalEventDisposes?.forEach((dispose) => dispose());
++		this.#listenedDocument = doc;
+ 		this.#globalEventDisposes = [
+-			addEventListener(document, "focusin", (event) => {
++			addEventListener(doc, "focusin", (event) => {
+ 				if (!replacementFocusTargetIsContent(event)) cancelReplacementFocus();
+ 			}, { passive: true }),
+-			addEventListener(document, "pointerdown", (event) => {
++			addEventListener(doc, "pointerdown", (event) => {
+ 				if (!replacementFocusTargetIsContent(event)) queueMicrotask(cancelReplacementFocus);
+ 			}, {
+ 				capture: true,
+ 				passive: true
+ 			}),
+-			addEventListener(document, "selectionchange", () => {
++			addEventListener(doc, "selectionchange", () => {
+ 				const shadowRoot = this.#fileContainer?.shadowRoot;
+ 				if (this.#shouldIgnoreSelectionChange || this.#suppressNativeSelectionSync || shadowRoot == null || !this.#contentHasFocus) return;
+ 				if (this.#selections !== void 0 && this.#selections.length > 1 && !this.#isContentMouseDown) return;
+-				const selectionRaw = document.getSelection();
++				const selectionRaw = doc.getSelection();
+ 				if (selectionRaw == null) return;
+ 				let composedRange;
+ 				if (typeof selectionRaw.getComposedRanges === "function") composedRange = selectionRaw.getComposedRanges({ shadowRoots: [shadowRoot] })?.[0];
+@@ -997,19 +1005,24 @@ var Editor = class {
+ 				if (this.#reservedSelections !== void 0) this.#updateSelections([...this.#reservedSelections.filter((reservedSelection) => !selectionIntersects(reservedSelection, selection)), selection]);
+ 				else this.#updateSelections([selection]);
+ 			}, { passive: true }),
+-			addEventListener(document, "pointerup", finishMouseSelection, { passive: true }),
+-			addEventListener(document, "pointercancel", finishMouseSelection, { passive: true }),
+-			addEventListener(document, "keydown", (e) => {
++			addEventListener(doc, "pointerup", finishMouseSelection, { passive: true }),
++			addEventListener(doc, "pointercancel", finishMouseSelection, { passive: true }),
++			addEventListener(doc, "keydown", (e) => {
+ 				if (e.key === "Shift") this.#selectionStart = this.#selections?.at(-1);
+ 				else if (e.key === "Alt" && !e.repeat && this.#contentHasFocus && this.#options.editPrediction?.mode === "subtle") {
+ 					this.#editPredictionRevealed = !this.#editPredictionRevealed;
+ 					this.#updateSelections(this.#selections ?? []);
+ 				}
+ 			}, { passive: true }),
+-			addEventListener(document, "keyup", (e) => {
++			addEventListener(doc, "keyup", (e) => {
+ 				if (e.key === "Shift") this.#selectionStart = void 0;
+ 			}, { passive: true })
+ 		];
++		};
++		this.#listenDocument(document);
++	}
++	get #ownerDocument() {
++		return this.#fileContainer?.ownerDocument ?? document;
+ 	}
+ 	#resetSelectionGesture() {
+ 		this.#selectEventDisposes?.forEach((dispose) => dispose());
+@@ -1087,7 +1100,7 @@ var Editor = class {
+ 					this.#reservedSelections = void 0;
+ 					this.#selections = void 0;
+ 					this.#updateSelections([]);
+-					selectEventDisposes.push(addEventListener(document, "pointermove", (moveEvent) => {
++					selectEventDisposes.push(addEventListener(this.#ownerDocument, "pointermove", (moveEvent) => {
+ 						const drag = this.#altColumnDrag;
+ 						if (drag === void 0 || moveEvent.pointerType !== "mouse" || moveEvent.pointerId !== drag.pointerId) return;
+ 						drag.clientX = moveEvent.clientX;
+@@ -1292,7 +1305,7 @@ var Editor = class {
+ 				this.#updateSelections([selection]);
+ 				this.#setWindowSelection(selection);
+ 				this.#focus();
+-				this.#replaceSelectEventListeners([addEventListener(document, "mousemove", (e) => {
++				this.#replaceSelectEventListeners([addEventListener(this.#ownerDocument, "mousemove", (e) => {
+ 					if (!this.#isGutterMouseDown) return;
+ 					const textDocument = this.#editSession?.document;
+ 					const lineIndex = resolveEditableLine(resolveGutterTarget(e.composedPath()[0], true));
+@@ -1899,7 +1912,11 @@ var Editor = class {
  			changedDocumentLines: this.#isDiff && !didLineCountChange ? getChangedDocumentLines(textDocument, change) : void 0,
  			documentLineCount: textDocument.lineCount
  		});
@@ -824,6 +919,63 @@ index 8f04a6f..c203023 100644
  		if (didLineCountChange || this.#isDiff && this.#diffSyle === "unified") this.#resetCache();
  		if (newLineAnnotations != null) {
  			this.#lineAnnotations = newLineAnnotations;
+@@ -2051,7 +2068,7 @@ var Editor = class {
+ 		else this.#scrollToPrimaryCaret();
+ 	}
+ 	#setWindowSelection(selection) {
+-		const winSelection = window.getSelection();
++		const winSelection = this.#ownerDocument.getSelection();
+ 		if (winSelection === null) return;
+ 		let { start, end, direction } = selection;
+ 		if (comparePosition(start, end) > 0) [start, end] = [end, start];
+@@ -2207,9 +2224,9 @@ var Editor = class {
+ 		const anchorIndex = rows.indexOf(anchorContent);
+ 		const focusIndex = rows.indexOf(focusContent);
+ 		const [topContent, bottomContent] = focusIndex < anchorIndex ? [focusContent, anchorContent] : [anchorContent, focusContent];
+-		const winSelection = window.getSelection();
++		const winSelection = this.#ownerDocument.getSelection();
+ 		if (winSelection !== null) {
+-			const range = document.createRange();
++			const range = this.#ownerDocument.createRange();
+ 			range.setStart(topContent, 0);
+ 			range.setEnd(bottomContent, bottomContent.childNodes.length);
+ 			winSelection.removeAllRanges();
+@@ -2234,7 +2251,7 @@ var Editor = class {
+ 		const anchorContent = this.#contentRowForGutterRow(gutterRow, contentColumn);
+ 		if (anchorContent === void 0) return false;
+ 		this.#selectDeletedLines(anchorContent, anchorContent, code);
+-		if (isMouse) this.#replaceSelectEventListeners([addEventListener(document, "mousemove", (moveEvent) => {
++		if (isMouse) this.#replaceSelectEventListeners([addEventListener(this.#ownerDocument, "mousemove", (moveEvent) => {
+ 			const moveTarget = moveEvent.composedPath()[0];
+ 			const moveGutter = moveTarget instanceof HTMLElement ? moveTarget.closest("[data-column-number]") : null;
+ 			if (moveGutter instanceof HTMLElement && code.contains(moveGutter)) {
+@@ -2248,7 +2265,7 @@ var Editor = class {
+ 		return this.#fileContainer?.shadowRoot?.querySelector("pre")?.hasAttribute("data-deleted-text-selection") ?? false;
+ 	}
+ 	#deletedTextForClipboard() {
+-		return this.#deletedSelectionText !== "" ? this.#deletedSelectionText : window.getSelection()?.toString() ?? "";
++		return this.#deletedSelectionText !== "" ? this.#deletedSelectionText : this.#ownerDocument.getSelection()?.toString() ?? "";
+ 	}
+ 	#setDeletedTextSelectionActive(active) {
+ 		const pre = this.#fileContainer?.shadowRoot?.querySelector("pre");
+@@ -2416,7 +2433,7 @@ var Editor = class {
+ 		const sourceLine = this.#getLineElement(start.line);
+ 		if (sourceLine === void 0) return document.createTextNode(textDocument.getLineText(start.line).slice(start.character));
+ 		const [suffixNode, suffixOffset] = getSelectionAnchor(sourceLine, start.character);
+-		const suffixRange = document.createRange();
++		const suffixRange = this.#ownerDocument.createRange();
+ 		suffixRange.selectNodeContents(sourceLine);
+ 		suffixRange.setStart(suffixNode, clampDomOffset(suffixNode, suffixOffset));
+ 		const suffix = suffixRange.cloneContents();
+@@ -3611,7 +3628,7 @@ var Editor = class {
+ 			textContent: lineText
+ 		}, contentElement);
+ 		const textNode = div.firstChild;
+-		const range = document.createRange();
++		const range = this.#ownerDocument.createRange();
+ 		const starts = [];
+ 		try {
+ 			const divRect = div.getBoundingClientRect();
 diff --git a/dist/editor/searchPanel.d.ts b/dist/editor/searchPanel.d.ts
 index 9542849..1c1a51f 100644
 --- a/dist/editor/searchPanel.d.ts
@@ -862,7 +1014,7 @@ index df1ba63..676751b 100644
 diff --git a/dist/managers/InteractionManager.js b/dist/managers/InteractionManager.js
 --- a/dist/managers/InteractionManager.js
 +++ b/dist/managers/InteractionManager.js
-@@ -619,16 +619,20 @@
+@@ -619,16 +619,20 @@ var InteractionManager = class {
  	}
  	attachDocumentPointerListeners() {
  		if (this.hasDocumentPointerListeners) return;
