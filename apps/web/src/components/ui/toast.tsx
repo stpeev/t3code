@@ -6,7 +6,9 @@ import { Toast } from "@base-ui/react/toast";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ComponentPropsWithoutRef,
   type KeyboardEvent,
@@ -44,6 +46,8 @@ export type ThreadToastData = {
   onClose?: (() => void) | undefined;
   dismissAfterVisibleMs?: number;
   hideCopyButton?: boolean;
+  /** Shows in the main window even when raised while the right-panel popout has focus. */
+  mainWindowOnly?: boolean;
   additionalActions?: ReadonlyArray<{
     id: string;
     props: ComponentPropsWithoutRef<"button">;
@@ -73,7 +77,35 @@ export type ThreadToastData = {
     | "secondary";
 };
 
-const toastManager = Toast.createToastManager<ThreadToastData>();
+const mainToastManager = Toast.createToastManager<ThreadToastData>();
+const popoutToastManager = Toast.createToastManager<ThreadToastData>();
+// Re-adding a known id updates that toast in place instead of starting a copy in the other window.
+const toastManagerById = new Map<string, typeof mainToastManager>();
+const toastManagerFor = (data: ThreadToastData | undefined) =>
+  getFocusedRightPanelPopout() && !data?.mainWindowOnly ? popoutToastManager : mainToastManager;
+// A toast raised while the popout has focus is feedback for something done there, so it shows there.
+const toastManager = {
+  add: ((options) => {
+    const manager =
+      (options.id === undefined ? undefined : toastManagerById.get(options.id)) ??
+      toastManagerFor(options.data);
+    // Generated ids are never re-added, so only caller-chosen ones need remembering.
+    if (options.id !== undefined) toastManagerById.set(options.id, manager);
+    return manager.add(options);
+  }) as typeof mainToastManager.add,
+  close: (id?: string) => {
+    if (id === undefined) toastManagerById.clear();
+    else toastManagerById.delete(id);
+    mainToastManager.close(id);
+    popoutToastManager.close(id);
+  },
+  update: ((id, updates) => {
+    mainToastManager.update(id, updates);
+    popoutToastManager.update(id, updates);
+  }) as typeof mainToastManager.update,
+  promise: ((promise, options) =>
+    toastManagerFor(undefined).promise(promise, options)) as typeof mainToastManager.promise,
+};
 const anchoredToastManager = Toast.createToastManager<ThreadToastData>();
 type ToastId = ReturnType<typeof toastManager.add>;
 const threadToastVisibleTimeoutRemainingMs = new Map<ToastId, number>();
@@ -447,9 +479,11 @@ function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
 function ThreadToastVisibleAutoDismiss({
   toastId,
   dismissAfterVisibleMs,
+  view,
 }: {
   toastId: ToastId;
   dismissAfterVisibleMs: number | undefined;
+  view: Window;
 }) {
   useEffect(() => {
     if (!dismissAfterVisibleMs || dismissAfterVisibleMs <= 0) return;
@@ -496,8 +530,9 @@ function ThreadToastVisibleAutoDismiss({
       }, remainingMs);
     };
 
+    // Counts only while the window showing the toast is in use, so the toast is seen before it goes.
     const syncTimer = () => {
-      const shouldRun = document.visibilityState === "visible" && document.hasFocus();
+      const shouldRun = view.document.visibilityState === "visible" && view.document.hasFocus();
       if (shouldRun) {
         start();
         return;
@@ -506,18 +541,18 @@ function ThreadToastVisibleAutoDismiss({
     };
 
     syncTimer();
-    document.addEventListener("visibilitychange", syncTimer);
-    window.addEventListener("focus", syncTimer);
-    window.addEventListener("blur", syncTimer);
+    view.document.addEventListener("visibilitychange", syncTimer);
+    view.addEventListener("focus", syncTimer);
+    view.addEventListener("blur", syncTimer);
 
     return () => {
-      document.removeEventListener("visibilitychange", syncTimer);
-      window.removeEventListener("focus", syncTimer);
-      window.removeEventListener("blur", syncTimer);
+      view.document.removeEventListener("visibilitychange", syncTimer);
+      view.removeEventListener("focus", syncTimer);
+      view.removeEventListener("blur", syncTimer);
       pause();
       clearTimer();
     };
-  }, [dismissAfterVisibleMs, toastId]);
+  }, [dismissAfterVisibleMs, toastId, view]);
 
   return null;
 }
@@ -529,47 +564,35 @@ function ToastProvider({
   ...props
 }: ToastProviderProps) {
   return (
-    <Toast.Provider toastManager={toastManager} limit={limit} {...props}>
+    <Toast.Provider toastManager={mainToastManager} limit={limit} {...props}>
       {children}
-      <Toasts position={position} />
+      <Toasts position={position} container={null} />
+      <Toast.Provider toastManager={popoutToastManager} limit={limit} {...props}>
+        <PopoutToasts position={position} />
+      </Toast.Provider>
     </Toast.Provider>
   );
 }
 
-// Toasts follow focus, so feedback for an action taken in the popout shows up there.
-function useFocusedPopoutRoot(): HTMLElement | null {
-  const [root, setRoot] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    const sync = () => setRoot(getFocusedRightPanelPopout()?.root ?? null);
-    let detachPopout = () => {};
-    const attachPopout = () => {
-      detachPopout();
-      const popout = getRightPanelPopout()?.window;
-      if (popout) {
-        popout.addEventListener("focus", sync);
-        popout.addEventListener("blur", sync);
-        detachPopout = () => {
-          popout.removeEventListener("focus", sync);
-          popout.removeEventListener("blur", sync);
-        };
-      }
-      sync();
-    };
-    attachPopout();
-    window.addEventListener("focus", sync);
-    const unsubscribe = subscribeRightPanelPopout(attachPopout);
-    return () => {
-      detachPopout();
-      window.removeEventListener("focus", sync);
-      unsubscribe();
-    };
-  }, []);
-  return root;
+// Falls back to the main window once the popout closes, so its toasts are not lost.
+function PopoutToasts({ position }: { position: ToastPosition }) {
+  const root = useSyncExternalStore(
+    subscribeRightPanelPopout,
+    () => getRightPanelPopout()?.root ?? null,
+    () => null,
+  );
+  return <Toasts position={position} container={root} />;
 }
 
-function Toasts({ position }: { position: ToastPosition }) {
+function Toasts({
+  position,
+  container,
+}: {
+  position: ToastPosition;
+  container: HTMLElement | null;
+}) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
-  const popoutRoot = useFocusedPopoutRoot();
+  const view = container?.ownerDocument.defaultView ?? window;
   const activeThreadRef = useActiveThreadRefFromRoute();
   const isTop = position.startsWith("top");
   const visibleToasts = toasts.filter((toast) =>
@@ -577,17 +600,21 @@ function Toasts({ position }: { position: ToastPosition }) {
   );
   const visibleToastLayout = buildVisibleToastLayout(visibleToasts);
 
+  // Only this stack's own toasts: the other window's stack keeps its entries.
+  const seenToastIds = useRef(new Set<ToastId>());
   useEffect(() => {
     const activeToastIds = new Set(toasts.map((toast) => toast.id));
-    for (const toastId of threadToastVisibleTimeoutRemainingMs.keys()) {
-      if (!activeToastIds.has(toastId)) {
-        threadToastVisibleTimeoutRemainingMs.delete(toastId);
-      }
+    for (const toastId of seenToastIds.current) {
+      if (activeToastIds.has(toastId)) continue;
+      seenToastIds.current.delete(toastId);
+      threadToastVisibleTimeoutRemainingMs.delete(toastId);
     }
+    for (const toastId of activeToastIds) seenToastIds.current.add(toastId);
   }, [toasts]);
 
   return (
-    <Toast.Portal data-slot="toast-portal" container={popoutRoot}>
+    // A `null` container renders nothing, so the main window's stack passes `undefined`.
+    <Toast.Portal data-slot="toast-portal" container={container ?? undefined}>
       <Toast.Viewport
         className={cn(
           "fixed z-100 mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-90 [--toast-header-offset:var(--workspace-topbar-height)] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
@@ -692,6 +719,7 @@ function Toasts({ position }: { position: ToastPosition }) {
               <ThreadToastVisibleAutoDismiss
                 dismissAfterVisibleMs={toast.data?.dismissAfterVisibleMs}
                 toastId={toast.id}
+                view={view}
               />
               <div className={toastCornerDismissClass}>
                 <button

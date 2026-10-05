@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   forActiveThread: false,
   active: { environmentId: "env-1", threadId: "other-thread" },
   focused: true,
+  popoutFocused: false,
   visible: "visible",
   live: true,
   completedAt: null as string | null,
@@ -28,7 +29,7 @@ const state = vi.hoisted(() => ({
     (_toast: {
       id: string;
       timeout?: number;
-      data?: { dismissAfterVisibleMs?: number };
+      data?: { dismissAfterVisibleMs?: number; mainWindowOnly?: boolean };
       title: string;
       actionProps: { onClick: () => void };
     }) => _toast.id,
@@ -108,6 +109,9 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => state.navigate,
   useParams: () => state.active,
 }));
+vi.mock("../rightPanelPopoutWindow", () => ({
+  isAppFocused: () => state.popoutFocused || (state.visible === "visible" && state.focused),
+}));
 vi.mock("../hooks/useSettings", () => ({
   useClientSettings: (
     select: (
@@ -173,6 +177,7 @@ beforeEach(() => {
     forActiveThread: false,
     active: { environmentId: "env-1", threadId: "other-thread" },
     focused: true,
+    popoutFocused: false,
     visible: "visible",
     live: true,
     completedAt: null,
@@ -398,6 +403,20 @@ describe("thread notifications", () => {
     const notification = state.notification.mock.results[0]?.value as EventTarget;
     notification.dispatchEvent(new Event("click"));
     expect(state.close).toHaveBeenCalledWith(TOAST_ID);
+  });
+
+  it("from the popout, keeps the toast in the main window until seen and skips the desktop alert", async () => {
+    state.mode = "notifications";
+    state.focused = false;
+    state.popoutFocused = true;
+    await render();
+    await complete();
+    expect(state.notification).not.toHaveBeenCalled();
+    expect(state.add).toHaveBeenCalledTimes(1);
+    const toast = state.add.mock.calls[0]?.[0];
+    expect(toast?.timeout).toBe(0);
+    expect(toast?.data?.dismissAfterVisibleMs).toBe(5_000);
+    expect(toast?.data?.mainWindowOnly).toBe(true);
   });
 
   it("keeps a background toast until dismissed when persistent", async () => {
