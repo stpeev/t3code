@@ -1,5 +1,7 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
 
+import { getFocusedRightPanelPopout } from "./rightPanelPopoutWindow";
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const ICON_PATHS: Record<string, ReadonlyArray<{ tag: string; attrs: Record<string, string> }>> = {
@@ -165,15 +167,10 @@ function createIconElement(name: string, tone: "neutral" | "destructive"): SVGSV
 }
 
 function clampMenuPosition(menu: HTMLDivElement, preferredLeft: number, preferredTop: number) {
+  const view = menu.ownerDocument?.defaultView ?? window;
   const rect = menu.getBoundingClientRect();
-  const left = Math.min(
-    Math.max(4, preferredLeft),
-    Math.max(4, window.innerWidth - rect.width - 4),
-  );
-  const top = Math.min(
-    Math.max(4, preferredTop),
-    Math.max(4, window.innerHeight - rect.height - 4),
-  );
+  const left = Math.min(Math.max(4, preferredLeft), Math.max(4, view.innerWidth - rect.width - 4));
+  const top = Math.min(Math.max(4, preferredTop), Math.max(4, view.innerHeight - rect.height - 4));
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
 }
@@ -212,6 +209,10 @@ export function showContextMenuFallback<T extends string>(
   position?: { x: number; y: number },
 ): Promise<T | null> {
   return new Promise<T | null>((resolve) => {
+    // Right-clicks in the popout come with its coordinates, so the menu has to open in its document.
+    const popout = getFocusedRightPanelPopout()?.window;
+    const view = popout ?? window;
+    const document = popout?.document ?? globalThis.document;
     const previouslyFocusedElement =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const menuStack: HTMLDivElement[] = [];
@@ -429,7 +430,7 @@ export function showContextMenuFallback<T extends string>(
                 return;
               }
               const childRect = childMenu.getBoundingClientRect();
-              if (childRect.right > window.innerWidth) {
+              if (childRect.right > view.innerWidth) {
                 clampMenuPosition(childMenu, rect.left - childRect.width - 4, rect.top);
               }
               if (focusFirstItem) {
