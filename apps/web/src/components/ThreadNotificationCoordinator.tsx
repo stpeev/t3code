@@ -15,6 +15,7 @@ import {
   MessageCircleQuestionIcon,
   ShieldQuestionIcon,
 } from "lucide-react";
+import { isAppFocused } from "../rightPanelPopoutWindow";
 
 import { getClientSettings, subscribeClientSettings } from "../hooks/useSettings";
 import { isWindowsPlatform } from "../lib/utils";
@@ -128,18 +129,20 @@ export function startThreadNotifications(
         hasNotificationSound(getClientSettings().notificationMode),
       );
     }
-    const focused = document.visibilityState === "visible" && document.hasFocus();
+    // Working in the popout is still using the app, but the toast waits in the main window to be seen.
+    const appFocused = isAppFocused();
+    const mainWindowFocused = document.visibilityState === "visible" && document.hasFocus();
     const isActiveThread = active.environmentId === environmentId && active.threadId === thread.id;
     if (
       inAppNotificationsEnabled &&
-      (focused || inAppNotificationsInBackground) &&
+      (appFocused || inAppNotificationsInBackground) &&
       (!isActiveThread || inAppNotificationsForActiveThread)
     ) {
       openToasts.set(threadToastId(environmentId, thread.id), kind);
       toastManager.add({
         id: threadToastId(environmentId, thread.id),
         // A background toast counts down only once the app is focused again.
-        ...(inAppNotificationsPersistent || !focused ? { timeout: 0 } : {}),
+        ...(inAppNotificationsPersistent || !mainWindowFocused ? { timeout: 0 } : {}),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
         description: project ? (
@@ -154,10 +157,11 @@ export function startThreadNotifications(
           thread.title
         ),
         data: {
-          ...(!inAppNotificationsPersistent && !focused
+          ...(!inAppNotificationsPersistent && !mainWindowFocused
             ? { dismissAfterVisibleMs: BACKGROUND_TOAST_VISIBLE_MS }
             : {}),
           hideCopyButton: true,
+          mainWindowOnly: true,
           leadingIcon:
             kind === "completion" ? (
               <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
@@ -183,7 +187,7 @@ export function startThreadNotifications(
     }
     if (
       !hasDesktopNotifications(mode) ||
-      focused ||
+      appFocused ||
       typeof Notification === "undefined" ||
       Notification.permission !== "granted"
     )
