@@ -28,6 +28,11 @@ import { Button, buttonVariants } from "~/components/ui/button";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import {
+  getFocusedRightPanelPopout,
+  getRightPanelPopout,
+  subscribeRightPanelPopout,
+} from "~/rightPanelPopoutWindow";
+import {
   buildVisibleToastLayout,
   hasVisibleToastAction,
   shouldHideCollapsedToastContent,
@@ -577,8 +582,40 @@ function ToastProvider({
   );
 }
 
+// Toasts follow focus, so feedback for an action taken in the popout shows up there.
+function useFocusedPopoutRoot(): HTMLElement | null {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const sync = () => setRoot(getFocusedRightPanelPopout()?.root ?? null);
+    let detachPopout = () => {};
+    const attachPopout = () => {
+      detachPopout();
+      const popout = getRightPanelPopout()?.window;
+      if (popout) {
+        popout.addEventListener("focus", sync);
+        popout.addEventListener("blur", sync);
+        detachPopout = () => {
+          popout.removeEventListener("focus", sync);
+          popout.removeEventListener("blur", sync);
+        };
+      }
+      sync();
+    };
+    attachPopout();
+    window.addEventListener("focus", sync);
+    const unsubscribe = subscribeRightPanelPopout(attachPopout);
+    return () => {
+      detachPopout();
+      window.removeEventListener("focus", sync);
+      unsubscribe();
+    };
+  }, []);
+  return root;
+}
+
 function Toasts({ position }: { position: ToastPosition }) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
+  const popoutRoot = useFocusedPopoutRoot();
   const activeThreadRef = useActiveThreadRefFromRoute();
   const gt = useGT();
   const isTop = position.startsWith("top");
@@ -598,7 +635,7 @@ function Toasts({ position }: { position: ToastPosition }) {
   }, [toasts]);
 
   return (
-    <Toast.Portal data-slot="toast-portal">
+    <Toast.Portal data-slot="toast-portal" container={popoutRoot}>
       <Toast.Viewport
         aria-label={gt("Notifications", { $context: "screen reader name of the toast area" })}
         className={cn(
