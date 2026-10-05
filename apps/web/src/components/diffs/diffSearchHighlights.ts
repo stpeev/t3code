@@ -19,16 +19,21 @@ export const DIFF_SEARCH_UNSAFE_CSS = `
 }
 `;
 
-export function supportsDiffSearchHighlights(): boolean {
-  return typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined";
+type HighlightWindow = Window & typeof globalThis;
+
+// Each window paints only its own registry, so a viewer in the popout must use the popout's.
+function highlightWindowOf(container: HTMLElement): HighlightWindow | null {
+  const view = container.ownerDocument.defaultView as HighlightWindow | null;
+  if (!view || typeof view.Highlight === "undefined" || !view.CSS?.highlights) return null;
+  return view;
 }
 
-function sharedHighlight(name: string, priority: number): Highlight {
-  const existing = CSS.highlights.get(name);
+function sharedHighlight(view: HighlightWindow, name: string, priority: number): Highlight {
+  const existing = view.CSS.highlights.get(name);
   if (existing) return existing;
-  const highlight = new Highlight();
+  const highlight = new view.Highlight();
   highlight.priority = priority;
-  CSS.highlights.set(name, highlight);
+  view.CSS.highlights.set(name, highlight);
   return highlight;
 }
 
@@ -41,21 +46,23 @@ function rowSide(row: HTMLElement): DiffSearchSide {
 
 function textNodesOf(row: HTMLElement): Text[] {
   const nodes: Text[] = [];
-  const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+  const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node as Text);
   return nodes;
 }
 
 /** Owns one viewer's ranges inside the page-wide highlight registry. */
 export function createDiffSearchHighlighter() {
-  const rangesByFile = new Map<string, Range[]>();
+  const rangesByFile = new Map<string, { view: HighlightWindow; ranges: Range[] }>();
 
   const clearFile = (fileId: string) => {
-    const ranges = rangesByFile.get(fileId);
-    if (!ranges) return;
+    const painted = rangesByFile.get(fileId);
+    if (!painted) return;
     rangesByFile.delete(fileId);
-    const matchHighlight = CSS.highlights.get(MATCH_HIGHLIGHT);
-    const activeHighlight = CSS.highlights.get(ACTIVE_HIGHLIGHT);
+    const { view, ranges } = painted;
+    if (view.closed) return;
+    const matchHighlight = view.CSS.highlights.get(MATCH_HIGHLIGHT);
+    const activeHighlight = view.CSS.highlights.get(ACTIVE_HIGHLIGHT);
     for (const range of ranges) {
       matchHighlight?.delete(range);
       activeHighlight?.delete(range);
@@ -71,9 +78,10 @@ export function createDiffSearchHighlighter() {
   ) => {
     clearFile(fileId);
     const root = container.shadowRoot;
-    if (!lines || !root || !supportsDiffSearchHighlights()) return;
-    const matchHighlight = sharedHighlight(MATCH_HIGHLIGHT, 0);
-    const activeHighlight = sharedHighlight(ACTIVE_HIGHLIGHT, 1);
+    const view = highlightWindowOf(container);
+    if (!lines || !root || !view) return;
+    const matchHighlight = sharedHighlight(view, MATCH_HIGHLIGHT, 0);
+    const activeHighlight = sharedHighlight(view, ACTIVE_HIGHLIGHT, 1);
     const ranges: Range[] = [];
     for (const row of root.querySelectorAll<HTMLElement>("[data-content] [data-line]")) {
       const indices = lines.get(diffSearchLineKey(rowSide(row), Number(row.dataset.line)));
@@ -84,14 +92,14 @@ export function createDiffSearchHighlighter() {
         const match = matches[index];
         const located = match && locateTextColumns(lengths, match.start, match.end);
         if (!located) continue;
-        const range = new Range();
+        const range = row.ownerDocument.createRange();
         range.setStart(nodes[located.start.node]!, located.start.offset);
         range.setEnd(nodes[located.end.node]!, located.end.offset);
         (index === activeIndex ? activeHighlight : matchHighlight).add(range);
         ranges.push(range);
       }
     }
-    if (ranges.length > 0) rangesByFile.set(fileId, ranges);
+    if (ranges.length > 0) rangesByFile.set(fileId, { view, ranges });
   };
 
   const clear = () => {

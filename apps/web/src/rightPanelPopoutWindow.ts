@@ -270,10 +270,12 @@ function forwardKeyboardEvents(popup: Window): () => void {
   const forward = (event: KeyboardEvent) => {
     if (event.defaultPrevented) return;
     const chorded = event.metaKey || event.ctrlKey || event.altKey;
-    if (!chorded && isEditableFocused(event.target)) return;
+    // `target` is retargeted to a shadow host, such as the file editor's; the path reaches the focused input.
+    const target = event.composedPath()[0] ?? event.target;
+    if (!chorded && isEditableFocused(target)) return;
     const replay = new KeyboardEvent(event.type, event);
     // Handlers inspect `target` to skip editable fields; keep the popout's element.
-    Object.defineProperty(replay, "target", { value: event.target });
+    Object.defineProperty(replay, "target", { value: target });
     window.dispatchEvent(replay);
     if (replay.defaultPrevented) event.preventDefault();
   };
