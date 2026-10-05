@@ -305,7 +305,11 @@ import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
 import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
-import { resolveChatShortcutCommand, shortcutLabelForCommand } from "../keybindings";
+import {
+  isDiffFindShortcut,
+  resolveChatShortcutCommand,
+  shortcutLabelForCommand,
+} from "../keybindings";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
 import {
   AlarmClockIcon,
@@ -8234,7 +8238,13 @@ export default function ChatView(props: ChatViewProps) {
       }
 
       // Drafts and servers without thread search leave Mod+F to the browser.
-      if (command === "chat.find" && isServerThread && serverConfig?.threadFind === true) {
+      if (
+        command === "chat.find" &&
+        isServerThread &&
+        serverConfig?.threadFind === true &&
+        // Leave it to the diff's own find handler, which runs after this listener.
+        !isDiffFindShortcut(event, keybindings, { context: shortcutContext })
+      ) {
         event.preventDefault();
         event.stopPropagation();
         openThreadFind();

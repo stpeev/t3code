@@ -344,12 +344,20 @@ export function isDiffToggleShortcut(
   return matchesCommandShortcut(event, keybindings, "diff.toggle", options);
 }
 
+/** Any matching `diff.find` binding counts: startup backfill can append same-key `thread.find` after it. */
 export function isDiffFindShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
 ): boolean {
-  return matchesCommandShortcut(event, keybindings, "diff.find", options);
+  const platform = resolvePlatform(options);
+  const context = resolveContext(options);
+  return keybindings.some(
+    (binding) =>
+      binding.command === "diff.find" &&
+      matchesWhenClause(binding.whenAst, context) &&
+      matchesKeybindingShortcut(event, binding.shortcut, platform),
+  );
 }
 
 export function isOpenFavoriteEditorShortcut(

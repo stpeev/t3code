@@ -262,6 +262,13 @@ describe("diff find shortcut", () => {
     );
     assert.isFalse(isDiffFindShortcut(find, DEFAULT_RESOLVED_KEYBINDINGS, options));
   });
+
+  it("still claims mod+f in a focused diff when chat find is bound after it", () => {
+    const find = event({ key: "f", metaKey: true });
+    const options = { platform: "MacIntel", context: { diffFocus: true } };
+    assert.equal(resolveShortcutCommand(find, DEFAULT_RESOLVED_KEYBINDINGS, options), "chat.find");
+    assert.isTrue(isDiffFindShortcut(find, DEFAULT_RESOLVED_KEYBINDINGS, options));
+  });
 });
 
 describe("settle thread shortcut", () => {
