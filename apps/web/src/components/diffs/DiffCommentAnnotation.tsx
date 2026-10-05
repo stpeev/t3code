@@ -83,9 +83,10 @@ export function DiffCommentAnnotation({
   }
 
   return (
+    // The file editor paints its own caret and makes the native one transparent, which this form would inherit.
     <div
       data-diff-comment-annotation
-      className="px-3 py-2 font-sans text-foreground"
+      className="px-3 py-2 font-sans text-foreground [caret-color:auto]"
       contentEditable={false}
       onPointerDown={(event) => event.stopPropagation()}
     >
