@@ -43,6 +43,14 @@ export function getFocusedRightPanelPopout(): RightPanelPopout | null {
   return current;
 }
 
+/** Whether the user is in the app, in either the main window or the popout. */
+export function isAppFocused(): boolean {
+  return (
+    (document.visibilityState === "visible" && document.hasFocus()) ||
+    getFocusedRightPanelPopout() !== null
+  );
+}
+
 export function focusRightPanelPopout(): void {
   current?.window.focus();
 }
