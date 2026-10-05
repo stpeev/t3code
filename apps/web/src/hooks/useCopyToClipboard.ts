@@ -6,6 +6,15 @@ import {
 } from "@t3tools/shared/composerContextClipboard";
 import { useStableCallback } from "./useStableCallback";
 
+import { getFocusedRightPanelPopout } from "../rightPanelPopoutWindow";
+
+// The clipboard rejects writes from an unfocused document, which the main one is while the popout is used.
+function clipboardRealm(): typeof globalThis {
+  return (
+    (getFocusedRightPanelPopout()?.window as (Window & typeof globalThis) | undefined) ?? globalThis
+  );
+}
+
 export class ClipboardApiUnavailableError extends Schema.TaggedError<ClipboardApiUnavailableError>()(
   "ClipboardApiUnavailableError",
   {
@@ -53,10 +62,11 @@ export class ClipboardReadError extends Schema.TaggedError<ClipboardReadError>()
 }
 
 function writeTextWithExecCommand(
+  document: Document | undefined,
   value: string,
   extraFlavors?: Readonly<Record<string, string>>,
 ): boolean {
-  if (typeof document === "undefined" || typeof document.execCommand !== "function") return false;
+  if (document === undefined || typeof document.execCommand !== "function") return false;
 
   const textarea = document.createElement("textarea");
   textarea.value = value;
@@ -123,8 +133,9 @@ export async function writeTextToClipboard(
       ),
     };
 
+  const { navigator, ClipboardItem, Blob, document } = clipboardRealm();
   if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-    if (writeTextWithExecCommand(value, extraFlavors)) return true;
+    if (writeTextWithExecCommand(document, value, extraFlavors)) return true;
     throw new ClipboardApiUnavailableError({
       target,
     });
