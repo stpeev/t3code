@@ -210,7 +210,7 @@ import { ComposerContextPermissions } from "./ComposerContextPermissions";
 import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
-import { shortcutLabelForCommand } from "../keybindings";
+import { isDiffFindShortcut, shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
@@ -2850,9 +2850,13 @@ export default function ChatView(props: ChatViewProps) {
       "thread.copyReference": ({ event }) => {
         if (!event.repeat) copyActiveThreadReference();
       },
-      "chat.find": () => {
+      "chat.find": ({ event }) => {
         if (!isServerThread || serverConfig?.threadFind !== true || activeThreadKey === null)
           return false;
+        // Leave it to the diff's own find handler, which runs after this listener.
+        if (isDiffFindShortcut(event, keybindings, { context: getShortcutContext(event.target) })) {
+          return false;
+        }
         openThreadFind(activeThreadKey);
       },
       "composer.cycleHost": ({ event }) => {
