@@ -16,7 +16,7 @@ import {
 import { useDiffPanelStore } from "../../diffPanelStore";
 import { type ThreadPanelPresentation } from "../../rightPanelLayout";
 import {
-  selectActiveRightPanel,
+  selectSelectedRightPanelSurface,
   type RightPanelSurface,
   useRightPanelStore,
 } from "../../rightPanelStore";
@@ -280,9 +280,10 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   const addPullRequestSurfaceStable = useStableCallback(addPullRequestSurface);
   const onOpenTurnDiff = (runId: RunId, filePath?: string) => {
     if (!isServerThread || !activeThreadRef) return;
-    const diffOpen =
-      selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, activeThreadRef) === "diff";
-    explicitDiffOpenRef.current = diffOpen ? null : activeThreadRef;
+    const diffSelected =
+      selectSelectedRightPanelSurface(useRightPanelStore.getState().byThreadKey, activeThreadRef)
+        ?.kind === "diff";
+    explicitDiffOpenRef.current = diffSelected ? null : activeThreadRef;
     useDiffPanelStore.getState().selectTurn(activeThreadRef, runId, filePath);
     useRightPanelStore.getState().open(activeThreadRef, "diff");
     onDiffPanelOpen?.();

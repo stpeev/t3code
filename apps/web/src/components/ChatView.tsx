@@ -158,6 +158,7 @@ import { PopoverCreateHandle } from "./ui/popover";
 import {
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
+  selectSelectedRightPanelSurface,
   selectThreadPanelOpen,
   selectThreadRightPanelState,
   useRightPanelStore,
@@ -939,14 +940,26 @@ export default function ChatView(props: ChatViewProps) {
     selectActiveRightPanel(state.byThreadKey, activeThreadRef),
   );
   const diffOpen = activeRightPanelKind === "diff";
+  // Ignores visibility, so hiding and re-showing the panel (as a popout reload does) keeps the selection.
+  const diffSelected = useRightPanelStore(
+    (state) => selectSelectedRightPanelSurface(state.byThreadKey, activeThreadRef)?.kind === "diff",
+  );
   const explicitDiffOpenRef = useRef<ScopedThreadRef | null>(null);
+  const previousDiffSelectedRef = useRef<{ threadKey: string; diffSelected: boolean } | null>(null);
   useLayoutEffect(() => {
     const explicitThreadRef = explicitDiffOpenRef.current;
     explicitDiffOpenRef.current = null;
-    if (diffOpen && activeThreadRef && explicitThreadRef !== activeThreadRef) {
+    if (!activeThreadRef) return;
+    const threadKey = scopedThreadKey(activeThreadRef);
+    const previous = previousDiffSelectedRef.current;
+    previousDiffSelectedRef.current = { threadKey, diffSelected };
+    // A thread keeps its persisted selection across reloads and thread switches. Switching to the diff
+    // tab shows Changes, unless a timeline click asked for a specific turn/file.
+    const switchedToDiff = previous?.threadKey === threadKey && !previous.diffSelected;
+    if (diffSelected && switchedToDiff && explicitThreadRef !== activeThreadRef) {
       useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
     }
-  }, [activeThreadRef, diffOpen]);
+  }, [activeThreadRef, diffSelected]);
   const rightPanelState = useRightPanelStore((state) =>
     selectThreadRightPanelState(state.byThreadKey, activeThreadRef),
   );

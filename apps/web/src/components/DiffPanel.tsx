@@ -328,7 +328,7 @@ export default function DiffPanel({
         commit.sha.startsWith(selectedCommitSha),
       )
     : undefined;
-  const selectedFilePath = diffSelection.kind === "turn" ? diffSelection.filePath : null;
+  const selectedFilePath = diffSelection.filePath ?? null;
   const selectedFileRevealRequestId =
     diffSelection.kind === "turn" ? diffSelection.revealRequestId : 0;
   const selectedTurn =
@@ -607,7 +607,16 @@ export default function DiffPanel({
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A remounted viewer or a repeated reveal request scrolls to the same file again.
   }, [codeView, codeViewMountKey, selectedDiffFileKey, selectedFileRevealRequestId]);
 
-  const treeRevealScope = { collapseScopeKey, diffSelection };
+  // Recording the picked file must not count as a new selection, or it would drop the pending reveal.
+  const selectionRevealKey =
+    diffSelection.kind === "turn"
+      ? `turn:${diffSelection.turnId}:${diffSelection.revealRequestId}`
+      : diffSelection.kind === "commit"
+        ? `commit:${diffSelection.sha}`
+        : diffSelection.kind === "branch"
+          ? `branch:${diffSelection.baseRef ?? ""}`
+          : diffSelection.kind;
+  const treeRevealScope = { collapseScopeKey, selectionRevealKey };
   const requestTreeReveal = useCodeViewFileReveal(codeView, treeRevealScope, codeViewFileKeys);
   const revealDiffFile = (filePath: string) => {
     const index = renderableFileEntries.findIndex(
@@ -639,6 +648,19 @@ export default function DiffPanel({
       externalRevealRef.current = key;
     }
   }, [collapseScopeKey, selectedFilePath, selectedFileRevealRequestId, revealDiffFile]);
+
+  const selectTreeFile = (filePath: string) => {
+    if (threadRef) {
+      // Already revealed below, so the effect above must not repeat it for the stored path.
+      externalRevealRef.current = JSON.stringify([
+        collapseScopeKey,
+        filePath,
+        selectedFileRevealRequestId,
+      ]);
+      useDiffPanelStore.getState().selectFile(threadRef, filePath);
+    }
+    revealDiffFile(filePath);
+  };
 
   const openDiffFile = (filePath: string) => {
     openDiffFilePrimaryAction({
@@ -1254,7 +1276,7 @@ export default function DiffPanel({
                       entries={fileTreeEntries}
                       selectedPath={selectedFilePath}
                       revealRequestId={selectedFileRevealRequestId}
-                      onSelectFile={revealDiffFile}
+                      onSelectFile={selectTreeFile}
                     />
                   ) : (
                     <p className="m-auto px-3 py-2 text-2xs text-muted-foreground">
