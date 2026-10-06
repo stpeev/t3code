@@ -384,7 +384,7 @@ export default function DiffPanel({
         commit.sha.startsWith(selectedCommitSha),
       )
     : undefined;
-  const selectedFilePath = diffSelection.kind === "turn" ? diffSelection.filePath : null;
+  const selectedFilePath = diffSelection.filePath ?? null;
   const selectedFileRevealRequestId =
     diffSelection.kind === "turn" ? diffSelection.revealRequestId : 0;
   const selectedTurn =
@@ -788,6 +788,19 @@ export default function DiffPanel({
       externalRevealRef.current = key;
     }
   }, [collapseScopeKey, selectedFilePath, selectedFileRevealRequestId, revealDiffFile]);
+
+  const selectTreeFile = (filePath: string) => {
+    if (threadRef) {
+      // Already revealed below, so the effect above must not repeat it for the stored path.
+      externalRevealRef.current = JSON.stringify([
+        collapseScopeKey,
+        filePath,
+        selectedFileRevealRequestId,
+      ]);
+      useDiffPanelStore.getState().selectFile(threadRef, filePath);
+    }
+    revealDiffFile(filePath);
+  };
 
   const openDiffFile = (filePath: string) => {
     openDiffFilePrimaryAction({
@@ -1619,7 +1632,7 @@ export default function DiffPanel({
                       entries={fileTreeEntries}
                       selectedPath={selectedFilePath}
                       revealRequestId={selectedFileRevealRequestId}
-                      onSelectFile={revealDiffFile}
+                      onSelectFile={selectTreeFile}
                     />
                   ) : (
                     <p className="m-auto px-3 py-2 text-2xs text-muted-foreground">

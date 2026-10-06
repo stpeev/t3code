@@ -13,11 +13,12 @@ export interface ToolCallDiffTarget {
   readonly revision: string;
 }
 
+// `filePath` is the file last picked in the selection's file tree.
 export type DiffPanelSelection =
-  | ({ kind: "tool-call" } & ToolCallDiffTarget)
-  | { kind: "branch"; baseRef: string | null }
-  | { kind: "unstaged" }
-  | { kind: "commit"; sha: string; baseRef: string | null }
+  | ({ kind: "tool-call"; filePath?: string | null } & ToolCallDiffTarget)
+  | { kind: "branch"; baseRef: string | null; filePath?: string | null }
+  | { kind: "unstaged"; filePath?: string | null }
+  | { kind: "commit"; sha: string; baseRef: string | null; filePath?: string | null }
   | { kind: "turn"; turnId: RunId; filePath: string | null; revealRequestId: number };
 
 const DEFAULT_SELECTION: DiffPanelSelection = { kind: "branch", baseRef: null };
@@ -25,13 +26,17 @@ const DEFAULT_SELECTION: DiffPanelSelection = { kind: "branch", baseRef: null };
 interface DiffPanelStoreState {
   byThreadKey: Record<string, DiffPanelSelection>;
   branchBaseRefByThreadKey: Record<string, string | null>;
+  keepSelectionOnOpenThreadKey: string | null;
   selectGitScope: (ref: ScopedThreadRef, scope: "branch" | "unstaged") => void;
   selectBranchBaseRef: (ref: ScopedThreadRef, baseRef: string | null) => void;
   selectToolCall: (ref: ScopedThreadRef, target: ToolCallDiffTarget) => void;
   /** Changes the parent branch without leaving the current selection (unless it is Branch changes). */
   setBranchBaseRef: (ref: ScopedThreadRef, baseRef: string | null) => void;
   selectTurn: (ref: ScopedThreadRef, turnId: RunId, filePath?: string) => void;
-  selectCommit: (ref: ScopedThreadRef, sha: string) => void;
+  selectCommit: (ref: ScopedThreadRef, sha: string, keepOnOpen?: boolean) => void;
+  consumeKeepSelectionOnOpen: (ref: ScopedThreadRef) => boolean;
+  /** Records the file picked within the current selection, without asking to reveal it again. */
+  selectFile: (ref: ScopedThreadRef, filePath: string) => void;
   reconcileTurnSelection: (ref: ScopedThreadRef, availableTurnIds: ReadonlyArray<RunId>) => void;
   removeThread: (ref: ScopedThreadRef) => void;
 }
@@ -55,6 +60,7 @@ export const useDiffPanelStore = create<DiffPanelStoreState>()(
   persist(
     (set) => ({
       byThreadKey: {},
+      keepSelectionOnOpenThreadKey: null,
       branchBaseRefByThreadKey: {},
       selectGitScope: (ref, scope) =>
         set((state) => {
@@ -132,7 +138,7 @@ export const useDiffPanelStore = create<DiffPanelStoreState>()(
             },
           };
         }),
-      selectCommit: (ref, sha) =>
+      selectCommit: (ref, sha, keepOnOpen = false) =>
         set((state) => {
           const threadKey = scopedThreadKey(ref);
           const baseRef = branchBaseRef(state, threadKey);
@@ -142,6 +148,23 @@ export const useDiffPanelStore = create<DiffPanelStoreState>()(
               [threadKey]: { kind: "commit", sha, baseRef },
             },
             branchBaseRefByThreadKey: { ...state.branchBaseRefByThreadKey, [threadKey]: baseRef },
+            keepSelectionOnOpenThreadKey: keepOnOpen
+              ? threadKey
+              : state.keepSelectionOnOpenThreadKey,
+          };
+        }),
+      consumeKeepSelectionOnOpen: (ref) => {
+        if (get().keepSelectionOnOpenThreadKey !== scopedThreadKey(ref)) return false;
+        set({ keepSelectionOnOpenThreadKey: null });
+        return true;
+      },
+      selectFile: (ref, filePath) =>
+        set((state) => {
+          const threadKey = scopedThreadKey(ref);
+          const previous = state.byThreadKey[threadKey] ?? DEFAULT_SELECTION;
+          if (previous.filePath === filePath) return state;
+          return {
+            byThreadKey: { ...state.byThreadKey, [threadKey]: { ...previous, filePath } },
           };
         }),
       reconcileTurnSelection: (ref, availableTurnIds) =>
