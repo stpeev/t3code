@@ -13,11 +13,12 @@ export interface ToolCallDiffTarget {
   readonly revision: string;
 }
 
+// `filePath` is the file last picked in the selection's file tree.
 export type DiffPanelSelection =
-  | ({ kind: "tool-call" } & ToolCallDiffTarget)
-  | { kind: "branch"; baseRef: string | null }
-  | { kind: "unstaged" }
-  | { kind: "commit"; sha: string; baseRef: string | null }
+  | ({ kind: "tool-call"; filePath?: string | null } & ToolCallDiffTarget)
+  | { kind: "branch"; baseRef: string | null; filePath?: string | null }
+  | { kind: "unstaged"; filePath?: string | null }
+  | { kind: "commit"; sha: string; baseRef: string | null; filePath?: string | null }
   | { kind: "turn"; turnId: RunId; filePath: string | null; revealRequestId: number };
 
 const DEFAULT_SELECTION: DiffPanelSelection = { kind: "branch", baseRef: null };
@@ -35,6 +36,8 @@ interface DiffPanelStoreState {
   selectTurn: (ref: ScopedThreadRef, turnId: RunId, filePath?: string) => void;
   selectCommit: (ref: ScopedThreadRef, sha: string, keepOnOpen?: boolean) => void;
   consumeKeepSelectionOnOpen: (ref: ScopedThreadRef) => boolean;
+  /** Records the file picked within the current selection, without asking to reveal it again. */
+  selectFile: (ref: ScopedThreadRef, filePath: string) => void;
   reconcileTurnSelection: (ref: ScopedThreadRef, availableTurnIds: ReadonlyArray<RunId>) => void;
   removeThread: (ref: ScopedThreadRef) => void;
 }
@@ -156,6 +159,15 @@ export const useDiffPanelStore = create<DiffPanelStoreState>()(
         set({ keepSelectionOnOpenThreadKey: null });
         return true;
       },
+      selectFile: (ref, filePath) =>
+        set((state) => {
+          const threadKey = scopedThreadKey(ref);
+          const previous = state.byThreadKey[threadKey] ?? DEFAULT_SELECTION;
+          if (previous.filePath === filePath) return state;
+          return {
+            byThreadKey: { ...state.byThreadKey, [threadKey]: { ...previous, filePath } },
+          };
+        }),
       reconcileTurnSelection: (ref, availableTurnIds) =>
         set((state) => {
           const threadKey = scopedThreadKey(ref);
