@@ -2320,12 +2320,17 @@ export default function ChatView(props: ChatViewProps) {
   );
   const diffOpen = activeRightPanelKind === "diff";
   const explicitDiffOpenRef = useRef<ScopedThreadRef | null>(null);
+  const diffSelectionRestoredRef = useRef(false);
   useLayoutEffect(() => {
     const explicitThreadRef = explicitDiffOpenRef.current;
     explicitDiffOpenRef.current = null;
+    if (!activeThreadRef) return;
+    // A panel already open on mount (a reload) keeps its persisted selection.
+    const restoring = !diffSelectionRestoredRef.current;
+    diffSelectionRestoredRef.current = true;
     // Generic openings always show Changes, including tab fallbacks and thread changes.
     // A timeline click instead opens the specific turn/file the user requested.
-    if (diffOpen && activeThreadRef && explicitThreadRef !== activeThreadRef) {
+    if (diffOpen && !restoring && explicitThreadRef !== activeThreadRef) {
       useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
     }
   }, [activeThreadRef, diffOpen]);

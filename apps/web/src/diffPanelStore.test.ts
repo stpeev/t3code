@@ -101,6 +101,32 @@ describe("diffPanelStore", () => {
     ).toEqual({ kind: "turn", turnId, filePath: "src/app.ts", revealRequestId: 2 });
   });
 
+  it("remembers the picked file until the selection changes", () => {
+    const store = useDiffPanelStore.getState();
+    store.selectCommit(THREAD_REF, "abc1234");
+    store.selectFile(THREAD_REF, "src/app.ts");
+
+    expect(
+      selectThreadDiffPanelSelection(useDiffPanelStore.getState().byThreadKey, THREAD_REF),
+    ).toEqual({ kind: "commit", sha: "abc1234", filePath: "src/app.ts" });
+
+    store.selectCommit(THREAD_REF, "def5678");
+    expect(
+      selectThreadDiffPanelSelection(useDiffPanelStore.getState().byThreadKey, THREAD_REF),
+    ).toEqual({ kind: "commit", sha: "def5678" });
+  });
+
+  it("keeps a turn's reveal request when recording its picked file", () => {
+    const turnId = RunId.make("turn-1");
+    const store = useDiffPanelStore.getState();
+    store.selectTurn(THREAD_REF, turnId);
+    store.selectFile(THREAD_REF, "src/app.ts");
+
+    expect(
+      selectThreadDiffPanelSelection(useDiffPanelStore.getState().byThreadKey, THREAD_REF),
+    ).toEqual({ kind: "turn", turnId, filePath: "src/app.ts", revealRequestId: 1 });
+  });
+
   it("keeps the branch base across a commit selection", () => {
     const store = useDiffPanelStore.getState();
     store.selectBranchBaseRef(THREAD_REF, "origin/release");

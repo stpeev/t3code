@@ -342,7 +342,7 @@ export default function DiffPanel({
         commit.sha.startsWith(selectedCommitSha),
       )
     : undefined;
-  const selectedFilePath = diffSelection.kind === "turn" ? diffSelection.filePath : null;
+  const selectedFilePath = diffSelection.filePath ?? null;
   const selectedFileRevealRequestId =
     diffSelection.kind === "turn" ? diffSelection.revealRequestId : 0;
   const selectedTurn =
@@ -635,9 +635,18 @@ export default function DiffPanel({
     codeView.scrollTo({ type: "item", id: selectedDiffFileKey, align: "start" });
   }, [codeView, codeViewMountKey, selectedDiffFileKey, selectedFileRevealRequestId]);
 
+  // Recording the picked file must not count as a new selection, or it would drop the pending reveal.
+  const selectionRevealKey =
+    diffSelection.kind === "turn"
+      ? `turn:${diffSelection.turnId}:${diffSelection.revealRequestId}`
+      : diffSelection.kind === "commit"
+        ? `commit:${diffSelection.sha}`
+        : diffSelection.kind === "branch"
+          ? `branch:${diffSelection.baseRef ?? ""}`
+          : diffSelection.kind;
   const treeRevealScope = useMemo(
-    () => ({ collapseScopeKey, diffSelection }),
-    [collapseScopeKey, diffSelection],
+    () => ({ collapseScopeKey, selectionRevealKey }),
+    [collapseScopeKey, selectionRevealKey],
   );
   const requestTreeReveal = useCodeViewFileReveal(
     codeView,
@@ -686,6 +695,21 @@ export default function DiffPanel({
     externalRevealRef.current = { cache: filePatchScope, key };
     revealDiffFile(selectedFilePath);
   }, [lazySource, selectedFilePath, selectedFileRevealRequestId, filePatchScope, revealDiffFile]);
+
+  const selectTreeFile = useCallback(
+    (filePath: string) => {
+      if (threadRef) {
+        // Already revealed below, so the effect above must not repeat it for the stored path.
+        externalRevealRef.current = {
+          cache: filePatchScope,
+          key: `${filePath}:${selectedFileRevealRequestId}`,
+        };
+        useDiffPanelStore.getState().selectFile(threadRef, filePath);
+      }
+      revealDiffFile(filePath);
+    },
+    [filePatchScope, revealDiffFile, selectedFileRevealRequestId, threadRef],
+  );
 
   const openDiffFile = useCallback(
     (filePath: string) => {
@@ -1338,7 +1362,7 @@ export default function DiffPanel({
                       entries={fileTreeEntries}
                       selectedPath={selectedFilePath}
                       revealRequestId={selectedFileRevealRequestId}
-                      onSelectFile={revealDiffFile}
+                      onSelectFile={selectTreeFile}
                     />
                   ) : (
                     <p className="m-auto px-3 py-2 text-2xs text-muted-foreground">
