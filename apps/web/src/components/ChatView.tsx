@@ -3202,11 +3202,9 @@ export default function ChatView(props: ChatViewProps) {
     ? null
     : renderedRightPanelSurface?.kind === "preview"
       ? "The browser"
-      : renderedRightPanelSurface?.kind === "terminal"
-        ? "The terminal"
-        : renderedRightPanelSurface?.kind === "device"
-          ? "The device"
-          : null;
+      : renderedRightPanelSurface?.kind === "device"
+        ? "The device"
+        : null;
   const rightPanelContent = !activeThreadRef ? null : popoutUnsupportedLabel !== null ? (
     <RightPanelPopoutUnsupported label={popoutUnsupportedLabel} />
   ) : (

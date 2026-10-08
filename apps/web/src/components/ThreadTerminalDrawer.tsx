@@ -277,6 +277,7 @@ function terminalFontOptions(family: string, size: number): { family?: string; s
 }
 
 export function terminalThemeFromApp(mountElement?: HTMLElement | null): GhosttyTheme {
+  const document = mountElement?.ownerDocument ?? globalThis.document;
   const drawerSurface =
     mountElement?.closest("[data-thread-terminal-drawer]") ??
     document.querySelector("[data-thread-terminal-drawer]") ??
@@ -691,7 +692,7 @@ function TerminalSessionViewport({
       if (
         hasTerminalWriteAccess() &&
         visibleRef.current &&
-        mount.contains(document.activeElement)
+        mount.contains(mount.ownerDocument.activeElement)
       ) {
         terminal.focus();
       }
@@ -728,11 +729,12 @@ function TerminalSessionViewport({
         }
         const { lineStart, lineEnd } = terminalSelectionLineRange(selectionPosition);
         const bounds = mountElement.getBoundingClientRect();
+        const view = mountElement.ownerDocument.defaultView ?? window;
         const position = resolveSelectionActionPosition({
           bounds,
           selectionRect: activeTerminal.getSelectionEndClientRect(),
           pointer,
-          viewport: { width: window.innerWidth, height: window.innerHeight },
+          viewport: { width: view.innerWidth, height: view.innerHeight },
         });
         return {
           position,
@@ -1024,7 +1026,7 @@ function TerminalSessionViewport({
         if (!activeTerminal) return;
         activeTerminal.setTheme(terminalThemeFromApp(containerRef.current));
       });
-      themeObserver.observe(document.documentElement, {
+      themeObserver.observe(mount.ownerDocument.documentElement, {
         attributes: true,
         attributeFilter: ["class", "style"],
       });
@@ -1073,7 +1075,7 @@ function TerminalSessionViewport({
 
     return () => {
       cancelled = true;
-      const hadFocus = mount.contains(document.activeElement);
+      const hadFocus = mount.contains(mount.ownerDocument.activeElement);
       teardown?.();
       if (hasTerminalWriteAccess() && hadFocus && mount.isConnected) {
         mount.focus({ preventScroll: true });
@@ -1123,9 +1125,10 @@ function TerminalSessionViewport({
     const terminal = terminalRef.current;
     if (!terminal || layoutRevision === null) return;
     const wasAtBottom = terminal.isAtBottom();
+    const view = containerRef.current?.ownerDocument.defaultView ?? window;
     // The surface reports grid changes through onResize, which is the single
     // channel for PTY resize RPCs; fitting here only refreshes the layout.
-    const frame = window.requestAnimationFrame(() => {
+    const frame = view.requestAnimationFrame(() => {
       if (!visibleRef.current) return;
       terminal.fit();
       if (wasAtBottom) {
@@ -1133,7 +1136,7 @@ function TerminalSessionViewport({
       }
     });
     return () => {
-      window.cancelAnimationFrame(frame);
+      view.cancelAnimationFrame(frame);
     };
   }, [layoutRevision]);
   return (
