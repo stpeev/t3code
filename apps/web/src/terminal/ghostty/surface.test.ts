@@ -90,6 +90,7 @@ describe("GhosttyTerminalSurface visibility", () => {
       height = 150;
       value = "";
       children: TerminalTestElement[] = [];
+      ownerDocument: unknown = null;
       private readonly captures = new Set<number>();
 
       setAttribute() {}
@@ -145,43 +146,42 @@ describe("GhosttyTerminalSurface visibility", () => {
         actualBoundingBoxDescent: 3,
       }),
     };
+    const TestResizeObserver = class {
+      constructor(private readonly callback: (entries: { target: Element }[]) => void) {
+        resizeTargets.set(callback, new Set());
+      }
+      observe(target: Element) {
+        resizeTargets.get(this.callback)?.add(target);
+      }
+      unobserve(target: Element) {
+        resizeTargets.get(this.callback)?.delete(target);
+      }
+      disconnect() {
+        resizeTargets.delete(this.callback);
+      }
+    };
+    const testWindow = Object.assign(new EventTarget(), {
+      devicePixelRatio: 1,
+      innerHeight: 104,
+      requestAnimationFrame: requestFrame,
+      cancelAnimationFrame: (id: number) => frames.delete(id),
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+      matchMedia: () => Object.assign(new EventTarget(), { matches: false }),
+      ResizeObserver: TestResizeObserver,
+    });
     const fakeDocument = {
+      defaultView: testWindow,
       activeElement: null as TerminalTestElement | null,
       createElement: (tag: string) => (tag === "canvas" ? canvas : new TerminalTestElement()),
       fonts: Object.assign(new EventTarget(), { load: async () => [], add() {} }),
     };
+    mount.ownerDocument = fakeDocument;
     vi.stubGlobal("document", fakeDocument);
-    vi.stubGlobal(
-      "window",
-      Object.assign(new EventTarget(), {
-        devicePixelRatio: 1,
-        innerHeight: 104,
-        requestAnimationFrame: requestFrame,
-        cancelAnimationFrame: (id: number) => frames.delete(id),
-        setTimeout,
-        clearTimeout,
-        setInterval,
-        clearInterval,
-        matchMedia: () => Object.assign(new EventTarget(), { matches: false }),
-      }),
-    );
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        constructor(private readonly callback: (entries: { target: Element }[]) => void) {
-          resizeTargets.set(callback, new Set());
-        }
-        observe(target: Element) {
-          resizeTargets.get(this.callback)?.add(target);
-        }
-        unobserve(target: Element) {
-          resizeTargets.get(this.callback)?.delete(target);
-        }
-        disconnect() {
-          resizeTargets.delete(this.callback);
-        }
-      },
-    );
+    vi.stubGlobal("window", testWindow);
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
     const snapshot = vi.spyOn(GhosttyTerminalCore.prototype, "snapshot");
     const onData = vi.fn<(data: string) => void>();
 
@@ -272,6 +272,25 @@ describe("GhosttyTerminalSurface visibility", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("works entirely through the mount's window and document, as in a popped-out panel", async () => {
+    const harness = createHarness();
+    const mainWindowFrame = vi.fn();
+    vi.stubGlobal("window", { requestAnimationFrame: mainWindowFrame });
+    vi.stubGlobal("document", {});
+    vi.stubGlobal("ResizeObserver", undefined);
+
+    const surface = await harness.create();
+    surface.write("hello");
+    harness.flushFrame();
+    harness.mount.clientWidth = 248;
+    harness.resize();
+
+    expect(harness.requestFrame).toHaveBeenCalled();
+    expect(mainWindowFrame).not.toHaveBeenCalled();
+    expect(harness.paint).toHaveBeenCalledWith("fillText", expect.anything());
+    expect(surface.cols).toBe(30);
   });
 
   it("preserves shell Ctrl+A and ordinary application navigation", async () => {
