@@ -632,7 +632,24 @@ export default function DiffPanel({
   const codeViewReveal = useCodeViewFileReveal();
   const [codeView, setCodeView] = useState<AnnotatableCodeViewHandle | null>(null);
   const fileTreeRowCount = countDiffFileTreeRows(fileTreeEntries.map((entry) => entry.path));
-  const workingTreeStat = gitStatus?.workingTree;
+  // The preview refreshes with the panel; VCS status can lag until the main window regains focus.
+  const workingTreeFiles = branchDiffPreview.data?.sources.find(
+    (source) => source.kind === "working-tree",
+  )?.files;
+  const workingTreeStat = workingTreeFiles
+    ? workingTreeFiles.reduce(
+        (total, file) => ({
+          fileCount: total.fileCount + 1,
+          additions: total.additions + file.additions,
+          deletions: total.deletions + file.deletions,
+        }),
+        { fileCount: 0, additions: 0, deletions: 0 },
+      )
+    : {
+        fileCount: gitStatus?.workingTree.files.length ?? 0,
+        additions: gitStatus?.workingTree.insertions ?? 0,
+        deletions: gitStatus?.workingTree.deletions ?? 0,
+      };
   const pinnedChangesLabel =
     selectedRunId !== null
       ? selectedScopeLabel
@@ -640,11 +657,7 @@ export default function DiffPanel({
         ? selectedCommitLabel
         : null;
   const changesRows = buildDiffChangesRows({
-    workingTree: {
-      fileCount: workingTreeStat?.files.length ?? 0,
-      additions: workingTreeStat?.insertions ?? 0,
-      deletions: workingTreeStat?.deletions ?? 0,
-    },
+    workingTree: workingTreeStat,
     commits: commits ?? null,
     pinnedLabel: pinnedChangesLabel,
   });
