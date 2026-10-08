@@ -42,7 +42,7 @@ On web and desktop, select **Open panel in separate window** next to the right p
 button, or use the command palette, to move the right panel into a window you can place on another
 display. The panel window follows the thread you select. Closing it hides the panel, and opening the
 panel again from any thread reopens the window. Select **Dock panel in main window** to bring the
-panel back. The browser, terminal, and device tabs work only while the panel is docked. On web, allow
+panel back. The browser and device tabs work only while the panel is docked. On web, allow
 pop-ups for T3 Code if your browser blocks the window.
 
 ## Custom themes

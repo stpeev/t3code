@@ -124,7 +124,13 @@ it("rechecks the target terminal grant when a retained surface callback reports 
         drawerHeight={200}
         keybindings={[]}
       />,
-      { createNodeMock: () => ({ closest: () => null, contains: () => false }) },
+      {
+        createNodeMock: () => ({
+          closest: () => null,
+          contains: () => false,
+          ownerDocument: document,
+        }),
+      },
     );
   });
   expect(state.createSurface).toHaveBeenCalledOnce();
