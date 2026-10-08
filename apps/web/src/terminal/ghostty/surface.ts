@@ -50,17 +50,37 @@ export interface GhosttyTerminalFont {
   readonly size?: number;
 }
 
-let symbolsFontLoad: Promise<void> | null = null;
+const symbolsFontLoads = new WeakMap<Document, Promise<void>>();
 
-function ensureTerminalSymbolsFont(): Promise<void> {
-  if (symbolsFontLoad !== null) return symbolsFontLoad;
-  symbolsFontLoad = (async () => {
+// A popout window has its own font set, so the symbols font registers once per document.
+function ensureTerminalSymbolsFont(doc: Document): Promise<void> {
+  const existing = symbolsFontLoads.get(doc);
+  if (existing !== undefined) return existing;
+  const load = (async () => {
     try {
-      const face = new FontFace("Symbols Nerd Font Mono", `url(${symbolsFontUrl})`);
-      document.fonts.add(await face.load());
+      const FontFaceInView = doc.defaultView?.FontFace ?? FontFace;
+      const face = new FontFaceInView("Symbols Nerd Font Mono", `url(${symbolsFontUrl})`);
+      doc.fonts.add(await face.load());
     } catch {}
   })();
-  return symbolsFontLoad;
+  symbolsFontLoads.set(doc, load);
+  return load;
+}
+
+// Observers fire on their own window's rendering steps, so a popped-out mount needs its window's own.
+function observeResizeInView(view: Window & typeof globalThis, mount: Element, fit: () => void) {
+  if (view === window) return observeResize(mount, fit);
+  const observer = new view.ResizeObserver(fit);
+  observer.observe(mount);
+  return () => observer.disconnect();
+}
+
+/** Font loading against the document that will render the terminal. */
+function documentFontEnvironment(doc: Document) {
+  return {
+    load: (font: string, text: string) => doc.fonts.load(font, text),
+    resolve: terminalFontFamily,
+  };
 }
 
 function quoteTerminalFontFamilies(list: string): string {
@@ -541,6 +561,9 @@ export class GhosttyTerminalSurface {
   private measuredCols = 1;
   private measuredRows = 1;
   private sharedGrid: { readonly cols: number; readonly rows: number } | null = null;
+  // The window and document the mount lives in, which is the popout's when the right panel is popped out.
+  private readonly view: Window & typeof globalThis;
+  private readonly doc: Document;
   private readonly context: CanvasRenderingContext2D;
   private readonly core: GhosttyTerminalCore;
   private readonly options: GhosttyTerminalSurfaceOptions;
@@ -628,7 +651,7 @@ export class GhosttyTerminalSurface {
   private mouseAnyEventTracking = false;
   private dprMedia: MediaQueryList | null = null;
   // Watch reduced motion changes to restart blink cycles that have no remaining timer.
-  private readonly reducedMotionMedia = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  private readonly reducedMotionMedia: MediaQueryList | undefined;
   private inputLeft = -1;
   private inputTop = -1;
 
@@ -645,6 +668,9 @@ export class GhosttyTerminalSurface {
     options: GhosttyTerminalSurfaceOptions,
   ) {
     this.mount = mount;
+    this.doc = mount.ownerDocument;
+    this.view = this.doc.defaultView ?? window;
+    this.reducedMotionMedia = this.view.matchMedia?.("(prefers-reduced-motion: reduce)");
     this.canvas = canvas;
     this.input = input;
     this.scrollbar = scrollbar;
@@ -662,20 +688,21 @@ export class GhosttyTerminalSurface {
     this.installEvents();
     this.watchDevicePixelRatio();
     this.reducedMotionMedia?.addEventListener("change", this.onReducedMotionChange);
-    document.fonts.addEventListener("loadingdone", this.onFontsLoaded);
-    this.stopObservingResize = observeResize(mount, () => this.fit());
+    this.doc.fonts.addEventListener("loadingdone", this.onFontsLoaded);
+    this.stopObservingResize = observeResizeInView(this.view, mount, () => this.fit());
   }
 
   static async create(
     mount: HTMLElement,
     options: GhosttyTerminalSurfaceOptions,
   ): Promise<GhosttyTerminalSurface> {
-    const canvas = document.createElement("canvas");
+    const doc = mount.ownerDocument;
+    const canvas = doc.createElement("canvas");
     canvas.className = "block size-full cursor-text";
     canvas.style.touchAction = "pan-x pinch-zoom";
     canvas.setAttribute("aria-hidden", "true");
 
-    const input = document.createElement("textarea");
+    const input = doc.createElement("textarea");
     input.className = "t3-ghostty-input";
     input.setAttribute("aria-label", "Terminal input");
     input.autocapitalize = "off";
@@ -684,7 +711,7 @@ export class GhosttyTerminalSurface {
     input.style.cssText =
       "position:absolute;left:4px;top:4px;width:1px;height:1px;opacity:0;padding:0;border:0;resize:none;pointer-events:none;";
 
-    const scrollbar = document.createElement("div");
+    const scrollbar = doc.createElement("div");
     scrollbar.className =
       "group absolute top-1 right-px bottom-1 z-1 w-[var(--app-scrollbar-width)] cursor-default touch-none";
     scrollbar.setAttribute("role", "scrollbar");
@@ -692,7 +719,7 @@ export class GhosttyTerminalSurface {
     scrollbar.setAttribute("aria-orientation", "vertical");
     scrollbar.tabIndex = 0;
     scrollbar.hidden = true;
-    const scrollbarThumb = document.createElement("div");
+    const scrollbarThumb = doc.createElement("div");
     scrollbarThumb.className =
       "absolute inset-x-px top-0 rounded-[3px] bg-[var(--app-scrollbar-thumb)] transition-[background-color] duration-[120ms] ease-[ease-out] group-hover:bg-[var(--app-scrollbar-thumb-hover)] group-focus-visible:bg-[var(--app-scrollbar-thumb-hover)]";
     scrollbar.append(scrollbarThumb);
@@ -705,9 +732,13 @@ export class GhosttyTerminalSurface {
     const fontSize = terminalFontSize(options.font?.size);
     try {
       // Load bundled fonts before measuring; fallback metrics would size the wrong grid.
-      await ensureTerminalSymbolsFont();
+      await ensureTerminalSymbolsFont(doc);
     } catch {}
-    const fontFamily = await loadTerminalFontFamily(options.font?.family, fontSize);
+    const fontFamily = await loadTerminalFontFamily(
+      options.font?.family,
+      fontSize,
+      documentFontEnvironment(doc),
+    );
     const metrics = measureGhosttyCell(context, fontSize, fontFamily);
     const grid = terminalGridSize(mount.clientWidth, mount.clientHeight, metrics, CONTENT_PADDING);
     const core = await GhosttyTerminalCore.create(
@@ -798,7 +829,11 @@ export class GhosttyTerminalSurface {
     // Commit fields with loaded metrics; the epoch makes the newest overlapping call win.
     const epoch = ++this.fontEpoch;
     this.pendingFontEpoch = epoch;
-    const fontFamily = await loadTerminalFontFamily(font.family, fontSize);
+    const fontFamily = await loadTerminalFontFamily(
+      font.family,
+      fontSize,
+      documentFontEnvironment(this.doc),
+    );
     if (this.disposed || epoch !== this.fontEpoch) return;
     this.pendingFontEpoch = null;
     this.fontFamily = fontFamily;
@@ -862,7 +897,7 @@ export class GhosttyTerminalSurface {
       return false;
     }
     this.hasSize = true;
-    const ratio = window.devicePixelRatio || 1;
+    const ratio = this.view.devicePixelRatio || 1;
     const pixelWidth = Math.max(1, Math.round(width * ratio));
     const pixelHeight = Math.max(1, Math.round(height * ratio));
     let shouldRender = false;
@@ -934,8 +969,8 @@ export class GhosttyTerminalSurface {
    */
   private notifyResize(): void {
     this.resizeNotified = true;
-    if (this.resizeNotifyTimer !== null) window.clearTimeout(this.resizeNotifyTimer);
-    this.resizeNotifyTimer = window.setTimeout(() => {
+    if (this.resizeNotifyTimer !== null) this.view.clearTimeout(this.resizeNotifyTimer);
+    this.resizeNotifyTimer = this.view.setTimeout(() => {
       this.resizeNotifyTimer = null;
       if (!this.disposed) this.options.onResize(this.measuredCols, this.measuredRows);
     }, 150);
@@ -946,7 +981,7 @@ export class GhosttyTerminalSurface {
     if (this.disposed || this.resizeNotifyTimer === null) return;
     this.fit();
     if (this.resizeNotifyTimer === null) return;
-    window.clearTimeout(this.resizeNotifyTimer);
+    this.view.clearTimeout(this.resizeNotifyTimer);
     this.resizeNotifyTimer = null;
     this.options.onResize(this.measuredCols, this.measuredRows);
   };
@@ -1061,19 +1096,19 @@ export class GhosttyTerminalSurface {
     if (this.disposed) return;
     this.disposed = true;
     this.stopObservingResize();
-    document.fonts.removeEventListener("loadingdone", this.onFontsLoaded);
+    this.doc.fonts.removeEventListener("loadingdone", this.onFontsLoaded);
     this.dprMedia?.removeEventListener("change", this.onDevicePixelRatioChange);
     this.dprMedia = null;
     this.reducedMotionMedia?.removeEventListener("change", this.onReducedMotionChange);
-    if (this.selectionScrollTimer !== null) window.clearInterval(this.selectionScrollTimer);
+    if (this.selectionScrollTimer !== null) this.view.clearInterval(this.selectionScrollTimer);
     if (this.resizeNotifyTimer !== null) {
-      window.clearTimeout(this.resizeNotifyTimer);
+      this.view.clearTimeout(this.resizeNotifyTimer);
       this.resizeNotifyTimer = null;
       this.options.onResize(this.measuredCols, this.measuredRows);
     }
     this.cancelRender();
     if (this.compositionSuppressionTimer !== null) {
-      window.clearTimeout(this.compositionSuppressionTimer);
+      this.view.clearTimeout(this.compositionSuppressionTimer);
     }
     this.removeEvents();
     this.core.dispose();
@@ -1142,7 +1177,7 @@ export class GhosttyTerminalSurface {
       this.primeCopy(selection);
       if (event.shiftKey || event.key.toLowerCase() === "insert") {
         event.preventDefault();
-        document.execCommand("copy");
+        this.doc.execCommand("copy");
       } else {
         // Clear after plain non-mac Ctrl+C so the next press sends SIGINT.
         this.clearSelectionAfterCopy = !event.shiftKey && !isMacPlatform(navigator.platform);
@@ -1256,7 +1291,7 @@ export class GhosttyTerminalSurface {
   private watchDevicePixelRatio(): void {
     this.dprMedia?.removeEventListener("change", this.onDevicePixelRatioChange);
     // Resolution queries track only their initial ratio; re-arm after every change.
-    this.dprMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    this.dprMedia = this.view.matchMedia(`(resolution: ${this.view.devicePixelRatio}dppx)`);
     this.dprMedia.addEventListener("change", this.onDevicePixelRatioChange);
   }
 
@@ -1314,7 +1349,7 @@ export class GhosttyTerminalSurface {
     if (data.length > 0) this.options.onData(data);
     this.input.value = "";
     this.compositionInputToSuppress = data;
-    this.compositionSuppressionTimer = window.setTimeout(() => {
+    this.compositionSuppressionTimer = this.view.setTimeout(() => {
       this.compositionInputToSuppress = null;
       this.compositionSuppressionTimer = null;
     }, 100);
@@ -1336,7 +1371,7 @@ export class GhosttyTerminalSurface {
 
   private clearCompositionInputSuppression(): void {
     if (this.compositionSuppressionTimer !== null) {
-      window.clearTimeout(this.compositionSuppressionTimer);
+      this.view.clearTimeout(this.compositionSuppressionTimer);
       this.compositionSuppressionTimer = null;
     }
     this.compositionInputToSuppress = null;
@@ -1543,13 +1578,13 @@ export class GhosttyTerminalSurface {
     this.selectionScrollDelta = delta;
     if (delta === 0) {
       if (this.selectionScrollTimer !== null) {
-        window.clearInterval(this.selectionScrollTimer);
+        this.view.clearInterval(this.selectionScrollTimer);
         this.selectionScrollTimer = null;
       }
       return;
     }
     if (this.selectionScrollTimer !== null) return;
-    this.selectionScrollTimer = window.setInterval(() => {
+    this.selectionScrollTimer = this.view.setInterval(() => {
       if (this.disposed || this.selectionScrollDelta === 0) return;
       this.scrollViewport(this.selectionScrollDelta);
       const pointer = this.selectionPointer;
@@ -1783,8 +1818,8 @@ export class GhosttyTerminalSurface {
     this.input.addEventListener("keydown", this.onKeyDown);
     this.input.addEventListener("keyup", this.onKeyUp);
     // App shortcuts stop propagation at window, so observe the same capture target.
-    window.addEventListener("keyup", this.onWindowKeyUp, { capture: true });
-    window.addEventListener("keydown", this.onWindowKeyDown, { capture: true });
+    this.view.addEventListener("keyup", this.onWindowKeyUp, { capture: true });
+    this.view.addEventListener("keydown", this.onWindowKeyDown, { capture: true });
     this.input.addEventListener("focus", this.onFocus);
     this.input.addEventListener("blur", this.onBlur);
     this.input.addEventListener("input", this.onInput);
@@ -1813,8 +1848,8 @@ export class GhosttyTerminalSurface {
   private removeEvents(): void {
     this.input.removeEventListener("keydown", this.onKeyDown);
     this.input.removeEventListener("keyup", this.onKeyUp);
-    window.removeEventListener("keyup", this.onWindowKeyUp, { capture: true });
-    window.removeEventListener("keydown", this.onWindowKeyDown, { capture: true });
+    this.view.removeEventListener("keyup", this.onWindowKeyUp, { capture: true });
+    this.view.removeEventListener("keydown", this.onWindowKeyDown, { capture: true });
     this.input.removeEventListener("focus", this.onFocus);
     this.input.removeEventListener("blur", this.onBlur);
     this.input.removeEventListener("input", this.onInput);
@@ -1898,7 +1933,7 @@ export class GhosttyTerminalSurface {
   private requestRender(): void {
     if (this.disposed || !this.visible || !this.hasSize) return;
     if (this.deferSynchronizedRender() || this.frame !== 0) return;
-    this.frame = window.requestAnimationFrame(() => {
+    this.frame = this.view.requestAnimationFrame(() => {
       this.frame = 0;
       this.renderFrame();
     });
@@ -1907,18 +1942,18 @@ export class GhosttyTerminalSurface {
   private cancelRender(): void {
     this.cancelSynchronizedRenderTimer();
     if (this.frame !== 0) {
-      window.cancelAnimationFrame(this.frame);
+      this.view.cancelAnimationFrame(this.frame);
       this.frame = 0;
     }
     if (this.cursorTimer !== null) {
-      window.clearTimeout(this.cursorTimer);
+      this.view.clearTimeout(this.cursorTimer);
       this.cursorTimer = null;
     }
   }
 
   private cancelSynchronizedRenderTimer(): void {
     if (this.synchronizedRenderTimer === null) return;
-    window.clearTimeout(this.synchronizedRenderTimer);
+    this.view.clearTimeout(this.synchronizedRenderTimer);
     this.synchronizedRenderTimer = null;
   }
 
@@ -1929,15 +1964,15 @@ export class GhosttyTerminalSurface {
     }
     // A frame queued before the opening marker would now consume partial rows.
     if (this.frame !== 0) {
-      window.cancelAnimationFrame(this.frame);
+      this.view.cancelAnimationFrame(this.frame);
       this.frame = 0;
     }
     if (this.cursorTimer !== null) {
-      window.clearTimeout(this.cursorTimer);
+      this.view.clearTimeout(this.cursorTimer);
       this.cursorTimer = null;
     }
     if (this.synchronizedRenderTimer === null) {
-      this.synchronizedRenderTimer = window.setTimeout(() => {
+      this.synchronizedRenderTimer = this.view.setTimeout(() => {
         this.synchronizedRenderTimer = null;
         this.core.endSynchronizedOutput();
         this.renderFrame();
@@ -1949,7 +1984,7 @@ export class GhosttyTerminalSurface {
   private renderFrame(): void {
     if (this.disposed || !this.visible) return;
     if (this.frame !== 0) {
-      window.cancelAnimationFrame(this.frame);
+      this.view.cancelAnimationFrame(this.frame);
       this.frame = 0;
     }
     if (this.mount.clientWidth === 0 || this.mount.clientHeight === 0) {
@@ -2016,10 +2051,10 @@ export class GhosttyTerminalSurface {
   }
 
   private scheduleCursorBlink(): void {
-    if (this.cursorTimer !== null) window.clearTimeout(this.cursorTimer);
+    if (this.cursorTimer !== null) this.view.clearTimeout(this.cursorTimer);
     this.cursorTimer = null;
     if (!this.blinkEnabled()) return;
-    this.cursorTimer = window.setTimeout(() => {
+    this.cursorTimer = this.view.setTimeout(() => {
       this.cursorTimer = null;
       this.cursorOn = !this.cursorOn;
       this.requestRender();
