@@ -2,11 +2,15 @@ import { SquareArrowDownLeftIcon } from "lucide-react";
 import { type ReactNode, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+
 import { useRightPanelPopoutStore } from "../rightPanelPopoutStore";
+import { PULL_REQUESTS_PANEL_REF, useRightPanelStore } from "../rightPanelStore";
 import { Button } from "./ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "./ui/empty";
 import {
   closeRightPanelPopout,
+  focusRightPanelPopout,
   getRightPanelPopout,
   openRightPanelPopout,
   setRightPanelPopoutTitle,
@@ -18,6 +22,23 @@ import { toastManager } from "./ui/toast";
 // Docking unmounts RightPanelPopout before its effects can react, so the store closes the window itself.
 useRightPanelPopoutStore.subscribe((state) => {
   if (state.location !== "popout" || !state.open) closeRightPanelPopout();
+});
+
+const PULL_REQUESTS_PANEL_KEY = scopedThreadKey(PULL_REQUESTS_PANEL_REF);
+
+// Opening a tab from the main window would otherwise update a popout hidden behind it. The pull-request
+// page's panel never renders in the popout.
+useRightPanelStore.subscribe((next, previous) => {
+  if (next.revealRevisionByThreadKey === previous.revealRevisionByThreadKey) return;
+  const popout = useRightPanelPopoutStore.getState();
+  if (popout.location !== "popout" || !popout.open) return;
+  const revealed = Object.entries(next.revealRevisionByThreadKey).some(
+    ([threadKey, revision]) =>
+      threadKey !== PULL_REQUESTS_PANEL_KEY &&
+      revision !== previous.revealRevisionByThreadKey[threadKey] &&
+      next.byThreadKey[threadKey]?.isOpen === true,
+  );
+  if (revealed) focusRightPanelPopout();
 });
 
 // Renders the right panel into the popout window. The window outlives this component, so a thread switch

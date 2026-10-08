@@ -122,7 +122,7 @@ export function useAgentOpenedPreviews(input: {
         (surface) => surface.kind === "preview" && surface.resourceId === session.tabId,
       );
       if (surface && requested?.force === true) {
-        useRightPanelStore.getState().activateSurface(threadRef, surface.id);
+        useRightPanelStore.getState().activateSurface(threadRef, surface.id, { reveal: false });
       } else if (!surface) {
         usePreviewMiniPlayerStore
           .getState()
