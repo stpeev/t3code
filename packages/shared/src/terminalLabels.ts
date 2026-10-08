@@ -1,7 +1,20 @@
+import type { TerminalSummary } from "@t3tools/contracts";
+
 export function terminalNumber(terminalId: string): string | undefined {
   return /^term(?:inal)?-(\d+)(?:-[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12})?$/i.exec(
     terminalId,
   )?.[1];
+}
+
+export function resolveTerminalSessionLabel(
+  terminalId: string,
+  summary: Pick<TerminalSummary, "label"> | null | undefined,
+): string {
+  const trimmed = summary?.label?.trim();
+  if (trimmed && trimmed.length > 0) {
+    return trimmed;
+  }
+  return getTerminalLabel(terminalId);
 }
 
 export function getTerminalLabel(terminalId: string): string {

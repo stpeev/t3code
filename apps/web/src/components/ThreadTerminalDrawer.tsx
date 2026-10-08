@@ -342,6 +342,7 @@ function terminalFontOptions(family: string, size: number): { family?: string; s
 }
 
 export function terminalThemeFromApp(mountElement?: HTMLElement | null): GhosttyTheme {
+  const document = mountElement?.ownerDocument ?? globalThis.document;
   const drawerSurface =
     mountElement?.closest("[data-thread-terminal-drawer]") ??
     document.querySelector("[data-thread-terminal-drawer]") ??
@@ -832,7 +833,7 @@ function TerminalSessionViewport({
       if (
         hasTerminalWriteAccess() &&
         visibleRef.current &&
-        mount.contains(document.activeElement)
+        mount.contains(mount.ownerDocument.activeElement)
       ) {
         terminal.focus();
       }
@@ -1207,7 +1208,7 @@ function TerminalSessionViewport({
         if (!activeTerminal) return;
         activeTerminal.setTheme(terminalThemeFromApp(containerRef.current));
       });
-      themeObserver.observe(document.documentElement, {
+      themeObserver.observe(mount.ownerDocument.documentElement, {
         attributes: true,
         attributeFilter: ["class", "style"],
       });
@@ -1258,7 +1259,7 @@ function TerminalSessionViewport({
 
     return () => {
       cancelled = true;
-      const hadFocus = mount.contains(document.activeElement);
+      const hadFocus = mount.contains(mount.ownerDocument.activeElement);
       teardown?.();
       if (hasTerminalWriteAccess() && hadFocus && mount.isConnected) {
         mount.focus({ preventScroll: true });
