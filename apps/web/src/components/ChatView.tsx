@@ -5610,7 +5610,9 @@ export default function ChatView(props: ChatViewProps) {
         (surface) => surface.kind === "preview" && surface.resourceId === session.tabId,
       );
       if (surface && requested?.force === true) {
-        useRightPanelStore.getState().activateSurface(activeThreadRef, surface.id);
+        useRightPanelStore
+          .getState()
+          .activateSurface(activeThreadRef, surface.id, { reveal: false });
       } else if (!surface) {
         usePreviewMiniPlayerStore
           .getState()

@@ -1,4 +1,4 @@
-import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { type EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
@@ -26,6 +26,7 @@ beforeEach(() => {
     threadPanelVisibilityByThreadKey: {},
     userActionRevisionByThreadKey: {},
     closeRevisionByThreadKey: {},
+    revealRevisionByThreadKey: {},
   });
 });
 
@@ -349,6 +350,30 @@ describe("rightPanelStore", () => {
       },
     });
     expect(selectThreadRightPanelState(migrated.byThreadKey, refA).maximized).toBe(true);
+  });
+
+  it("counts only user requests to see a tab as reveals", () => {
+    const store = useRightPanelStore.getState();
+    const revealRevision = () =>
+      useRightPanelStore.getState().revealRevisionByThreadKey[scopedThreadKey(refA)] ?? 0;
+
+    store.open(refA, "diff");
+    store.open(refA, "diff");
+    store.openFile(refA, "src/app.ts");
+    store.activateSurface(refA, "diff");
+    expect(revealRevision()).toBe(4);
+
+    store.openProactive(refA, completedDiff, store.getUserActionRevision(refA));
+    store.openDevice(
+      refA,
+      { hostId: "host", deviceId: "device", platform: "ios", name: "iPhone" },
+      true,
+    );
+    store.activateSurface(refA, "diff", { reveal: false });
+    store.close(refA);
+    store.show(refA);
+    store.closeSurface(refA, "diff");
+    expect(revealRevision()).toBe(4);
   });
 
   it("drops the legacy singleton terminal surface during migration", () => {
