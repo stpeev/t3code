@@ -600,7 +600,28 @@ export default function DiffPanel({
     () => countDiffFileTreeRows(fileTreeEntries.map((entry) => entry.path)),
     [fileTreeEntries],
   );
-  const workingTreeStat = gitStatus?.workingTree;
+  // The preview refreshes with the panel; VCS status can lag until the main window regains focus.
+  const workingTreeFiles = branchDiffPreview.data?.sources.find(
+    (source) => source.kind === "working-tree",
+  )?.files;
+  const workingTreeStat = useMemo(() => {
+    if (!workingTreeFiles) {
+      const status = gitStatus?.workingTree;
+      return {
+        fileCount: status?.files.length ?? 0,
+        additions: status?.insertions ?? 0,
+        deletions: status?.deletions ?? 0,
+      };
+    }
+    return workingTreeFiles.reduce(
+      (total, file) => ({
+        fileCount: total.fileCount + 1,
+        additions: total.additions + file.additions,
+        deletions: total.deletions + file.deletions,
+      }),
+      { fileCount: 0, additions: 0, deletions: 0 },
+    );
+  }, [gitStatus?.workingTree, workingTreeFiles]);
   const pinnedChangesLabel =
     selectedRunId !== null
       ? selectedScopeLabel
@@ -610,11 +631,7 @@ export default function DiffPanel({
   const changesRows = useMemo(
     () =>
       buildDiffChangesRows({
-        workingTree: {
-          fileCount: workingTreeStat?.files.length ?? 0,
-          additions: workingTreeStat?.insertions ?? 0,
-          deletions: workingTreeStat?.deletions ?? 0,
-        },
+        workingTree: workingTreeStat,
         commits: commits ?? null,
         pinnedLabel: pinnedChangesLabel,
       }),
