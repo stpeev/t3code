@@ -52,7 +52,11 @@ export function isAppFocused(): boolean {
 }
 
 export function focusRightPanelPopout(): void {
-  current?.window.focus();
+  if (!current) return;
+  // Electron ignores `window.focus()` across windows, so the desktop shell raises it natively.
+  const focusNatively = window.desktopBridge?.focusRightPanelPopout;
+  if (focusNatively) void focusNatively();
+  else current.window.focus();
 }
 
 export function closeRightPanelPopout(): void {
