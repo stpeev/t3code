@@ -361,13 +361,23 @@ export function HtmlRenderTimelineRow({
   }
   return (
     <div className="html-preview-lane min-w-0 px-1">
-      <HtmlRenderFrame
-        key={row.htmlRender.attachmentId}
-        environmentId={ctx.activeThreadEnvironmentId}
-        htmlRender={row.htmlRender}
-        threadRef={ctx.threadRef ?? undefined}
-        onFullscreenChange={onFullscreenChange}
-      />
+      <AssistantCitationSource
+        // A render is cited by its tool call, in place of a message id.
+        messageId={MessageId.make(row.id)}
+        {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
+        itemKey={row.id}
+        request={ctx.citationRequest}
+        listRef={ctx.listRef}
+        opaque
+      >
+        <HtmlRenderFrame
+          key={row.htmlRender.attachmentId}
+          environmentId={ctx.activeThreadEnvironmentId}
+          htmlRender={row.htmlRender}
+          threadRef={ctx.threadRef ?? undefined}
+          onFullscreenChange={onFullscreenChange}
+        />
+      </AssistantCitationSource>
     </div>
   );
 }
