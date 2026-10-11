@@ -23,7 +23,7 @@ import {
   ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
   type AssistantCitation,
   type EnvironmentId,
-  type MessageId,
+  MessageId,
   type OrchestrationV2TurnItem,
   type RunAttemptId,
   type ScopedThreadRef,
@@ -454,7 +454,7 @@ interface MessagesTimelineProps {
   citationHistoryLoading?: boolean;
   onCiteAssistantText?: (
     citation: AssistantCitation,
-    sourceAnchor: AssistantCitationSourceAnchor,
+    sourceAnchor: AssistantCitationSourceAnchor | null,
   ) => boolean;
   isWorking: boolean;
   /** The live work belongs to a runless root turn (a provider-native subagent). */
@@ -3096,14 +3096,24 @@ function HtmlRenderTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "htm
 
   return (
     <div className="min-w-0 px-1">
-      <HtmlRenderFrame
-        // A recycled row must not keep another page's frozen frame.
-        key={row.htmlRender.attachmentId}
-        environmentId={ctx.activeThreadEnvironmentId}
-        htmlRender={row.htmlRender}
-        threadRef={ctx.threadRef ?? undefined}
-        onFullscreenChange={onFullscreenChange}
-      />
+      <AssistantCitationSource
+        // A render is cited by its tool call, in place of a message id.
+        messageId={MessageId.make(row.id)}
+        {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
+        itemKey={row.id}
+        request={ctx.citationRequest}
+        listRef={ctx.listRef}
+        opaque
+      >
+        <HtmlRenderFrame
+          // A recycled row must not keep another page's frozen frame.
+          key={row.htmlRender.attachmentId}
+          environmentId={ctx.activeThreadEnvironmentId}
+          htmlRender={row.htmlRender}
+          threadRef={ctx.threadRef ?? undefined}
+          onFullscreenChange={onFullscreenChange}
+        />
+      </AssistantCitationSource>
     </div>
   );
 }

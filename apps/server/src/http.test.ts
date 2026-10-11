@@ -381,6 +381,33 @@ it.layer(
   );
 });
 
+describe("HTML render assets", () => {
+  it.effect("serve stored renders with the selection reporter, but download them unchanged", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-html-render-asset-" });
+      const filePath = path.join(directory, "thread-1-0000-html.html");
+      const stored = "<!doctype html><html><head></head><body>Bergamo</body></html>";
+      yield* fs.writeFileString(filePath, stored);
+
+      const served = HttpServerResponse.toWeb(
+        yield* assetFileResponse({ path: filePath, mimeType: "text/html" }),
+      );
+      expect(served.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(served.headers.get("content-security-policy")).toContain("sandbox allow-scripts");
+      const body = yield* Effect.promise(() => served.text());
+      expect(body).toContain("t3/notifications/selection-changed");
+      expect(body).toContain("<body>Bergamo</body>");
+
+      const downloaded = HttpServerResponse.toWeb(
+        yield* assetFileResponse({ path: filePath, download: true, fileName: "page.html" }),
+      );
+      expect(yield* Effect.promise(() => downloaded.text())).toBe(stored);
+    }).pipe(Effect.provide(layerFileResponse)),
+  );
+});
+
 describe("video asset byte ranges", () => {
   it.effect("uses current descriptor metadata after an in-place truncate or extension", () =>
     Effect.gen(function* () {

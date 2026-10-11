@@ -6,6 +6,7 @@ import {
 } from "@t3tools/contracts";
 import { isDevProxiedPath } from "@t3tools/shared/devProxy";
 import { injectMcpAppCookieBootstrap, injectMcpAppThemeBootstrap } from "@t3tools/shared/mcpApp";
+import { injectHtmlRenderSelectionReporter } from "@t3tools/shared/htmlRender";
 import { decodeOtlpTraceRecords } from "@t3tools/shared/observability";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -194,6 +195,13 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
     return method === "HEAD"
       ? HttpServerResponse.empty({ status: 200, headers })
       : HttpServerResponse.uint8Array(body, { headers });
+  }
+  // HTML attachment ids end in `-html`. Injecting here, not at publish, reaches stored renders too.
+  if (!asset.download && asset.file === undefined && /-html\.html$/i.test(asset.path)) {
+    if (method === "HEAD") return HttpServerResponse.empty({ headers });
+    const fs = yield* FileSystem.FileSystem;
+    const html = injectHtmlRenderSelectionReporter(yield* fs.readFileString(asset.path));
+    return HttpServerResponse.text(html, { headers });
   }
   const mediaFile = asset.file;
   const mediaInfo = mediaFile ? yield* statMediaFile(asset.path, mediaFile) : undefined;

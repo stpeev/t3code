@@ -15,6 +15,8 @@ import {
   readHtmlRenderContentHeight,
   readHtmlRenderKeyDown,
   readHtmlRenderLinkRequest,
+  readHtmlRenderSelection,
+  type HtmlRenderSelection,
 } from "@t3tools/shared/htmlRender";
 import {
   isMacPlatform,
@@ -124,6 +126,8 @@ export function HtmlRenderDocument(props: {
   readonly threadRef?: ScopedThreadRef | undefined;
   /** Receives the page's content height whenever it changes, so an inline frame can fit it. */
   readonly onContentHeight?: (height: number) => void;
+  /** Receives text the reader selects in the page, and `null` when that selection clears. */
+  readonly onSelection?: (selection: HtmlRenderSelection | null, frame: HTMLIFrameElement) => void;
 }) {
   const theme = useHtmlRenderTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -279,6 +283,19 @@ export function HtmlRenderDocument(props: {
     window.addEventListener("message", resize);
     return () => window.removeEventListener("message", resize);
   }, [onContentHeight]);
+  const { onSelection } = props;
+  useEffect(() => {
+    if (onSelection === undefined) return;
+    const select = (event: MessageEvent) => {
+      const frame = frameRef.current;
+      const selection = readHtmlRenderSelection(event.data);
+      if (selection !== undefined && frame !== null && event.source === frame.contentWindow) {
+        onSelection(selection, frame);
+      }
+    };
+    window.addEventListener("message", select);
+    return () => window.removeEventListener("message", select);
+  }, [onSelection]);
   return (
     <iframe
       ref={frameRef}

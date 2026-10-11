@@ -376,6 +376,66 @@ export function htmlRenderResult(id: string | number) {
   return { jsonrpc: "2.0", id, result: {} } as const;
 }
 
+// T3's own extensions to that protocol, for citing text selected in a render.
+const SELECTION_CHANGED_METHOD = "t3/notifications/selection-changed";
+const CLEAR_SELECTION_METHOD = "t3/clear-selection";
+
+/** A framed render's text stream, the selected offsets in it, and the last selected line box. */
+export interface HtmlRenderSelection {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+  readonly rect: {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly height: number;
+  };
+}
+
+/** A render's `selection-changed` selection: `null` once cleared, `undefined` for any other message. */
+export function readHtmlRenderSelection(data: unknown): HtmlRenderSelection | null | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const { jsonrpc, method, params } = data as Record<string, unknown>;
+  if (jsonrpc !== "2.0" || method !== SELECTION_CHANGED_METHOD) return undefined;
+  if (typeof params !== "object" || params === null) return undefined;
+  const selection = (params as { selection?: unknown }).selection;
+  if (selection === null) return null;
+  if (typeof selection !== "object" || selection === undefined) return undefined;
+  const { text, start, end, rect } = selection as Record<string, unknown>;
+  if (
+    typeof text !== "string" ||
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    (start as number) < 0 ||
+    (start as number) >= (end as number) ||
+    (end as number) > text.length ||
+    typeof rect !== "object" ||
+    rect === null
+  ) {
+    return undefined;
+  }
+  const { left, top, width, height } = rect as Record<string, unknown>;
+  const box = [left, top, width, height];
+  if (!box.every((value) => typeof value === "number" && Number.isFinite(value))) return undefined;
+  return {
+    text,
+    start: start as number,
+    end: end as number,
+    rect: {
+      left: left as number,
+      top: top as number,
+      width: width as number,
+      height: height as number,
+    },
+  };
+}
+
+/** The notification a client posts into a render after citing its selection. */
+export function htmlRenderClearSelectionMessage() {
+  return { jsonrpc: "2.0", method: CLEAR_SELECTION_METHOD } as const;
+}
+
 const THEME_FRAGMENT_KEY = "t3-theme";
 
 /** URL fragment that hands a render its theme before first paint. */
@@ -471,8 +531,21 @@ const blankNonMarkup = (html: string) => {
  * own styles and scripts come after it.
  */
 export function injectHtmlRenderBootstrap(html: string): string {
+  return injectIntoHead(html, bootstrapMarkup);
+}
+
+// Builds its text stream like the client's assistantTextSelection.ts. A framed page reports
+// a selection once a pointer or keyboard gesture settles it, and a cleared one at once.
+const SELECTION_SCRIPT = `(function(){if(window.parent===window)return;var X=${JSON.stringify("button,input,textarea,select,[role=button],[contenteditable],[hidden],[aria-hidden=true],script,style,template,noscript,svg")},B=${JSON.stringify("address,article,aside,blockquote,dd,div,dl,dt,figcaption,figure,footer,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,td,th,tr,ul")},down=false,sent=null,t=0;function read(){var p=[],c=[],l=0,s=false;function v(n){if(n.nodeType===3){if(!n.length)return;if(s&&l>0){p.push("\\n");l++;}s=false;c.push([n,l]);p.push(n.data);l+=n.length;return;}if(n.nodeType!==1||n.matches(X))return;var b=n.matches(B);if(b||n.tagName==="BR")s=true;for(var k=n.firstChild;k;k=k.nextSibling)v(k);if(b)s=true;}if(document.body)v(document.body);return{text:p.join(""),chunks:c};}function report(){clearTimeout(t);t=0;var g=getSelection(),r=g&&g.rangeCount===1&&!g.isCollapsed?g.getRangeAt(0):null,m=null;if(r){var d=read(),a=-1,e=0;for(var i=0;i<d.chunks.length;i++){var n=d.chunks[i][0],o=d.chunks[i][1];if(!r.intersectsNode(n)||getComputedStyle(n.parentElement).userSelect==="none")continue;var x=n===r.startContainer?r.startOffset:0,y=n===r.endContainer?r.endOffset:n.length;if(x>=y)continue;if(a<0)a=o+x;e=o+y;}var q=r.getClientRects(),k=q[q.length-1]||r.getBoundingClientRect();if(a>=0&&d.text.slice(a,e).trim())m={text:d.text,start:a,end:e,rect:{left:k.left,top:k.top,width:k.width,height:k.height}};}var key=m&&JSON.stringify([m.start,m.end,m.rect]);if(key===sent)return;sent=key;window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(SELECTION_CHANGED_METHOD)},params:{selection:m}},"*");}function later(){clearTimeout(t);t=setTimeout(report,0);}addEventListener("pointerdown",function(e){if(e.isPrimary&&e.button===0)down=true;},true);addEventListener("pointerup",function(e){if(e.isPrimary&&e.button===0){down=false;later();}},true);addEventListener("pointercancel",function(){down=false;later();},true);document.addEventListener("selectionchange",function(){var g=getSelection();if(!g||g.isCollapsed)report();else if(!down)later();});addEventListener("message",function(e){var d=e.data;if(e.source===window.parent&&d&&d.jsonrpc==="2.0"&&d.method===${JSON.stringify(CLEAR_SELECTION_METHOD)}){var g=getSelection();if(g)g.removeAllRanges();}});})();`;
+
+/** Inserts the selection reporter; servers add it at serve time, so older stored renders get it too. */
+export function injectHtmlRenderSelectionReporter(html: string): string {
+  return injectIntoHead(html, () => `<script>${SELECTION_SCRIPT}</script>`);
+}
+
+function injectIntoHead(html: string, markupFor: (scan: string) => string): string {
   const scan = blankNonMarkup(html);
-  const markup = bootstrapMarkup(scan);
+  const markup = markupFor(scan);
   const headOpen = /<head(?:\s[^>]*)?>/i.exec(scan);
   if (headOpen) {
     const at = headOpen.index + headOpen[0].length;

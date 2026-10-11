@@ -7,11 +7,13 @@ import {
   htmlRenderTheme,
   htmlRenderThemeFragment,
   injectHtmlRenderBootstrap,
+  injectHtmlRenderSelectionReporter,
   htmlRenderThemeMessage,
   readHtmlRenderContentHeight,
   readHtmlRenderKeyDown,
   readHtmlRenderLinkRequest,
   readHtmlRenderReference,
+  readHtmlRenderSelection,
 } from "./htmlRender.ts";
 import { T3_CODE_DARK_THEME_COLORS, T3_CODE_LIGHT_THEME_COLORS } from "./themePalettes.ts";
 import { htmlRenderFromToolItem } from "./toolOutput.ts";
@@ -72,6 +74,50 @@ describe("injectHtmlRenderBootstrap", () => {
       injected.indexOf("<html><head>"),
     );
     expect(injected).toContain('<meta name="viewport" content="width=device-width');
+  });
+});
+
+describe("injectHtmlRenderSelectionReporter", () => {
+  it("adds one parseable reporter to a page that already has the bootstrap", () => {
+    const stored = injectHtmlRenderBootstrap("<!doctype html><html><head></head><body>x</body>");
+    const served = injectHtmlRenderSelectionReporter(stored);
+    expect(served.match(/<script>/g)).toHaveLength(2);
+    expect(served.match(/<style id="t3-theme">/g)).toHaveLength(1);
+    const reporter = /<script>(\(function\(\)\{if\(window\.parent[\s\S]*?)<\/script>/.exec(served);
+    expect(reporter).not.toBeNull();
+    expect(() => new Function(reporter![1]!)).not.toThrow();
+  });
+});
+
+describe("readHtmlRenderSelection", () => {
+  const notification = (selection: unknown) => ({
+    jsonrpc: "2.0",
+    method: "t3/notifications/selection-changed",
+    params: { selection },
+  });
+  const rect = { left: 4, top: 10, width: 80, height: 18 };
+
+  it("reads a selection and a cleared one", () => {
+    expect(
+      readHtmlRenderSelection(notification({ text: "a\nbc", start: 2, end: 4, rect })),
+    ).toEqual({ text: "a\nbc", start: 2, end: 4, rect });
+    expect(readHtmlRenderSelection(notification(null))).toBeNull();
+  });
+
+  it("ignores other messages and malformed selections", () => {
+    expect(readHtmlRenderSelection({ jsonrpc: "2.0", method: "ui/open-link" })).toBeUndefined();
+    expect(readHtmlRenderSelection(notification(undefined))).toBeUndefined();
+    expect(readHtmlRenderSelection(notification({ text: "abc", start: 2, end: 2, rect }))).toBe(
+      undefined,
+    );
+    expect(readHtmlRenderSelection(notification({ text: "abc", start: 0, end: 4, rect }))).toBe(
+      undefined,
+    );
+    expect(
+      readHtmlRenderSelection(
+        notification({ text: "abc", start: 0, end: 1, rect: { ...rect, top: Number.NaN } }),
+      ),
+    ).toBeUndefined();
   });
 });
 
