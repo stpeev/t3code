@@ -2,8 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   injectHtmlRenderBootstrap,
+  injectHtmlRenderSelectionReporter,
   readHtmlRenderImageRequest,
   readHtmlRenderLinkRequest,
+  readHtmlRenderSelection,
 } from "./htmlRender.ts";
 import { htmlRenderFromToolItem } from "./toolOutput.ts";
 
@@ -115,6 +117,50 @@ describe("readHtmlRenderImageRequest", () => {
     expect(readHtmlRenderImageRequest(image({ src: "javascript:alert(1)" }))).toBeUndefined();
     expect(readHtmlRenderImageRequest(image({ src: "data:text/html,<p>" }))).toBeUndefined();
     expect(readHtmlRenderImageRequest(image({ src: "blob:null/1" }))).toBeUndefined();
+  });
+});
+
+describe("injectHtmlRenderSelectionReporter", () => {
+  it("adds one parseable reporter to a page that already has the bootstrap", () => {
+    const stored = injectHtmlRenderBootstrap("<!doctype html><html><head></head><body>x</body>");
+    const served = injectHtmlRenderSelectionReporter(stored);
+    expect(served.match(/<script>/g)).toHaveLength(2);
+    expect(served.match(/<style id="t3-theme">/g)).toHaveLength(1);
+    const reporter = /<script>(\(function\(\)\{if\(window\.parent[\s\S]*?)<\/script>/.exec(served);
+    expect(reporter).not.toBeNull();
+    expect(() => new Function(reporter![1]!)).not.toThrow();
+  });
+});
+
+describe("readHtmlRenderSelection", () => {
+  const notification = (selection: unknown) => ({
+    jsonrpc: "2.0",
+    method: "t3/notifications/selection-changed",
+    params: { selection },
+  });
+  const rect = { left: 4, top: 10, width: 80, height: 18 };
+
+  it("reads a selection and a cleared one", () => {
+    expect(
+      readHtmlRenderSelection(notification({ text: "a\nbc", start: 2, end: 4, rect })),
+    ).toEqual({ text: "a\nbc", start: 2, end: 4, rect });
+    expect(readHtmlRenderSelection(notification(null))).toBeNull();
+  });
+
+  it("ignores other messages and malformed selections", () => {
+    expect(readHtmlRenderSelection({ jsonrpc: "2.0", method: "ui/open-link" })).toBeUndefined();
+    expect(readHtmlRenderSelection(notification(undefined))).toBeUndefined();
+    expect(readHtmlRenderSelection(notification({ text: "abc", start: 2, end: 2, rect }))).toBe(
+      undefined,
+    );
+    expect(readHtmlRenderSelection(notification({ text: "abc", start: 0, end: 4, rect }))).toBe(
+      undefined,
+    );
+    expect(
+      readHtmlRenderSelection(
+        notification({ text: "abc", start: 0, end: 1, rect: { ...rect, top: Number.NaN } }),
+      ),
+    ).toBeUndefined();
   });
 });
 

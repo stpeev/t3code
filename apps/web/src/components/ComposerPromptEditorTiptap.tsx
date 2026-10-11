@@ -186,7 +186,7 @@ export type ComposerCitationCommentRequest = {
   previousValue: string;
   value: string;
   citationStart: number;
-  sourceAnchor: AssistantCitationSourceAnchor;
+  sourceAnchor: AssistantCitationSourceAnchor | null;
   insertedSpaces: CitationInsertedSpaces;
 };
 
@@ -1575,7 +1575,7 @@ function ComposerPromptEditorTiptapInner(
         if (citeKey) {
           setOpenCitation({
             key: citeKey,
-            sourceAnchor: pendingCitation.sourceAnchor,
+            ...(pendingCitation.sourceAnchor ? { sourceAnchor: pendingCitation.sourceAnchor } : {}),
             removeOnCancel: pendingCitation.insertedSpaces,
           });
         }
@@ -1692,7 +1692,7 @@ function ComposerPromptEditorTiptapInner(
           citationRequestRef.current = null;
           setOpenCitation({
             key: citeKey,
-            sourceAnchor: request.sourceAnchor,
+            ...(request.sourceAnchor ? { sourceAnchor: request.sourceAnchor } : {}),
             removeOnCancel: request.insertedSpaces,
           });
         }

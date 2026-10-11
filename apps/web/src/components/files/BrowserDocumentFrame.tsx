@@ -16,6 +16,8 @@ import {
   readHtmlRenderImageRequest,
   readHtmlRenderKeyDown,
   readHtmlRenderLinkRequest,
+  readHtmlRenderSelection,
+  type HtmlRenderSelection,
 } from "@t3tools/shared/htmlRender";
 import {
   isMacPlatform,
@@ -147,6 +149,8 @@ export function HtmlRenderDocument(props: {
   readonly onContentHeight?: (height: number) => void;
   /** Reports fullscreen changes so virtualized rows can stay mounted. */
   readonly onFullscreenChange?: ((fullscreen: boolean) => void) | undefined;
+  /** Receives text the reader selects in the page, and `null` when that selection clears. */
+  readonly onSelection?: (selection: HtmlRenderSelection | null, frame: HTMLIFrameElement) => void;
 }) {
   const theme = useHtmlRenderTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -245,6 +249,11 @@ export function HtmlRenderDocument(props: {
     const height = readHtmlRenderContentHeight(event.data);
     if (height !== undefined) {
       props.onContentHeight?.(height);
+      return;
+    }
+    const selection = readHtmlRenderSelection(event.data);
+    if (selection !== undefined) {
+      props.onSelection?.(selection, frame);
       return;
     }
     if (document.activeElement !== frame || navigator.userActivation?.isActive === false) return;

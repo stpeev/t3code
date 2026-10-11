@@ -1,15 +1,21 @@
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import {
   HTML_RENDER_COLUMN_WIDTH,
+  htmlRenderClearSelectionMessage,
   htmlRenderFileName,
   htmlRenderFrameHeight,
   type HtmlRenderReference,
+  type HtmlRenderSelection,
 } from "@t3tools/shared/htmlRender";
 import { Maximize2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import { useLongLivedAssetUrl } from "~/assets/longLivedAssetUrls";
+import {
+  ASSISTANT_FRAME_SELECTION_EVENT,
+  type AssistantFrameSelection,
+} from "~/lib/assistantTextSelection";
 
 import { HtmlRenderDocument } from "../files/BrowserDocumentFrame";
 import { Button } from "../ui/button";
@@ -65,6 +71,23 @@ export function HtmlRenderFrame(props: {
     onFullscreenChange?.(true);
     return () => onFullscreenChange?.(false);
   }, [expanded, onFullscreenChange]);
+  const reportSelection = (selection: HtmlRenderSelection | null, frame: HTMLIFrameElement) => {
+    let detail: AssistantFrameSelection | null = null;
+    if (selection !== null) {
+      const frameRect = frame.getBoundingClientRect();
+      const { left, top, width, height } = selection.rect;
+      detail = {
+        text: selection.text,
+        start: selection.start,
+        end: selection.end,
+        rect: new DOMRect(frameRect.left + left, frameRect.top + top, width, height),
+        clear: () => frame.contentWindow?.postMessage(htmlRenderClearSelectionMessage(), "*"),
+      };
+    }
+    frame.dispatchEvent(
+      new CustomEvent(ASSISTANT_FRAME_SELECTION_EVENT, { bubbles: true, detail }),
+    );
+  };
 
   return (
     <div ref={observeBox} className="group/html-render relative" style={{ height }}>
@@ -77,6 +100,7 @@ export function HtmlRenderFrame(props: {
             className="block size-full"
             onContentHeight={setContentHeight}
             onFullscreenChange={onFullscreenChange}
+            onSelection={reportSelection}
           />
           <div className="absolute end-2 top-2 flex gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/html-render:opacity-100 pointer-coarse:opacity-100">
             <Tooltip>
