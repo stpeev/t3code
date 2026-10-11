@@ -204,7 +204,7 @@ export function observeAssistantCitationSource({
       if (rect.bottom <= scrollRect.top || rect.top >= scrollRect.bottom) return;
       activation.scrolled = true;
       request.onComplete();
-      if (!range) {
+      if (!range && root.dataset.assistantCitationOpaque !== "true") {
         toastManager.add({
           type: "warning",
           title: "The quoted text has changed",
@@ -338,6 +338,7 @@ export function AssistantCitationSource({
   itemKey,
   request,
   listRef,
+  opaque = false,
   children,
 }: {
   messageId: MessageId;
@@ -345,6 +346,8 @@ export function AssistantCitationSource({
   itemKey: string;
   request: AssistantCitationTarget | null;
   listRef: RefObject<LegendListRef | null>;
+  /** The quoted text lives in a frame, so navigation can only reach the source as a whole. */
+  opaque?: boolean;
   children: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -361,6 +364,7 @@ export function AssistantCitationSource({
       data-assistant-citation-source={messageId}
       data-assistant-citation-environment={threadRef?.environmentId}
       data-assistant-citation-thread={threadRef?.threadId}
+      data-assistant-citation-opaque={opaque ? "true" : undefined}
     >
       {children}
     </div>

@@ -8,8 +8,11 @@ import { QuoteIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  ASSISTANT_FRAME_SELECTION_EVENT,
   captureAssistantTextSelection,
+  createAssistantTextSelector,
   type AssistantCitationSourceAnchor,
+  type AssistantFrameSelection,
 } from "~/lib/assistantTextSelection";
 import {
   isSelectionRectVisible,
@@ -26,12 +29,17 @@ export function AssistantSelectionToolbar({
 }: {
   viewport: HTMLElement | null;
   threadRef: ScopedThreadRef;
-  onCite: (citation: AssistantCitation, sourceAnchor: AssistantCitationSourceAnchor) => boolean;
+  onCite: (
+    citation: AssistantCitation,
+    sourceAnchor: AssistantCitationSourceAnchor | null,
+  ) => boolean;
 }) {
   const [selection, setSelection] = useState<{
     citation: AssistantCitation;
     position: SelectionActionPoint;
-    sourceAnchor: AssistantCitationSourceAnchor;
+    /** `null` for a framed render, whose text the app cannot reach as a range. */
+    sourceAnchor: AssistantCitationSourceAnchor | null;
+    clearSource: () => void;
   } | null>(null);
   const toolbarRef = useRef<HTMLButtonElement>(null);
   const actionsRef = useRef<ReturnType<typeof observeSelectionActions> | null>(null);
@@ -119,6 +127,7 @@ export function AssistantSelectionToolbar({
         );
       setSelection({
         sourceAnchor: { source: captured.source, range: captured.range, viewport },
+        clearSource: () => window.getSelection()?.removeAllRanges(),
         citation: {
           version: 1,
           ...threadRef,
@@ -141,6 +150,40 @@ export function AssistantSelectionToolbar({
       onDismiss: clear,
     });
     actionsRef.current = actions;
+    // A framed render reports its own settled selections; the observer above never sees them.
+    const selectInFrame = (event: Event) => {
+      const frameSelection = (event as CustomEvent<AssistantFrameSelection | null>).detail;
+      const source = (event.target as Element).closest<HTMLElement>(
+        "[data-assistant-citation-source]",
+      );
+      const messageId = source?.dataset.assistantCitationSource;
+      const selector =
+        frameSelection &&
+        createAssistantTextSelector(frameSelection.text, frameSelection.start, frameSelection.end);
+      const viewportRect = viewport.getBoundingClientRect();
+      if (
+        !frameSelection ||
+        !messageId ||
+        !selector ||
+        frameSelection.rect.bottom < viewportRect.top ||
+        frameSelection.rect.top > viewportRect.bottom
+      ) {
+        clear();
+        return;
+      }
+      setSelection({
+        sourceAnchor: null,
+        clearSource: frameSelection.clear,
+        citation: { version: 1, ...threadRef, messageId: MessageId.make(messageId), ...selector },
+        position: resolveSelectionActionPosition({
+          bounds: viewportRect,
+          selectionRect: frameSelection.rect,
+          pointer: null,
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+        }),
+      });
+    };
+    viewport.addEventListener(ASSISTANT_FRAME_SELECTION_EVENT, selectInFrame);
     const focusActions = (event: KeyboardEvent) => {
       const toolbar = toolbarRef.current;
       if (
@@ -164,6 +207,7 @@ export function AssistantSelectionToolbar({
     document.addEventListener("keydown", focusActions, true);
     document.addEventListener("selectionchange", actions.selectionChanged);
     return () => {
+      viewport.removeEventListener(ASSISTANT_FRAME_SELECTION_EVENT, selectInFrame);
       document.removeEventListener("keydown", focusActions, true);
       document.removeEventListener("selectionchange", actions.selectionChanged);
       actions.dispose();
@@ -179,7 +223,7 @@ export function AssistantSelectionToolbar({
   };
   const cite = () => {
     if (tooLong || !onCite(selection.citation, selection.sourceAnchor)) return false;
-    window.getSelection()?.removeAllRanges();
+    selection.clearSource();
     dismiss();
     return true;
   };

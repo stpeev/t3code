@@ -179,7 +179,7 @@ interface MessagesTimelineProps {
   citationHistoryLoading?: boolean;
   onCiteAssistantText?: (
     citation: AssistantCitation,
-    sourceAnchor: AssistantCitationSourceAnchor,
+    sourceAnchor: AssistantCitationSourceAnchor | null,
   ) => boolean;
   isWorking: boolean;
   runlessWorkActive?: boolean;
