@@ -10,6 +10,18 @@ export type AssistantTextSelector = {
   readonly suffix: string;
 };
 
+/** Bubbles from a framed render's citation source; a `null` detail clears its selection. */
+export const ASSISTANT_FRAME_SELECTION_EVENT = "t3:assistant-frame-selection";
+
+/** Text selected inside a framed render, positioned in the app's viewport. */
+export type AssistantFrameSelection = {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+  readonly rect: DOMRect;
+  readonly clear: () => void;
+};
+
 export type AssistantCitationSourceAnchor = {
   source: HTMLElement;
   range: Range;

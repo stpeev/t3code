@@ -223,7 +223,7 @@ interface MessagesTimelineProps {
   citationHistory?: CitedHistory;
   onCiteAssistantText?: (
     citation: AssistantCitation,
-    sourceAnchor: AssistantCitationSourceAnchor,
+    sourceAnchor: AssistantCitationSourceAnchor | null,
   ) => boolean;
   isWorking: boolean;
   runlessWorkActive?: boolean;
