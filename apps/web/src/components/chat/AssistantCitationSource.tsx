@@ -1,12 +1,10 @@
 import type { LegendListRef } from "@legendapp/list/react";
 import type { AssistantCitation, MessageId, ScopedThreadRef } from "@t3tools/contracts";
-import { msg } from "gt-react";
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import {
   resolveAssistantCitationRange,
   type AssistantCitationSourceAnchor,
 } from "~/lib/assistantTextSelection";
-import { m } from "~/i18n/messages";
 import { toastManager } from "../ui/toast";
 import { observeResize } from "~/lib/observeResize";
 
@@ -196,8 +194,8 @@ function observeAssistantCitationSource({
             request.onComplete();
             toastManager.add({
               type: "warning",
-              title: m(msg("Could not open the cited response")),
-              description: m(msg("Click the citation to try again.")),
+              title: "Could not open the cited response",
+              description: "Click the citation to try again.",
             });
           },
         );
@@ -206,19 +204,11 @@ function observeAssistantCitationSource({
       if (rect.bottom <= scrollRect.top || rect.top >= scrollRect.bottom) return;
       activation.scrolled = true;
       request.onComplete();
-      // Screen readers follow focus, not scroll; leave someone already typing alone.
-      const active = root.ownerDocument.activeElement;
-      if (
-        !(active instanceof HTMLElement) ||
-        !(active.isContentEditable || active.matches("input, textarea, select"))
-      ) {
-        root.focus({ preventScroll: true });
-      }
-      if (!range) {
+      if (!range && root.dataset.assistantCitationOpaque !== "true") {
         toastManager.add({
           type: "warning",
-          title: m(msg("The quoted text has changed")),
-          description: m(msg("Showing the source response. The saved quote is unchanged.")),
+          title: "The quoted text has changed",
+          description: "Showing the source response. The saved quote is unchanged.",
         });
       }
     }
@@ -348,6 +338,7 @@ export function AssistantCitationSource({
   itemKey,
   request,
   listRef,
+  opaque = false,
   children,
 }: {
   messageId: MessageId;
@@ -355,6 +346,8 @@ export function AssistantCitationSource({
   itemKey: string;
   request: AssistantCitationTarget | null;
   listRef: RefObject<LegendListRef | null>;
+  /** The quoted text lives in a frame, so navigation can only reach the source as a whole. */
+  opaque?: boolean;
   children: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -369,11 +362,10 @@ export function AssistantCitationSource({
   return (
     <div
       ref={rootRef}
-      tabIndex={-1}
-      className="outline-none"
       data-assistant-citation-source={messageId}
       data-assistant-citation-environment={threadRef?.environmentId}
       data-assistant-citation-thread={threadRef?.threadId}
+      data-assistant-citation-opaque={opaque ? "true" : undefined}
     >
       {children}
     </div>
