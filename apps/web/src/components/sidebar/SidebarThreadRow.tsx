@@ -79,7 +79,8 @@ import { useNowMinute } from "../../hooks/useNowMinute";
 import { useClientSettings } from "../../hooks/useSettings";
 import { useNowSecond } from "../../hooks/useNowSecond";
 import { vcsEnvironment, vcsBranchRevalidation } from "../../state/vcs";
-import { useSidebarLinkedIssueState } from "../../state/issues";
+import { useThreadPipelineStageLabels } from "../../state/pipelines";
+import { PipelineStageChip } from "../pipelineStageChip";
 import { useEnvironmentQuery } from "../../state/query";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { formatRelativeTime, parseTimestampDate } from "../../timestampFormat";
@@ -132,8 +133,6 @@ import { MiddleTruncate } from "../ui/middle-truncate";
 import { ActivityShimmerOverlay } from "../chat/TimelineRowParts";
 import { observeVisibleAnimation } from "~/lib/visibleAnimation";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
-import { ThreadDetailsIssueRows } from "../chat/ThreadDetailsIssueRows";
-import { IssueGlyph, issueStatePresentation } from "../issue/issuePresentation";
 
 // The fields thread rows show. Provider status pushes refresh `checkedAt`,
 // status and auth on every provider; leaving those out keeps each
@@ -706,6 +705,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const threadRef = scopeThreadRef(thread.environmentId, thread.id);
   const threadKey = scopedThreadKey(threadRef);
   const canOperateThread = useEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope);
+  const pipelineStage = useThreadPipelineStageLabels(threadRef);
   const { leaseLiveStatus, rowRef: leaseRowRef } = useSidebarRowSubscriptionLease(props.isActive);
   const { revealRef } = props;
   const rowRef = (row: HTMLElement | null) => {
@@ -1069,6 +1069,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const accessibility = resolveSidebarRowAccessibility({
     title: thread.title,
     statusLabel: topStatus?.label ?? null,
+    pipelineStage: pipelineStage?.spoken ?? null,
     projectDisplayName: props.projectDisplayName,
     isActive: props.isActive,
   });
@@ -1122,7 +1123,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const prBadgeShape = supportsMultiplePullRequests
     ? resolveThreadPullRequestBadge(thread.pullRequests)
     : null;
-  const openLinkedItems = () => {
+  const handlePrListClick = () => {
     useRightPanelStore.getState().open(threadRef, "pull-requests");
     if (!props.isRouteThread) onThreadActivate(threadRef);
   };
@@ -1135,71 +1136,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         number={pr?.number ?? currentLinkedPr?.number}
         url={pr?.url ?? currentLinkedPr?.url}
         status={prStatus}
-        onOpenList={openLinkedItems}
+        onOpenList={handlePrListClick}
         onOpenPullRequest={handlePrClick}
       />
     ) : null;
-  const firstIssue = thread.issues?.[0];
-  const issueCount = thread.issues?.length ?? 0;
-  const issueState = useSidebarLinkedIssueState(
-    thread.environmentId,
-    leaseLiveStatus ? thread.issues : undefined,
-  );
-  const issueStatus = issueState === null ? null : issueStatePresentation(issueState);
-  const IssueIcon = issueStatus?.Icon ?? IssueGlyph.issue;
-  const issueLabel =
-    issueCount === 1 && firstIssue
-      ? issueStatus
-        ? gt("Issue {key}: {title}, {state}", {
-            key: firstIssue.displayKey,
-            title: firstIssue.title,
-            state: issueStatus.label,
-          })
-        : gt("Issue {key}: {title}", { key: firstIssue.displayKey, title: firstIssue.title })
-      : gt("{count, plural, one {{count} linked issue} other {{count} linked issues}}", {
-          count: issueCount,
-        });
-  const issueBadge = firstIssue ? (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <InlineButton
-            tone="muted"
-            aria-label={issueLabel}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              openLinkedItems();
-            }}
-          />
-        }
-      >
-        <IssueIcon aria-hidden className={cn("size-3 shrink-0", issueStatus?.toneClassName)} />
-        <span className="max-w-16 truncate text-xs font-normal text-secondary-label tabular-nums">
-          {issueCount === 1 ? firstIssue.displayKey : issueCount}
-        </span>
-      </TooltipTrigger>
-      <TooltipPopup
-        side="top"
-        sideOffset={0}
-        variant="glass"
-        className="pointer-events-auto w-80 max-w-[calc(100vw-2rem)] text-left whitespace-normal"
-        onContextMenu={(event) => event.stopPropagation()}
-      >
-        <div className="-mx-1 max-h-[calc(var(--available-height)-0.5rem-2px)] overflow-y-auto overscroll-contain">
-          <ThreadDetailsIssueRows
-            links={thread.issues ?? []}
-            threadRef={threadRef}
-            compact={false}
-            mountScope="sidebar-tooltip"
-            onOpen={() => {
-              if (!props.isRouteThread) onThreadActivate(threadRef);
-            }}
-          />
-        </div>
-      </TooltipPopup>
-    </Tooltip>
-  ) : null;
   const terminalStatusIcon = (
     <ThreadTerminalStatusButton
       threadRef={threadRef}
@@ -1275,9 +1215,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     !checkoutThread.branch &&
     !showsScratchMachine &&
     prBadge === null &&
-    issueBadge === null &&
     diff === null &&
     runningTerminalIds.length === 0;
+  // On the row's first line, so the stage is seen without reading the branch line.
+  const pipelineChip =
+    pipelineStage === null ? null : (
+      <PipelineStageChip
+        labels={pipelineStage}
+        tone={status === "failed" ? "error" : "default"}
+        testId={`sidebar-pipeline-stage-${thread.id}`}
+      />
+    );
   const metaLine = metaLineEmpty ? null : (
     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
       {checkoutThread.branch ? (
@@ -1301,7 +1249,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       )}
       {terminalStatusIcon}
       {prBadge}
-      {issueBadge}
       {diff ? (
         <span className="shrink-0 font-mono">
           <span className="text-diff-addition-foreground">+{formatDiffCount(diff.insertions)}</span>{" "}
@@ -1389,10 +1336,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               {draftIndicator}
               {title}
+              {multiline ? pipelineChip : null}
               {multiline ? titleLineIcons : null}
               {pinIndicator}
               {multiline ? null : terminalStatusIcon}
-              {multiline ? null : issueBadge}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">
                   <T>Regenerating title</T>
@@ -1594,6 +1541,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               ) : (
                 <span className="flex-1" />
               )}
+              {pipelineChip}
               {sortable?.isDragging ? (
                 dragDestination
               ) : (
@@ -1768,6 +1716,7 @@ const scrollHighlightedResultIntoView = (node: HTMLLIElement | null) => {
 
 export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props: {
   isSettled: boolean;
+  settlementSupported: boolean;
   thread: SidebarThreadSummary;
   project: EnvironmentProject | null;
   projectDisplayName: string | null;
@@ -1783,11 +1732,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
   searchMatchQuery?: string;
   onHighlight: () => void;
   onSelect: () => void;
-  onContextMenu: (
-    threadRef: ScopedThreadRef,
-    position: { x: number; y: number },
-    source: ContextMenuSource,
-  ) => void;
+  onUnsettle: (threadRef: ScopedThreadRef) => void;
   onFileDropThreads: (threadRef: ScopedThreadRef, files: File[]) => void;
 }) {
   const messages = useMessages();
@@ -1862,11 +1807,12 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
     },
     addFolders: () => {},
   });
+  const showUnsettle = props.isSettled && props.settlementSupported;
   return (
     <li
       ref={props.isHighlighted ? scrollHighlightedResultIntoView : undefined}
       role="presentation"
-      className="list-none"
+      className="group/search-result relative list-none"
       {...fileDropHandlers}
     >
       <Tooltip>
@@ -1892,14 +1838,6 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                 event.preventDefault();
               }}
               onClick={props.onSelect}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                props.onContextMenu(
-                  threadRef,
-                  { x: event.clientX, y: event.clientY },
-                  contextMenuSourceOf(event),
-                );
-              }}
               className={cn(
                 "group/sidebar-row group/v2-row flex min-h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1 text-left text-sm outline-none",
                 props.isHighlighted || props.isRouteActive
@@ -1952,7 +1890,12 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                   settled={props.isSettled}
                 />
               </span>
-              <span className="w-8 shrink-0 text-right text-xs text-muted-foreground/55 tabular-nums">
+              <span
+                className={cn(
+                  "w-8 shrink-0 text-right text-xs text-muted-foreground/55 tabular-nums",
+                  showUnsettle && "group-any-hover/search-result:invisible",
+                )}
+              >
                 <RelativeTimeLabel timestamp={resolveThreadActivityTimestamp(thread)} />
               </span>
             </span>
@@ -1983,6 +1926,24 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
           terminalProcessCount={runningTerminalIds.length}
         />
       </Tooltip>
+      {showUnsettle ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label="Un-settle thread"
+                onClick={() => props.onUnsettle(threadRef)}
+                className="pointer-events-none absolute top-1 right-1.5 inline-flex h-5 cursor-pointer items-center rounded-md px-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-any-hover/search-result:pointer-events-auto group-any-hover/search-result:opacity-100"
+              />
+            }
+          >
+            <Undo2Icon className="mb-px size-3.5" />
+          </TooltipTrigger>
+          <TooltipPopup side="top">Un-settle thread</TooltipPopup>
+        </Tooltip>
+      ) : null}
     </li>
   );
 });
