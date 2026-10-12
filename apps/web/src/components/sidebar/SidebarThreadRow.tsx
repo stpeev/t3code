@@ -1508,6 +1508,7 @@ function latestRunDiff(
 
 export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props: {
   isSettled: boolean;
+  settlementSupported: boolean;
   thread: SidebarThreadSummary;
   project: EnvironmentProject | null;
   projectDisplayName: string | null;
@@ -1523,6 +1524,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
   searchMatchQuery?: string;
   onHighlight: () => void;
   onSelect: () => void;
+  onUnsettle: (threadRef: ScopedThreadRef) => void;
   onFileDropThreads: (threadRef: ScopedThreadRef, files: File[]) => void;
 }) {
   const thread =
@@ -1587,8 +1589,13 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
     window.addEventListener("dragend", clearFileDrag);
     return () => window.removeEventListener("dragend", clearFileDrag);
   }, [isFileDragOver]);
+  const showUnsettle = props.isSettled && props.settlementSupported;
   return (
-    <li role="presentation" className="list-none" {...fileDropHandlers}>
+    <li
+      role="presentation"
+      className="group/search-result relative list-none"
+      {...fileDropHandlers}
+    >
       <Tooltip>
         <TooltipTrigger
           render={
@@ -1650,7 +1657,12 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                   settled={props.isSettled}
                 />
               </span>
-              <span className="w-8 shrink-0 text-right text-xs text-muted-foreground/55 tabular-nums">
+              <span
+                className={cn(
+                  "w-8 shrink-0 text-right text-xs text-muted-foreground/55 tabular-nums",
+                  showUnsettle && "group-any-hover/search-result:invisible",
+                )}
+              >
                 <RelativeTimeLabel timestamp={threadTimeTimestamp(thread)} />
               </span>
             </span>
@@ -1681,6 +1693,24 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
           terminalProcessCount={runningTerminalIds.length}
         />
       </Tooltip>
+      {showUnsettle ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label="Un-settle thread"
+                onClick={() => props.onUnsettle(threadRef)}
+                className="pointer-events-none absolute top-1 right-1.5 inline-flex h-5 cursor-pointer items-center rounded-md px-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-any-hover/search-result:pointer-events-auto group-any-hover/search-result:opacity-100"
+              />
+            }
+          >
+            <Undo2Icon className="mb-px size-3.5" />
+          </TooltipTrigger>
+          <TooltipPopup side="top">Un-settle thread</TooltipPopup>
+        </Tooltip>
+      ) : null}
     </li>
   );
 });
