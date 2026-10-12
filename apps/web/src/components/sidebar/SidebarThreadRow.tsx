@@ -81,7 +81,9 @@ import { useNowMinute } from "../../hooks/useNowMinute";
 import { useClientSettings } from "../../hooks/useSettings";
 import { useNowSecond } from "../../hooks/useNowSecond";
 import { vcsEnvironment, vcsBranchRevalidation } from "../../state/vcs";
+import { useThreadPipelineStageLabels } from "../../state/pipelines";
 import { useSidebarLinkedIssueState } from "../../state/issues";
+import { PipelineStageChip } from "../pipelineStageChip";
 import { useEnvironmentQuery } from "../../state/query";
 import { threadEnvironment } from "../../state/threads";
 import {
@@ -141,6 +143,7 @@ import { MiddleTruncate } from "../ui/middle-truncate";
 import { ActivityShimmerOverlay } from "../chat/TimelineRowParts";
 import { observeVisibleAnimation } from "~/lib/visibleAnimation";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
+
 import { ThreadDetailsIssueRows } from "../chat/ThreadDetailsIssueRows";
 import { IssueGlyph, issueStatePresentation } from "../issue/issuePresentation";
 import { useThreadIntentPrefetch } from "./useThreadIntentPrefetch";
@@ -736,6 +739,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const threadRef = scopeThreadRef(thread.environmentId, thread.id);
   const threadKey = scopedThreadKey(threadRef);
   const canOperateThread = useEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope);
+
   const canTriageThread = !useEnvironmentScopeDenied(
     thread.environmentId,
     AuthOrchestrationOperateScope,
@@ -744,6 +748,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     threadEnvironment.pendingSyncAtom(thread.environmentId),
     (threads) => threads.has(thread.id),
   );
+
+  const pipelineStage = useThreadPipelineStageLabels(threadRef);
+
   const { leaseLiveStatus, rowRef: leaseRowRef } = useSidebarRowSubscriptionLease(props.isActive);
   const { revealRef } = props;
   const rowRef = (row: HTMLElement | null) => {
@@ -1104,7 +1111,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
 
   const accessibility = resolveSidebarRowAccessibility({
     title: thread.title,
+
     statusLabel: pendingSync ? gt("Pending") : (topStatus?.label ?? null),
+    pipelineStage: pipelineStage?.spoken ?? null,
+
     projectDisplayName: props.projectDisplayName,
     isActive: props.isActive,
   });
@@ -1176,6 +1186,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         side="right"
       />
     ) : null;
+
   const firstIssue = thread.issues?.[0];
   const issueCount = thread.issues?.length ?? 0;
   const issueState = useSidebarLinkedIssueState(
@@ -1227,6 +1238,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       />
     </ThreadLinkBadge>
   ) : null;
+
   const terminalStatusIcon = (
     <ThreadTerminalStatusButton
       threadRef={threadRef}
@@ -1295,9 +1307,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const metaLineEmpty =
     props.environmentLabel === null &&
     prBadge === null &&
-    issueBadge === null &&
     diff === null &&
     runningTerminalIds.length === 0;
+  // On the row's first line, so the stage is seen without reading the branch line.
+  const pipelineChip =
+    pipelineStage === null ? null : (
+      <PipelineStageChip
+        labels={pipelineStage}
+        tone={status === "failed" ? "error" : "default"}
+        testId={`sidebar-pipeline-stage-${thread.id}`}
+      />
+    );
   const metaLine = metaLineEmpty ? null : (
     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
       {props.environmentLabel !== null ? (
@@ -1314,7 +1334,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       )}
       {terminalStatusIcon}
       {prBadge}
-      {issueBadge}
       {diff ? (
         <span className="shrink-0 font-mono">
           <span className="text-diff-addition-foreground">+{formatDiffCount(diff.insertions)}</span>{" "}
@@ -1377,6 +1396,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 // Lines titles up with the folder name, past its chevron and icon.
                 inFolder && "ps-9",
               )}
+
               onClick={handleClick}
               onPointerEnter={intentPrefetch.onPointerEnter}
               onPointerLeave={intentPrefetch.onPointerLeave}
@@ -1404,6 +1424,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             )}
             {draftIndicator}
             {title}
+            {multiline ? pipelineChip : null}
             {multiline ? titleLineIcons : null}
             {pinIndicator}
             {multiline ? null : terminalStatusIcon}
@@ -1607,6 +1628,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             ) : null}
             {/* Left of the status slot, the pin would slide when hover swaps the
                 label for the wider row controls. */}
+
             {pinIndicator}
             {props.projectDisplayName ? (
               <span
@@ -1617,6 +1639,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             ) : (
               <span className="flex-1" />
             )}
+            {pipelineChip}
             {sortable?.isDragging ? (
               dragDestination
             ) : (
@@ -1792,6 +1815,7 @@ const scrollHighlightedResultIntoView = (node: HTMLLIElement | null) => {
 
 export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props: {
   isSettled: boolean;
+  settlementSupported: boolean;
   thread: SidebarThreadSummary;
   project: EnvironmentProject | null;
   projectDisplayName: string | null;
@@ -1812,8 +1836,10 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
     position: { x: number; y: number },
     source: ContextMenuSource,
   ) => void;
+  onUnsettle: (threadRef: ScopedThreadRef) => void;
   onFileDropThreads: (threadRef: ScopedThreadRef, files: File[]) => void;
 }) {
+  const gt = useGT();
   const messages = useMessages();
   const thread =
     useThreadShell(scopeThreadRef(props.thread.environmentId, props.thread.id)) ?? props.thread;
@@ -1886,11 +1912,12 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
     },
     addFolders: () => {},
   });
+  const showUnsettle = props.isSettled && props.settlementSupported;
   return (
     <li
       ref={props.isHighlighted ? scrollHighlightedResultIntoView : undefined}
       role="presentation"
-      className="list-none"
+      className="group/search-result relative list-none"
       {...fileDropHandlers}
     >
       <ThreadHoverCardTrigger
@@ -1967,6 +1994,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
           <span className="flex min-w-0 items-center gap-2.5">
             <span
               ref={isRegeneratingTitle ? observeVisibleAnimation : undefined}
+
               className={cn(
                 "min-w-0 flex-1 truncate",
                 props.isSettled ? "font-normal" : "font-medium",
@@ -2005,6 +2033,23 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
           ) : null}
         </span>
       </ThreadHoverCardTrigger>
+      {showUnsettle ? (
+        <SharedTooltipTrigger
+          render={
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={gt("Un-settle thread")}
+              onClick={() => props.onUnsettle(threadRef)}
+              className="pointer-events-none absolute top-1 right-1.5 inline-flex h-5 cursor-pointer items-center rounded-md px-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-any-hover/search-result:pointer-events-auto group-any-hover/search-result:opacity-100"
+            />
+          }
+          label={gt("Un-settle thread")}
+          side="top"
+        >
+          <Undo2Icon className="mb-px size-3.5" />
+        </SharedTooltipTrigger>
+      ) : null}
     </li>
   );
 });
