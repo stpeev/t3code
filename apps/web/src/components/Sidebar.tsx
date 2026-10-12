@@ -3109,6 +3109,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     return (
                       <SidebarSearchResultRow
                         isSettled={settledThreadKeys.has(threadKey)}
+                        settlementSupported={
+                          serverConfigs.get(thread.environmentId)?.environment.capabilities
+                            .threadSettlement === true
+                        }
                         key={threadKey}
                         thread={thread}
                         project={
@@ -3142,6 +3146,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         searchMatchQuery={threadSearch.query}
                         onHighlight={() => setActiveSearchResultIndex(index)}
                         onSelect={() => selectThreadSearchResult(thread)}
+                        onUnsettle={attemptUnsettle}
                         onFileDropThreads={handleThreadFileDrop}
                       />
                     );
