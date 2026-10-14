@@ -665,6 +665,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       .map((approval) => [approval.requestId, approval]),
   );
   const pendingApprovalRequestIds = new Set(pendingApprovalsByRequestId.keys());
+  const foldCompletedTurns = useClientSettings((settings) => settings.foldCompletedTurns);
   const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
     timelineEntries,
     pendingApprovalRequestIds,
@@ -675,6 +676,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     expandedWorkGroupIds,
     isWorking,
     runlessWorkActive,
+    foldCompletedTurns,
     activeTurnStartedAt,
     turnDiffSummaries,
     supportsConversationRollback,
