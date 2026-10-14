@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Tracer from "effect/Tracer";
 
@@ -23,3 +24,10 @@ export const layer = Layer.succeed(
     },
   }),
 );
+
+/** Records a decision made outside Effect (React effects, DOM callbacks) as a zero-length root span. */
+export function recordEvent(name: string, attributes: Record<string, unknown>): void {
+  Effect.runFork(
+    Effect.void.pipe(Effect.withSpan(name, { root: true, attributes }), Effect.provide(layer)),
+  );
+}

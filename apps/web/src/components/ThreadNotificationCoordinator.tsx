@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { isAppFocused } from "../rightPanelPopoutWindow";
+import * as ClientTracer from "../observability/clientTracer";
 
 import { getClientSettings, useClientSettings } from "../hooks/useSettings";
 import { useEnvironmentIds } from "../state/environments";
@@ -225,11 +226,11 @@ function EnvironmentNotifications({
       const appFocused = isAppFocused();
       const mainWindowFocused = document.visibilityState === "visible" && document.hasFocus();
       const isActiveThread = activeEnvironmentId === environmentId && activeThreadId === thread.id;
-      if (
+      const showToast =
         inAppNotificationsEnabled &&
         (appFocused || inAppNotificationsInBackground) &&
-        (!isActiveThread || inAppNotificationsForActiveThread)
-      ) {
+        (!isActiveThread || inAppNotificationsForActiveThread);
+      if (showToast) {
         openToasts.current.set(thread.id, kind);
         toastManager.add({
           id: threadToastId(environmentId, thread.id),
@@ -277,33 +278,50 @@ function EnvironmentNotifications({
           },
         });
       }
-      if (
-        !hasDesktopNotifications(mode) ||
-        appFocused ||
-        typeof Notification === "undefined" ||
-        Notification.permission !== "granted"
-      )
-        continue;
-      try {
-        const notification = new Notification(title, {
-          body,
-          tag: threadNotificationTag(environmentId, thread.id),
-          silent: true,
-        });
-        onNotification(environmentId, notification);
-        notification.addEventListener("click", () => {
-          notification.close();
-          closeThreadToast(thread.id);
-          window.focus();
-          void window.desktopBridge?.revealWindow?.().catch(() => undefined);
-          void navigate({
-            to: "/$environmentId/$threadId",
-            params: { environmentId, threadId: thread.id },
+      let desktop = !hasDesktopNotifications(mode)
+        ? "disabled"
+        : appFocused
+          ? "app-focused"
+          : typeof Notification === "undefined"
+            ? "unsupported"
+            : Notification.permission !== "granted"
+              ? `permission-${Notification.permission}`
+              : "sent";
+      if (desktop === "sent") {
+        try {
+          const notification = new Notification(title, {
+            body,
+            tag: threadNotificationTag(environmentId, thread.id),
+            silent: true,
           });
-        });
-      } catch {
-        // Some browsers expose Notification but reject desktop presentation.
+          onNotification(environmentId, notification);
+          notification.addEventListener("click", () => {
+            notification.close();
+            closeThreadToast(thread.id);
+            window.focus();
+            void window.desktopBridge?.revealWindow?.().catch(() => undefined);
+            void navigate({
+              to: "/$environmentId/$threadId",
+              params: { environmentId, threadId: thread.id },
+            });
+          });
+        } catch {
+          // Some browsers expose Notification but reject desktop presentation.
+          desktop = "rejected";
+        }
       }
+      ClientTracer.recordEvent("web.threadNotification", {
+        "environment.id": environmentId,
+        "thread.id": thread.id,
+        "run.id": thread.latestRun?.runId ?? null,
+        "thread.status": status,
+        "thread.active": isActiveThread,
+        "app.focused": appFocused,
+        "notification.kind": kind,
+        "notification.mode": mode,
+        "notification.toast": showToast,
+        "notification.desktop": desktop,
+      });
     }
     previous.current = next;
   }, [
