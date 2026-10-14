@@ -1020,6 +1020,8 @@ function itemizedFailedRunIds(
 }
 
 function deriveTurnFolds(input: {
+  /** The user's "Fold finished turns" setting; off leaves every turn's work inline. */
+  enabled: boolean;
   timelineEntries: ReadonlyArray<TimelineEntry>;
   terminalAssistantMessageIds: ReadonlySet<string>;
   latestRun: TimelineLatestRun | null;
@@ -1028,6 +1030,7 @@ function deriveTurnFolds(input: {
   liveSubagentEntryIds: ReadonlySet<string>;
   retainedAssistantReplyEntryIds: ReadonlySet<string>;
 }): ReadonlyMap<string, TurnFold> {
+  if (!input.enabled) return new Map();
   const interruptedRunIds = new Set<RunId>();
   const promptIndexByRunId = new Map<RunId, number>();
   for (const [index, entry] of input.timelineEntries.entries()) {
@@ -1489,20 +1492,8 @@ function timelineRowEntries(
   return withoutSubagentDelegationRows(settleSupersededReasoning(shown));
 }
 
-function deriveTimelineTurnFolds(
-  input: Pick<
-    MessagesTimelineRowsInput,
-    | "timelineEntries"
-    | "latestRun"
-    | "isWorking"
-    | "runlessWorkActive"
-    | "runningRunId"
-    | "toolCallVisibility"
-    | "revealedMessageId"
-  >,
-) {
-  if (input.toolCallVisibility === "zen") return new Map<string, TurnFold>();
-  const timelineEntries = timelineRowEntries(input);
+function deriveTimelineTurnFolds(input: TimelineTurnFoldsInput) {
+  const timelineEntries = timelineRowEntries(input.timelineEntries);
   const unsettledRunId = deriveUnsettledRunId(input.latestRun ?? null, input.runningRunId ?? null);
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
   const activeVisualResponseRunIds = deriveActiveVisualResponseRunIds({
@@ -1511,6 +1502,7 @@ function deriveTimelineTurnFolds(
     isWorking: input.isWorking,
   });
   return deriveTurnFolds({
+    enabled: input.foldCompletedTurns !== false,
     timelineEntries,
     terminalAssistantMessageIds: deriveTerminalAssistantMessageIds(timelineEntries),
     latestRun: input.latestRun ?? null,
@@ -1532,6 +1524,8 @@ export function deriveMessagesTimelineRows(input: {
   isWorking: boolean;
   /** Native subagent work has no app run; runless entries form the live response. */
   runlessWorkActive?: boolean;
+  /** Defaults to folding; false leaves finished turns' work inline. */
+  foldCompletedTurns?: boolean;
   activeTurnStartedAt?: string | null;
   turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
   supportsConversationRollback: boolean;
@@ -1596,6 +1590,7 @@ export function deriveMessagesTimelineRows(input: {
     input.toolCallVisibility === "zen"
       ? new Map<string, TurnFold>()
       : deriveTurnFolds({
+          enabled: input.foldCompletedTurns !== false,
           timelineEntries: timelineEntries,
           terminalAssistantMessageIds,
           latestRun: input.latestRun ?? null,
@@ -2399,6 +2394,15 @@ function attachCreatedThreadSummaries(
 const WORKTREE_SETUP_ROW_ID = "worktree-setup-row";
 
 export type MessagesTimelineRowsInput = Parameters<typeof deriveMessagesTimelineRows>[0];
+type TimelineTurnFoldsInput = Pick<
+  MessagesTimelineRowsInput,
+  | "timelineEntries"
+  | "latestRun"
+  | "isWorking"
+  | "runlessWorkActive"
+  | "runningRunId"
+  | "foldCompletedTurns"
+>;
 
 interface MessagesTimelineRowsProjection {
   readonly input: MessagesTimelineRowsInput;
@@ -2410,16 +2414,7 @@ interface MessagesTimelineRowsProjection {
  * keys, so the entry's own run id is not enough to open them.
  */
 export function timelineTurnFoldRunIdsByEntryId(
-  input: Pick<
-    MessagesTimelineRowsInput,
-    | "timelineEntries"
-    | "latestRun"
-    | "isWorking"
-    | "runlessWorkActive"
-    | "runningRunId"
-    | "toolCallVisibility"
-    | "revealedMessageId"
-  >,
+  input: TimelineTurnFoldsInput,
 ): ReadonlyMap<string, RunId> {
   const byEntryId = new Map<string, RunId>();
   for (const fold of deriveTimelineTurnFolds(input).values()) {
