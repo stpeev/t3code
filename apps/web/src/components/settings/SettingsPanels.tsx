@@ -502,6 +502,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.composerCollapseOnScroll !== DEFAULT_UNIFIED_SETTINGS.composerCollapseOnScroll
       ? ["Collapse composer on scroll"]
       : []),
+    ...(settings.foldCompletedTurns !== DEFAULT_UNIFIED_SETTINGS.foldCompletedTurns
+      ? ["Fold finished turns"]
+      : []),
     ...(settings.composerRichTextEnabled !== DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled
       ? ["Rich text composer"]
       : []),
@@ -630,6 +633,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       proactivePanelsEnabled: DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled,
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerCollapseOnScroll: DEFAULT_UNIFIED_SETTINGS.composerCollapseOnScroll,
+      foldCompletedTurns: DEFAULT_UNIFIED_SETTINGS.foldCompletedTurns,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
@@ -1371,6 +1375,31 @@ export function GeneralSettingsPanel() {
                 </SelectItem>
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("fold-completed-turns")}
+          description='Hide the tool calls and commands of a finished turn behind a "Worked for" row above its reply.'
+          resetAction={
+            settings.foldCompletedTurns !== DEFAULT_UNIFIED_SETTINGS.foldCompletedTurns ? (
+              <SettingResetButton
+                label="fold finished turns"
+                onClick={() =>
+                  updateSettings({
+                    foldCompletedTurns: DEFAULT_UNIFIED_SETTINGS.foldCompletedTurns,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.foldCompletedTurns}
+              onCheckedChange={(checked) =>
+                updateSettings({ foldCompletedTurns: Boolean(checked) })
+              }
+              aria-label="Fold finished turns"
+            />
           }
         />
         <SettingsRow

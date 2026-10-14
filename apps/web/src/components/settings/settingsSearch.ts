@@ -445,6 +445,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["output token paragraph buffered wait turn legacy"],
   },
   {
+    id: "fold-completed-turns",
+    title: "Fold finished turns",
+    to: "/settings/general",
+    searchTerms: ["worked for collapse hide tool calls work commands timeline expand"],
+  },
+  {
     id: "hide-whitespace-changes",
     title: "Hide whitespace changes",
     to: "/settings/general",

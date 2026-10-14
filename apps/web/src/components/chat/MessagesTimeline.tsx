@@ -596,6 +596,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       ? new Set(paintedExpandedAttemptIds).add(activeFindAttemptId)
       : paintedExpandedAttemptIds;
 
+  const foldCompletedTurns = useClientSettings((settings) => settings.foldCompletedTurns);
   const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
     timelineEntries,
     latestRun,
@@ -605,6 +606,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     expandedWorkGroupIds,
     isWorking,
     runlessWorkActive,
+    foldCompletedTurns,
     activeTurnStartedAt,
     turnDiffSummaries,
     supportsConversationRollback,
