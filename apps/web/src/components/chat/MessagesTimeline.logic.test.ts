@@ -1433,6 +1433,22 @@ describe("deriveMessagesTimelineRows", () => {
     expect(
       expandedRows.find((row) => row.kind === "turn-fold" && row.expanded === true),
     ).toBeDefined();
+
+    const unfoldedRows = deriveMessagesTimelineRows({
+      timelineEntries,
+      foldCompletedTurns: false,
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    });
+
+    expect(unfoldedRows.map((row) => row.id)).toEqual([
+      "user-entry",
+      "assistant-first-entry",
+      "work-entry-1",
+      "assistant-final-entry",
+    ]);
   });
 
   it.each([1, 2, 3])("folds %i completed activities after the terminal response", (count) => {

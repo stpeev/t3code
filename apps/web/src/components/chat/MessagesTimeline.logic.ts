@@ -1020,6 +1020,8 @@ function failedTimelineRunIds(
  * the same way.
  */
 function deriveTurnFolds(input: {
+  /** The user's "Fold finished turns" setting; off leaves every turn's work inline. */
+  enabled: boolean;
   timelineEntries: ReadonlyArray<TimelineEntry>;
   terminalAssistantMessageIds: ReadonlySet<string>;
   latestRun: TimelineLatestRun | null;
@@ -1030,6 +1032,7 @@ function deriveTurnFolds(input: {
   /** Finished replies a steer superseded; they answer their prompt, so they stay out. */
   completeSupersededReplyEntryIds: ReadonlySet<string>;
 }): ReadonlyMap<string, TurnFold> {
+  if (!input.enabled) return new Map();
   const interruptedRunIds = new Set<RunId>();
   const promptIndexByRunId = new Map<RunId, number>();
   for (const [index, entry] of input.timelineEntries.entries()) {
@@ -1372,12 +1375,7 @@ function timelineRowEntries(entries: ReadonlyArray<TimelineEntry>) {
 }
 
 /** The turn folds the timeline would draw, before applying expansion state. */
-function deriveTimelineTurnFolds(
-  input: Pick<
-    MessagesTimelineRowsInput,
-    "timelineEntries" | "latestRun" | "isWorking" | "runlessWorkActive" | "runningRunId"
-  >,
-) {
+function deriveTimelineTurnFolds(input: TimelineTurnFoldsInput) {
   const timelineEntries = timelineRowEntries(input.timelineEntries);
   const unsettledRunId = deriveUnsettledRunId(input.latestRun ?? null, input.runningRunId ?? null);
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
@@ -1387,6 +1385,7 @@ function deriveTimelineTurnFolds(
     isWorking: input.isWorking,
   });
   return deriveTurnFolds({
+    enabled: input.foldCompletedTurns !== false,
     timelineEntries,
     terminalAssistantMessageIds: deriveTerminalAssistantMessageIds(timelineEntries),
     latestRun: input.latestRun ?? null,
@@ -1410,6 +1409,8 @@ export function deriveMessagesTimelineRows(input: {
    * runless entries are the current response instead of settled history.
    */
   runlessWorkActive?: boolean;
+  /** Defaults to folding; false leaves finished turns' work inline. */
+  foldCompletedTurns?: boolean;
   activeTurnStartedAt?: string | null;
   turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
   supportsConversationRollback: boolean;
@@ -1453,6 +1454,7 @@ export function deriveMessagesTimelineRows(input: {
   });
   const runlessWorkActive = input.isWorking && input.runlessWorkActive === true;
   const foldsByAnchorEntryId = deriveTurnFolds({
+    enabled: input.foldCompletedTurns !== false,
     timelineEntries: timelineEntries,
     terminalAssistantMessageIds,
     latestRun: input.latestRun ?? null,
@@ -2084,6 +2086,15 @@ function attachCreatedThreadSummaries(
 const WORKTREE_SETUP_ROW_ID = "worktree-setup-row";
 
 type MessagesTimelineRowsInput = Parameters<typeof deriveMessagesTimelineRows>[0];
+type TimelineTurnFoldsInput = Pick<
+  MessagesTimelineRowsInput,
+  | "timelineEntries"
+  | "latestRun"
+  | "isWorking"
+  | "runlessWorkActive"
+  | "runningRunId"
+  | "foldCompletedTurns"
+>;
 
 export interface MessagesTimelineRowsProjection {
   readonly input: MessagesTimelineRowsInput;
@@ -2096,10 +2107,7 @@ export interface MessagesTimelineRowsProjection {
  * not enough to open them.
  */
 export function timelineEntryTurnFoldRunId(
-  input: Pick<
-    MessagesTimelineRowsInput,
-    "timelineEntries" | "latestRun" | "isWorking" | "runlessWorkActive" | "runningRunId"
-  >,
+  input: TimelineTurnFoldsInput,
   entryId: string,
 ): RunId | null {
   return timelineTurnFoldRunIdsByEntryId(input).get(entryId) ?? null;
@@ -2107,10 +2115,7 @@ export function timelineEntryTurnFoldRunId(
 
 /** Every folded entry's fold key, computed once for callers that check many entries. */
 export function timelineTurnFoldRunIdsByEntryId(
-  input: Pick<
-    MessagesTimelineRowsInput,
-    "timelineEntries" | "latestRun" | "isWorking" | "runlessWorkActive" | "runningRunId"
-  >,
+  input: TimelineTurnFoldsInput,
 ): ReadonlyMap<string, RunId> {
   const byEntryId = new Map<string, RunId>();
   for (const fold of deriveTimelineTurnFolds(input).values()) {

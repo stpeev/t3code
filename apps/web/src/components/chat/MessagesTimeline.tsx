@@ -903,6 +903,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     [activeFindAttemptId, paintedExpandedAttemptIds],
   );
 
+  const foldCompletedTurns = useClientSettings((settings) => settings.foldCompletedTurns);
   const rowsProjectionRef = useRef<{
     readonly threadKey: string;
     readonly workspaceRoot: string | undefined;
@@ -920,6 +921,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
         expandedWorkGroupIds,
         isWorking,
         runlessWorkActive,
+        foldCompletedTurns,
         activeTurnStartedAt,
         turnDiffSummaries,
         supportsConversationRollback,
@@ -943,6 +945,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     expandedWorkGroupIds,
     isWorking,
     runlessWorkActive,
+    foldCompletedTurns,
     activeTurnStartedAt,
     turnDiffSummaries,
     supportsConversationRollback,
