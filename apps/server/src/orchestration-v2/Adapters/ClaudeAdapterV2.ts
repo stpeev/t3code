@@ -2850,6 +2850,7 @@ export interface ClaudeRuntimeQueryPolicy {
   readonly permissionMode: PermissionMode;
   readonly tools?: ClaudeAgentSdkQueryTools;
   readonly allowedTools?: ReadonlyArray<string>;
+  readonly disallowedTools?: ReadonlyArray<string>;
   readonly allowDangerouslySkipPermissions?: true;
   readonly installPermissionCallback: boolean;
 }
@@ -2863,6 +2864,9 @@ const CLAUDE_BYPASS_FULLY_AVAILABLE: ClaudeBypassAvailability = {
   bypassDisabled: false,
   autoDisabled: false,
 };
+
+// Claude's own subagent tool (`Task` in older CLIs); a callback deny is skipped under bypassPermissions.
+const CLAUDE_NATIVE_SUBAGENT_TOOLS = ["Agent", "Task"] as const;
 
 export function claudeRuntimeQueryPolicyForRuntimePolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
@@ -2890,12 +2894,15 @@ export function claudeRuntimeQueryPolicyForRuntimePolicy(
       ? runtimePolicy.runtimeMode === "approval-required" ||
         runtimePolicy.runtimeMode === "auto-accept-edits"
       : runtimePolicy.approvalPolicy !== "never");
+  const disallowedTools =
+    runtimePolicy.nativeSubagents === "blocked" ? CLAUDE_NATIVE_SUBAGENT_TOOLS : undefined;
 
   if (permissionMode === "plan") {
     return {
       permissionMode,
       ...(readOnlyTools === undefined ? {} : { tools: readOnlyTools }),
       ...(allowedTools === undefined ? {} : { allowedTools }),
+      ...(disallowedTools === undefined ? {} : { disallowedTools }),
       // Claude routes Plan-mode writes to the callback even in Auto or Full access.
       installPermissionCallback: true,
     };
@@ -2905,6 +2912,7 @@ export function claudeRuntimeQueryPolicyForRuntimePolicy(
     permissionMode,
     ...(readOnlyTools === undefined ? {} : { tools: readOnlyTools }),
     ...(allowedTools === undefined ? {} : { allowedTools }),
+    ...(disallowedTools === undefined ? {} : { disallowedTools }),
     ...(permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
     installPermissionCallback,
   };
@@ -3012,6 +3020,8 @@ function claudeRuntimeQueryPolicyKey(policy: ClaudeRuntimeQueryPolicy): string {
   return JSON.stringify({
     permissionMode: policy.permissionMode,
     tools: policy.tools,
+    // disallowedTools is left out on purpose: a role-model change waits for the next query open
+    // rather than replacing a live process, which fails turns that have background work.
     allowedTools: policy.allowedTools,
     allowDangerouslySkipPermissions: policy.allowDangerouslySkipPermissions,
     installPermissionCallback: policy.installPermissionCallback,
@@ -10942,6 +10952,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               ? {}
               : { mcpServers: mcpOverrides.mcpServers }),
             deviceToolsAvailable: mcpSession?.capabilities?.has("device") === true,
+            ...(queryPolicy.disallowedTools === undefined
+              ? {}
+              : { disallowedTools: queryPolicy.disallowedTools }),
             permissionMode: queryPolicy.permissionMode,
             ...(queryPolicy.allowDangerouslySkipPermissions === undefined
               ? {}

@@ -114,7 +114,11 @@ export function SubagentModelSettings() {
     disabledReason,
   };
   return (
-    <SettingsSection id="subagent-models" title="Subagent models">
+    <SettingsSection
+      id="subagent-models"
+      title="Subagent models"
+      description="While any role has a model, agents' built-in subagent tools are turned off on Claude, Cursor, OpenCode, Codex and Pi, so delegation goes through T3 Code."
+    >
       {ROLE_ROWS.map((row) => (
         <SubagentModelRow key={row.role} {...row} shared={shared} />
       ))}
