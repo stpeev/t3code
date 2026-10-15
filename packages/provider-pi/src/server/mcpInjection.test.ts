@@ -6,6 +6,7 @@ import {
   T3_MCP_URL_ENV,
   T3_PI_RUNTIME_MODE_ENV,
   T3_PI_MCP_EXTENSION_PATH_ENV,
+  T3_PI_NATIVE_SUBAGENTS_ENV,
 } from "./mcpExtensionSource.ts";
 import { buildPiRpcLaunch, resolvePiLaunchArgs } from "./mcpInjection.ts";
 
@@ -85,6 +86,24 @@ describe("pi T3 MCP injection", () => {
       permissionOnly.env[T3_PI_MCP_EXTENSION_PATH_ENV],
       "/tmp/cache/pi-t3-mcp-extension.ts",
     );
+  });
+
+  it("tells the bridge to block native subagents only when asked, never inheriting it", () => {
+    const launchFor = (nativeSubagents?: "allowed" | "blocked", withMcp = true) =>
+      buildPiRpcLaunch({
+        launchArgs: [],
+        environment: { [T3_PI_NATIVE_SUBAGENTS_ENV]: "blocked" },
+        mcpSession: withMcp ? mcpSession : undefined,
+        extensionPath: "/tmp/cache/pi-t3-mcp-extension.ts",
+        runtimeMode: "full-access",
+        ...(nativeSubagents === undefined ? {} : { nativeSubagents }),
+      });
+
+    assert.equal(launchFor("blocked").env[T3_PI_NATIVE_SUBAGENTS_ENV], "blocked");
+    assert.isUndefined(launchFor("allowed").env[T3_PI_NATIVE_SUBAGENTS_ENV]);
+    assert.isUndefined(launchFor().env[T3_PI_NATIVE_SUBAGENTS_ENV]);
+    // Without T3's MCP there is no delegate_task to fall back on.
+    assert.isUndefined(launchFor("blocked", false).env[T3_PI_NATIVE_SUBAGENTS_ENV]);
   });
 
   it("forces tools and user extensions off for unattended text generation", () => {

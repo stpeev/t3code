@@ -9,6 +9,7 @@ import {
   resolveProjectProviderInstanceEnabled,
   type ResolvedServerSettings,
   type ServerSettings,
+  SUBAGENT_MODEL_SELECTION_SETTING_KEYS,
   type T3ProjectFile,
   type ThreadEnvMode,
   type WorktreeCleanupRules,
@@ -210,6 +211,12 @@ export function resolveSendEnvMode(input: {
   readonly isGitRepo: boolean;
 }): ThreadEnvMode {
   return input.isGitRepo ? input.requestedEnvMode : "local";
+}
+
+/** Whether any delegated task role has its own model in this project. */
+export function hasSubagentRoleModel(settings: ServerSettings, projectId: ProjectId): boolean {
+  const effective = resolveProjectSettings(settings, projectId).settings;
+  return SUBAGENT_MODEL_SELECTION_SETTING_KEYS.some((key) => effective[key] !== null);
 }
 
 export function clearProjectSettingsOverrides(

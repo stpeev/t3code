@@ -52,6 +52,8 @@ export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
   approvalPolicy: Schema.optional(Schema.Unknown),
   sandboxPolicy: Schema.optional(Schema.Unknown),
   reasoningEffort: Schema.optional(Schema.String),
+  /** `blocked`: withhold the provider's own subagent tool so delegation goes through `delegate_task`. */
+  nativeSubagents: Schema.optional(Schema.Literals(["allowed", "blocked"])),
 });
 export type ProviderAdapterV2RuntimePolicy = typeof ProviderAdapterV2RuntimePolicy.Type;
 

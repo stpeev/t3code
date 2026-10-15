@@ -11,8 +11,10 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import { hasSubagentRoleModel } from "@t3tools/shared/projectSettings";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 
 export class RuntimePolicyResolveError extends Schema.TaggedError<RuntimePolicyResolveError>()(
@@ -79,6 +81,21 @@ export const layerFromProjectStore: Layer.Layer<
   Effect.gen(function* () {
     const projects = yield* ProjectStore.ProjectStoreV2;
     const providerInstances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
+    const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
+    // Unreadable settings leave native subagents alone rather than failing the turn.
+    const nativeSubagents = (projectId: ProjectId) =>
+      Option.match(serverSettings, {
+        onNone: () => Effect.succeed("allowed" as const),
+        onSome: (service) =>
+          service.getSettings.pipe(
+            Effect.map((settings) =>
+              hasSubagentRoleModel(settings, projectId)
+                ? ("blocked" as const)
+                : ("allowed" as const),
+            ),
+            Effect.orElseSucceed(() => "allowed" as const),
+          ),
+      });
     return RuntimePolicyV2.of({
       resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
         const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
@@ -115,6 +132,7 @@ export const layerFromProjectStore: Layer.Layer<
           runtimeMode: providerRuntimeMode(input.thread.runtimeMode, supportedRuntimeModes),
           interactionMode: input.thread.interactionMode,
           cwd,
+          nativeSubagents: yield* nativeSubagents(input.thread.projectId),
         });
       }),
     });

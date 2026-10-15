@@ -1358,7 +1358,7 @@ export const CODEX_THREAD_CONFIG = {
 // that limit so the server's own wait timeout ends a long call.
 const CODEX_T3_MCP_TOOL_TIMEOUT_SEC = 65 * 60;
 
-function codexThreadRuntimeParams(input: {
+export function codexThreadRuntimeParams(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly modelSelection?: { readonly model: string };
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
@@ -1373,6 +1373,10 @@ function codexThreadRuntimeParams(input: {
     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
     config: {
       ...CODEX_THREAD_CONFIG,
+      // The same switches managed Codex sets at launch; unverified that Codex honours them per thread.
+      ...(input.runtimePolicy?.nativeSubagents === "blocked"
+        ? { "features.multi_agent": false, "features.multi_agent_v2": false }
+        : {}),
       ...(mcpSession === undefined
         ? {}
         : {

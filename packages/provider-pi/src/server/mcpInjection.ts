@@ -10,6 +10,7 @@ import {
   T3_MCP_URL_ENV,
   T3_PI_RUNTIME_MODE_ENV,
   T3_PI_MCP_EXTENSION_PATH_ENV,
+  T3_PI_NATIVE_SUBAGENTS_ENV,
 } from "./mcpExtensionSource.ts";
 
 const RESERVED_PI_LAUNCH_ARGUMENTS = new Set([
@@ -250,6 +251,7 @@ export function buildPiRpcLaunch(input: {
   readonly disableExtensions?: boolean;
   readonly disableTools?: boolean;
   readonly runtimeMode?: "approval-required" | "auto-accept-edits" | "auto" | "full-access";
+  readonly nativeSubagents?: "allowed" | "blocked";
 }): {
   readonly args: ReadonlyArray<string>;
   readonly env: NodeJS.ProcessEnv;
@@ -290,6 +292,7 @@ export function buildPiRpcLaunch(input: {
   delete environment[T3_MCP_URL_ENV];
   delete environment[T3_MCP_BEARER_ENV];
   delete environment[T3_PI_MCP_EXTENSION_PATH_ENV];
+  delete environment[T3_PI_NATIVE_SUBAGENTS_ENV];
 
   return {
     args,
@@ -303,6 +306,10 @@ export function buildPiRpcLaunch(input: {
             [T3_PI_RUNTIME_MODE_ENV]:
               input.runtimeMode === "auto" ? "approval-required" : input.runtimeMode,
           }
+        : {}),
+      // Only with T3's MCP attached, so delegate_task exists to take over.
+      ...(hasT3Mcp && input.nativeSubagents === "blocked"
+        ? { [T3_PI_NATIVE_SUBAGENTS_ENV]: "blocked" }
         : {}),
       ...(hasT3Mcp && input.mcpSession !== undefined
         ? {

@@ -473,6 +473,9 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         mcpSession,
         extensionPath,
         runtimeMode: input.runtimePolicy.runtimeMode,
+        ...(input.runtimePolicy.nativeSubagents === undefined
+          ? {}
+          : { nativeSubagents: input.runtimePolicy.nativeSubagents }),
       });
       const scopedLaunch = yield* agentScope.wrap({
         command: options.settings.binaryPath || "pi",

@@ -9,6 +9,7 @@ export const PI_T3_MCP_EXTENSION_FILENAME = "pi-t3-mcp-extension.ts";
 export const T3_MCP_URL_ENV = "T3_MCP_URL";
 export const T3_MCP_BEARER_ENV = "T3_MCP_BEARER_TOKEN";
 export const T3_PI_RUNTIME_MODE_ENV = "T3_PI_RUNTIME_MODE";
+export const T3_PI_NATIVE_SUBAGENTS_ENV = "T3_PI_NATIVE_SUBAGENTS";
 export const T3_PI_MCP_EXTENSION_PATH_ENV = "T3_PI_MCP_EXTENSION_PATH";
 
 /**
@@ -26,6 +27,7 @@ import { Type } from "typebox";
 const URL_ENV = ${JSON.stringify(T3_MCP_URL_ENV)};
 const TOKEN_ENV = ${JSON.stringify(T3_MCP_BEARER_ENV)};
 const RUNTIME_MODE_ENV = ${JSON.stringify(T3_PI_RUNTIME_MODE_ENV)};
+const NATIVE_SUBAGENTS_ENV = ${JSON.stringify(T3_PI_NATIVE_SUBAGENTS_ENV)};
 const EXTENSION_PATH_ENV = ${JSON.stringify(T3_PI_MCP_EXTENSION_PATH_ENV)};
 const ORCHESTRATION_INSTRUCTIONS = ${JSON.stringify(T3_CODE_ORCHESTRATION_INSTRUCTIONS.trim())};
 const PROTOCOL = "2025-06-18";
@@ -321,6 +323,10 @@ export default async function t3McpExtension(pi: ExtensionAPI) {
   };
 
   pi.on("tool_call", async (event, ctx) => {
+    // Checked before the full-access return: role models apply only through T3's delegate_task.
+    if (event.toolName === "subagent" && env(NATIVE_SUBAGENTS_ENV) === "blocked") {
+      return { block: true, reason: "Delegate through mcp__t3-code__delegate_task in this project." };
+    }
     const mode = runtimeMode();
     if (mode === "full-access") return;
     if ((event.toolName === "tool_search" ? hasBuiltinToolSearch() : READ_ONLY_TOOLS.has(event.toolName)) || isReadOnlyMcpTool(event.toolName)) {
