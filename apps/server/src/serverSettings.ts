@@ -21,6 +21,7 @@ import {
   isSecretReference,
   type SecretReference,
   withIdleCompaction,
+  SUBAGENT_MODEL_SELECTION_SETTING_KEYS,
 } from "@t3tools/contracts";
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
@@ -545,6 +546,7 @@ const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set([
   "providerHealthRefreshInterval",
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
+  ...SUBAGENT_MODEL_SELECTION_SETTING_KEYS,
   "textGenerationModelSelection",
   "fallbackModelSelection",
   "pullRequestMergeMethod",

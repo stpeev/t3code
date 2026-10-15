@@ -50,6 +50,7 @@ import {
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
+import { SubagentModelSettings } from "./SubagentModelSettings";
 import {
   defaultProjectIcon,
   hasDefaultProjectIcon,
@@ -654,6 +655,7 @@ function ProjectDetail({
           ) : null}
         </SettingsSection>
         <ProjectDefaultsSettings category="project" />
+        <SubagentModelSettings />
         <ProjectActionsSettings />
         {checkoutChoices}
         <SettingsSection title="Danger">
