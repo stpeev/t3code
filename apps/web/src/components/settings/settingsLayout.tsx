@@ -299,6 +299,7 @@ export function SettingsRow({
   description,
   status,
   resetAction,
+  resetLabel,
   onResetOverride,
   control,
   serverScoped = false,
@@ -312,6 +313,8 @@ export function SettingsRow({
   description?: ReactNode;
   status?: ReactNode;
   resetAction?: ReactNode;
+  /** Names the setting in the override reset's accessible label when the title alone is ambiguous. */
+  resetLabel?: string;
   onResetOverride?: () => void;
   control?: ReactNode;
   serverScoped?: boolean;
@@ -364,7 +367,7 @@ export function SettingsRow({
   const renderedReset = unavailable ? null : isProjectScope && scopedKeys.length > 0 ? (
     source === "project" || source === "mixed" ? (
       <SettingResetButton
-        label={typeof title === "string" ? title : "override"}
+        label={resetLabel ?? (typeof title === "string" ? title : "override")}
         tooltip="Reset to inherited value"
         onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
       />
