@@ -65,6 +65,7 @@ import { scopedIdleCompaction } from "./scopedSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { ThreadTitleInstructionsSettings } from "./ThreadTitleInstructionsSettings";
 import { SnoozePresetsRow } from "./SnoozePresetsSettings";
+import { SubagentModelSettings } from "./SubagentModelSettings";
 import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import { managedTelemetryOffMessage, usePrimaryManagedPolicy } from "../../state/managedPolicy";
 import {
@@ -1969,6 +1970,7 @@ export function ThreadsSettingsPanel() {
       </SettingsSection>
 
       <ProjectDefaultsSettings category="general" />
+      <SubagentModelSettings />
 
       {!isProjectScope ? (
         <SettingsSection id="snooze" title="Snooze">
