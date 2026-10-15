@@ -210,6 +210,18 @@ If the pattern file is missing, creating the worktree fails instead of checking 
 Submodules still follow **Submodules** above, also under excluded paths; set it to **Skip** to leave
 them empty. The first sparse worktree turns on Git's `extensions.worktreeConfig` for the repository.
 This needs Git 2.35 or newer.
+## Subagent models
+
+Agents can hand work to subagents and label each task with a role: implementation, research,
+review, design, test, or general. In **Settings → General → Subagent models**, turn a role on and
+pick the model its subagents run on, for example a faster model for tests. Select a project to
+use a different model there. A role left off runs on the model of the thread that delegated it.
+
+The agent still uses a model you name in your message. If a role's model becomes unavailable,
+for example because its provider is turned off for the project, delegation for that role fails
+with a message naming the setting instead of quietly running on another model. Agents' built-in
+subagent tools don't follow these settings, so T3 Code tells agents to delegate through its own
+tool whenever a role has a model set.
 
 ## Worktree location
 
