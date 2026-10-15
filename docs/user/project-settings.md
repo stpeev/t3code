@@ -37,12 +37,27 @@ Configure worktrees in **Settings → Worktrees** (environment default or projec
 
 Enable automatic cleanup in **Settings → Worktrees → Cleanup** (off by default; runs on startup, on change, and hourly). Projects can set **Automatic worktree cleanup** to **Inherit**, **Off**, or **Custom**.
 
+
 - **Triggers**: Inactive days, days after settlement (`0` = next cleanup), merged PRs (including GitHub squash/rebase merges into the default branch), or settled/archived threads with no commits beyond the default branch.
 - **Safety**: Active sessions and shared worktrees are never removed. **Keep worktrees with local changes** defaults to **Uncommitted changes** (protects tracked edits and untracked files; removes ignored files like `.env`/build output). Choose **Any local files** (also protects ignored files except `node_modules`) or **Edited tracked files** (protects tracked edits only).
 - **Delete with deleted threads**: Enable **Delete worktrees with deleted threads** to automatically clean up safe worktrees once their last thread is deleted.
 - **Scratch folders**: Inactive and settled rules also apply to [no-project scratch folders](./thread-sidebar.md#start-without-a-project) (skipped if they contain a Git repo or enabled scheduled task). Because scratch files aren't in Git, deleted files cannot be recovered.
 - **Manual run**: Click **Delete now** to run rules immediately and inspect what was removed, kept, or orphaned (untracked folders are listed but never auto-deleted).
 - **Captures and logs**: Browser captures and rotated logs have separate machine-wide retention periods.
+
+
+## Subagent models
+
+Agents can hand work to subagents and label each task with a role: implementation, research,
+review, design, test, or general. In **Settings → General → Subagent models**, turn a role on and
+pick the model its subagents run on, for example a faster model for tests. Select a project to
+use a different model there. A role left off runs on the model of the thread that delegated it.
+
+The agent still uses a model you name in your message. If a role's model becomes unavailable,
+for example because its provider is turned off for the project, delegation for that role fails
+with a message naming the setting instead of quietly running on another model. Agents' built-in
+subagent tools don't follow these settings, so T3 Code tells agents to delegate through its own
+tool whenever a role has a model set.
 
 ## Keep the default branch current
 

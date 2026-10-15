@@ -54,7 +54,11 @@ import {
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { ProjectRepositoriesSettings } from "./ProjectRepositoriesSettings";
+
 import { ProjectWorktreeLayoutSettings } from "./ProjectWorktreeLayoutSettings";
+
+import { SubagentModelSettings } from "./SubagentModelSettings";
+
 import {
   defaultProjectIcon,
   hasDefaultProjectIcon,
@@ -692,6 +696,7 @@ function ProjectDetail({
           ) : null}
         </SettingsSection>
         <ProjectDefaultsSettings category="project" />
+        <SubagentModelSettings />
         <ProjectActionsSettings />
         <ProjectRepositoriesSettings members={group.memberProjects} />
         <ProjectWorktreeLayoutSettings members={group.memberProjects} />

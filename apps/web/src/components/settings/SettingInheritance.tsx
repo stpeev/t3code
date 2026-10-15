@@ -4,13 +4,12 @@ import {
   type ProjectFileBackedSettingKey,
   resolveEnvironmentMachineKind,
   type ServerSettings,
+  SUBAGENT_MODEL_SELECTION_SETTING_KEYS,
   type WorktreeSubmodules,
 } from "@t3tools/contracts";
 import { CheckIcon, ChevronRightIcon, LayersIcon } from "lucide-react";
 import * as Equal from "effect/Equal";
-import { msg, T, useGT, useMessages } from "gt-react";
 
-import { m, type MessageResolver } from "../../i18n/messages";
 import { cn } from "../../lib/utils";
 import type { EnvironmentPresentation } from "../../state/environments";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
@@ -23,7 +22,11 @@ import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import type { ProjectOverrideEntry, ScopedSettingsTarget } from "./scopedSettings";
 import { isProjectScopedSettingKey } from "./scopedSettings";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
+
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
+
+import { msg, T, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 interface InheritanceLayer {
   readonly key: "project" | "environment" | "t3.json" | "built-in";
@@ -34,88 +37,70 @@ interface InheritanceLayer {
 }
 
 const WRITING_STYLE_LABELS: Record<string, string> = {
-  repo_conventions: msg("Repository conventions"),
-  conventional_commits: msg("Conventional Commits"),
-  custom: msg("Custom instructions"),
+  repo_conventions: "Repository conventions",
+  conventional_commits: "Conventional Commits",
+  custom: "Custom instructions",
 };
 
 const BACKGROUND_ACTIVITY_PROFILE_LABELS: Record<string, string> = {
-  balanced: msg("Balanced"),
-  performance: msg("Performance"),
-  "battery-saver": msg("Battery saver"),
-  custom: msg("Advanced", { $context: "background activity power profile" }),
+  balanced: "Balanced",
+  performance: "Performance",
+  "battery-saver": "Battery saver",
+  custom: "Advanced",
 };
 
-function formatValue(
-  key: keyof ServerSettings,
-  value: unknown,
-  resolve: MessageResolver = m,
-): string {
+function formatValue(key: keyof ServerSettings, value: unknown): string {
   if (value === null || value === undefined) {
     return key === "pullRequestMergeMethod"
-      ? resolve(msg("Last selected"))
+      ? m(msg("Last selected"))
       : key === "sidebarAutoSettleAfterDays"
-        ? resolve(msg("Never"))
+        ? m(msg("Never"))
         : key === "defaultModelSelection"
-          ? resolve(msg("Automatic"))
+          ? m(msg("Automatic"))
           : key === "sourceControlWriterModelSelection"
-            ? resolve(msg("Text generation model"))
+            ? m(msg("Text generation model"))
             : key === "reviewGuideModelSelection"
-              ? resolve(msg("Source control writer model"))
-              : key === "defaultThreadEnvMode" || key === "worktreeSubmodules"
-                ? resolve(msg("Inherit"))
-                : resolve(msg("Not set"));
+              ? m(msg("Source control writer model"))
+              : (SUBAGENT_MODEL_SELECTION_SETTING_KEYS as ReadonlyArray<string>).includes(key)
+                ? m(msg("Thread's model"))
+                : key === "defaultThreadEnvMode" || key === "worktreeSubmodules"
+                  ? m(msg("Inherit"))
+                  : m(msg("Not set"));
   }
-  if (typeof value === "boolean") {
-    return value
-      ? resolve(msg("On", { $context: "setting value" }))
-      : resolve(msg("Off", { $context: "setting value" }));
-  }
+  if (typeof value === "boolean") return value ? m(msg("On")) : m(msg("Off"));
   if (typeof value === "number") {
     return key === "sidebarAutoSettleAfterDays"
-      ? resolve(msg("{count, plural, one {{count} day} other {{count} days}}", { count: value }))
+      ? `${value} ${value === 1 ? "day" : "days"}`
       : String(value);
   }
   if (typeof value === "string") {
     if (key === "defaultThreadEnvMode" && (value === "local" || value === "worktree")) {
-      return resolveEnvModeLabel(value, resolve);
+      return resolveEnvModeLabel(value);
     }
     if (key === "worktreeSubmodules" && value in WORKTREE_SUBMODULES_LABELS) {
-      return resolve(WORKTREE_SUBMODULES_LABELS[value as WorktreeSubmodules]);
+      return WORKTREE_SUBMODULES_LABELS[value as WorktreeSubmodules];
     }
     if (key === "pullRequestMergeMethod" && value in PULL_REQUEST_MERGE_METHOD_LABELS) {
-      return resolve(
-        PULL_REQUEST_MERGE_METHOD_LABELS[value as keyof typeof PULL_REQUEST_MERGE_METHOD_LABELS],
-      );
+      return PULL_REQUEST_MERGE_METHOD_LABELS[
+        value as keyof typeof PULL_REQUEST_MERGE_METHOD_LABELS
+      ];
     }
-    return value === "" ? resolve(msg("Empty")) : value;
+    return value === "" ? m(msg("Empty")) : value;
   }
-  if (Array.isArray(value)) {
-    return resolve(
-      msg("{count, plural, one {{count} item} other {{count} items}}", { count: value.length }),
-    );
-  }
+  if (Array.isArray(value)) return `${value.length} ${value.length === 1 ? "item" : "items"}`;
   if (typeof value === "object") {
     if (key === "backgroundActivity" && "profile" in value && typeof value.profile === "string") {
-      const label = BACKGROUND_ACTIVITY_PROFILE_LABELS[value.profile];
-      return label ? resolve(label) : value.profile;
+      return BACKGROUND_ACTIVITY_PROFILE_LABELS[value.profile] ?? value.profile;
     }
     if ("model" in value && typeof value.model === "string") return value.model;
     if ("mode" in value && typeof value.mode === "string") {
-      if (key === "worktreeCleanup") {
-        return value.mode === "off"
-          ? resolve(msg("Off", { $context: "setting value" }))
-          : resolve(msg("Custom", { $context: "setting value" }));
-      }
+      if (key === "worktreeCleanup") return value.mode === "off" ? m(msg("Off")) : m(msg("Custom"));
       return key === "sourceControlWritingStyle"
-        ? (() => {
-            const label = WRITING_STYLE_LABELS[value.mode];
-            return label ? resolve(label) : value.mode;
-          })()
+        ? (WRITING_STYLE_LABELS[value.mode] ?? value.mode)
         : value.mode;
     }
   }
-  return resolve(msg("Custom", { $context: "setting value" }));
+  return m(msg("Custom"));
 }
 
 /** Matches resolveProjectSettings order. */
@@ -123,7 +108,6 @@ export function settingInheritanceLayers(
   target: ScopedSettingsTarget,
   environmentSettings: ServerSettings,
   key: keyof ServerSettings,
-  resolve: MessageResolver = m,
 ): readonly InheritanceLayer[] {
   const environmentValue = environmentSettings[key];
   const source = isProjectScopedSettingKey(key) ? target.sources[key] : "environment";
@@ -133,11 +117,8 @@ export function settingInheritanceLayers(
   if (target.projectId !== null && isProjectScopedSettingKey(key)) {
     layers.push({
       key: "project",
-      label: resolve(msg("Project")),
-      value:
-        source === "project"
-          ? formatValue(key, target.settings[key], resolve)
-          : resolve(msg("Inherits")),
+      label: m(msg("Project")),
+      value: source === "project" ? formatValue(key, target.settings[key]) : "Inherits",
       effective: source === "project",
       set: source === "project",
     });
@@ -145,7 +126,7 @@ export function settingInheritanceLayers(
   layers.push({
     key: "environment",
     label: target.label,
-    value: environmentSet ? formatValue(key, environmentValue, resolve) : resolve(msg("Inherits")),
+    value: environmentSet ? formatValue(key, environmentValue) : "Inherits",
     effective: source === "environment" && environmentSet,
     set: environmentSet,
   });
@@ -153,10 +134,7 @@ export function settingInheritanceLayers(
     layers.push({
       key: "t3.json",
       label: "t3.json",
-      value:
-        source === "t3.json"
-          ? formatValue(key, target.settings[key], resolve)
-          : resolve(msg("Inherits")),
+      value: source === "t3.json" ? formatValue(key, target.settings[key]) : "Inherits",
       effective: source === "t3.json",
       set: source === "t3.json",
     });
@@ -167,8 +145,8 @@ export function settingInheritanceLayers(
     : DEFAULT_SERVER_SETTINGS[key];
   layers.push({
     key: "built-in",
-    label: resolve(msg("Default", { $context: "built-in default value" })),
-    value: formatValue(key, builtIn, resolve),
+    label: m(msg("Default")),
+    value: formatValue(key, builtIn),
     effective: source === "environment" && !environmentSet,
     set: true,
   });
@@ -213,7 +191,6 @@ export function SettingInheritance({
   overridingProjects?: readonly SettingOverridingProject[];
   onClearOverrides?: (entries: readonly ProjectOverrideEntry[]) => void;
 }) {
-  const messages = useMessages();
   const gt = useGT();
   const scopeContext = useOptionalSettingsScope();
   const key = keys[0];
@@ -235,12 +212,7 @@ export function SettingInheritance({
     const secondary = [labels.secondary, path?.split(/[\\/]/).filter(Boolean).slice(-2).join("/")]
       .filter(Boolean)
       .join(" · ");
-    const layers = settingInheritanceLayers(
-      target,
-      environment.serverConfig.settings,
-      key,
-      messages,
-    );
+    const layers = settingInheritanceLayers(target, environment.serverConfig.settings, key);
     const winningLayer = layers.find((layer) => layer.effective);
     return [
       {
@@ -326,7 +298,7 @@ export function SettingInheritance({
                         layer.effective ? "font-medium text-foreground" : "text-muted-foreground",
                       )}
                     >
-                      {layer.key === "environment" ? gt("Environment") : layer.label}
+                      {layer.key === "environment" ? m(msg("Environment")) : layer.label}
                     </span>
                     <span
                       className={cn(
@@ -379,7 +351,7 @@ export function SettingInheritance({
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {winningLayer?.key === "environment"
-                              ? gt("Environment")
+                              ? m(msg("Environment"))
                               : winningLayer?.label}
                           </span>
                           <ChevronRightIcon
@@ -441,7 +413,8 @@ export function SettingInheritance({
                       )}
                       {onClearOverrides ? (
                         <InlineButton onClick={() => onClearOverrides(overriding)}>
-                          {overriding.length === 1 ? gt("Reset it") : gt("Reset all")}
+                          <T>Reset </T>
+                          {overriding.length === 1 ? "it" : "all"}
                         </InlineButton>
                       ) : null}
                     </div>
@@ -477,7 +450,6 @@ export function SettingInheritance({
                                     (member) =>
                                       member.target.environmentId === project.environmentId,
                                   )?.overrides[project.projectId]?.[key],
-                                  messages,
                                 )
                               : null}
                           </span>
