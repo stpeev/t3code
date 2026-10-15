@@ -48,6 +48,7 @@ import {
   ProviderDriverKind,
 } from "./providerInstance.ts";
 import { PullRequestMergeMethod } from "./pullRequest.ts";
+import type { OrchestratorMcpTaskRole } from "./orchestratorMcp.ts";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;
@@ -1012,6 +1013,12 @@ export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
+  "implementationSubagentModelSelection",
+  "researchSubagentModelSelection",
+  "reviewSubagentModelSelection",
+  "designSubagentModelSelection",
+  "testSubagentModelSelection",
+  "generalSubagentModelSelection",
   "sourceControlWritingStyle",
   "removeAgentCreditsOnMerge",
   "branchNamingMode",
@@ -1056,6 +1063,12 @@ export const ProjectSettingsOverrides = Schema.Struct({
   sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideInstructions: Schema.optionalKey(TrimmedString),
+  implementationSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  researchSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  reviewSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  designSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  testSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  generalSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSetting),
   removeAgentCreditsOnMerge: Schema.optionalKey(Schema.Boolean),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
@@ -1072,6 +1085,19 @@ export const ProjectSettingsOverrides = Schema.Struct({
   ),
 } satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
+
+/** The setting that holds each delegated task role's model. */
+export const SUBAGENT_MODEL_SELECTION_SETTING_KEY_BY_ROLE = {
+  implementation: "implementationSubagentModelSelection",
+  research: "researchSubagentModelSelection",
+  review: "reviewSubagentModelSelection",
+  design: "designSubagentModelSelection",
+  test: "testSubagentModelSelection",
+  general: "generalSubagentModelSelection",
+} as const satisfies Record<OrchestratorMcpTaskRole, ProjectScopedServerSettingKey>;
+export const SUBAGENT_MODEL_SELECTION_SETTING_KEYS = Object.values(
+  SUBAGENT_MODEL_SELECTION_SETTING_KEY_BY_ROLE,
+);
 
 /**
  * Whether `null` is a stored override value for this key rather than "unset".
@@ -1090,6 +1116,12 @@ const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettin
   "defaultModelSelection",
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
+  "implementationSubagentModelSelection",
+  "researchSubagentModelSelection",
+  "reviewSubagentModelSelection",
+  "designSubagentModelSelection",
+  "testSubagentModelSelection",
+  "generalSubagentModelSelection",
   "pullRequestMergeMethod",
   "sidebarAutoSettleAfterDays",
 ]);
@@ -1316,6 +1348,26 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   reviewGuideInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  /** Model for a delegated task of this role when the agent names no target (no role is `general`).
+   * `null` runs it on the delegating thread's model. */
+  implementationSubagentModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  researchSubagentModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  reviewSubagentModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  designSubagentModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  testSubagentModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  generalSubagentModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
 
   pullRequestMergeMethod: Schema.NullOr(PullRequestMergeMethod).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
@@ -1638,6 +1690,12 @@ export const ServerSettingsPatch = Schema.Struct({
   reviewGuidesEnabled: Schema.optionalKey(Schema.Boolean),
   reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideInstructions: Schema.optionalKey(TrimmedString),
+  implementationSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  researchSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  reviewSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  designSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  testSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  generalSubagentModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),
   observability: Schema.optionalKey(
     Schema.Struct({

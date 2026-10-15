@@ -56,6 +56,7 @@ import { useSettingsScope } from "./SettingsScopeContext";
 import { scopedIdleCompaction } from "./scopedSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { ThreadTitleInstructionsSettings } from "./ThreadTitleInstructionsSettings";
+import { SubagentModelSettings } from "./SubagentModelSettings";
 import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import {
   getCustomModelOptionsByInstance,
@@ -901,6 +902,7 @@ export function GeneralSettingsPanel() {
   return (
     <SettingsPageContainer>
       <ProjectDefaultsSettings category="general" />
+      <SubagentModelSettings />
       <SettingsSection id="organization" title="Organization">
         <SettingsRow
           {...searchableSetting("project-grouping")}

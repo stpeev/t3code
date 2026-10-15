@@ -21,6 +21,7 @@ import {
   ServerSettings,
   type ServerSettingsPatch,
   withIdleCompaction,
+  SUBAGENT_MODEL_SELECTION_SETTING_KEYS,
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -607,6 +608,11 @@ export function applyServerSettingsPatch(
     ...(patch.reviewGuideModelSelection !== undefined
       ? { reviewGuideModelSelection: patch.reviewGuideModelSelection }
       : {}),
+    ...Object.fromEntries(
+      SUBAGENT_MODEL_SELECTION_SETTING_KEYS.flatMap((key) =>
+        patch[key] === undefined ? [] : [[key, patch[key]]],
+      ),
+    ),
     ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
     ...(providerHealthRefreshInterval !== undefined ? { providerHealthRefreshInterval } : {}),
   };
