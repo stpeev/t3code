@@ -14,6 +14,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import { hasSubagentRoleModel } from "@t3tools/shared/projectSettings";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ServerSettings from "../serverSettings.ts";
@@ -144,6 +145,21 @@ export const layerFromProjectStore: Layer.Layer<
     // The same ceiling the orchestrator enforces, fixed for the server's life.
     const { managedPolicy } = yield* ServerSettings.ServerSettingsService;
     const maxRuntimeMode = managedPolicy?.limits?.maxRuntimeMode;
+    const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
+    // Unreadable settings leave native subagents alone rather than failing the turn.
+    const nativeSubagents = (projectId: ProjectId) =>
+      Option.match(serverSettings, {
+        onNone: () => Effect.succeed("allowed" as const),
+        onSome: (service) =>
+          service.getSettings.pipe(
+            Effect.map((settings) =>
+              hasSubagentRoleModel(settings, projectId)
+                ? ("blocked" as const)
+                : ("allowed" as const),
+            ),
+            Effect.orElseSucceed(() => "allowed" as const),
+          ),
+      });
     return RuntimePolicyV2.of({
       resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
         yield* refuseAboveCeiling(managedPolicy, input.thread);
@@ -196,6 +212,7 @@ export const layerFromProjectStore: Layer.Layer<
           cwd,
           ...(maxRuntimeMode === undefined ? {} : { maxRuntimeMode }),
           ...(workspace === undefined || workspace.folders.length === 0 ? {} : { workspace }),
+          nativeSubagents: yield* nativeSubagents(input.thread.projectId),
         });
       }),
     });
