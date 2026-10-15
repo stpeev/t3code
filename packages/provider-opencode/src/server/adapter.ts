@@ -595,6 +595,26 @@ const OPENCODE_RESTRICTED_PERMISSIONS = [
 export function openCodePermissionRules(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
 ): PermissionRuleset {
+  return withNativeSubagentRule(
+    openCodeModePermissionRules(runtimePolicy),
+    runtimePolicy.nativeSubagents,
+  );
+}
+
+const NATIVE_SUBAGENT_DENY = { permission: "task", pattern: "*", action: "deny" } as const;
+
+/** Sets or clears T3's trailing `task` deny; the last matching rule wins, outranking full access. */
+export function withNativeSubagentRule(
+  rules: PermissionRuleset,
+  nativeSubagents: ProviderAdapter.ProviderAdapterV2RuntimePolicy["nativeSubagents"],
+): PermissionRuleset {
+  const without = rules.filter((rule) => !permissionRuleEquals(rule, NATIVE_SUBAGENT_DENY));
+  return nativeSubagents === "blocked" ? [...without, NATIVE_SUBAGENT_DENY] : without;
+}
+
+function openCodeModePermissionRules(
+  runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+): PermissionRuleset {
   const sandboxPolicy = recordValue(runtimePolicy, "sandboxPolicy");
   const sandboxType = recordString(sandboxPolicy, "type");
   const rawApprovalPolicy = runtimePolicy.approvalPolicy;
