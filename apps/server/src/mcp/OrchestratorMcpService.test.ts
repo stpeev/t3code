@@ -5,6 +5,7 @@ import {
   EnvironmentId,
   NodeId,
   type OrchestrationV2ThreadShell,
+  type OrchestratorMcpDelegateTaskInput,
   type ScheduledTask,
   ScheduledTaskId,
   ProjectId,
@@ -1931,6 +1932,251 @@ describe("OrchestratorMcpService provider resolution", () => {
         }
       }),
   );
+
+  describe("role subagent models", () => {
+    const claudeInstanceId = ProviderInstanceId.make("claudeAgent");
+    const sonnet = { instanceId: claudeInstanceId, model: "claude-sonnet-5-5" };
+    const providers: ReadonlyArray<ServerProvider> = [
+      providerSnapshot({
+        instanceId: codexInstanceId,
+        driver: ProviderDriverKind.make("codex"),
+        model: "gpt-5.4",
+      }),
+      {
+        ...providerSnapshot({
+          instanceId: claudeInstanceId,
+          driver: ProviderDriverKind.make("claudeAgent"),
+          model: "claude-sonnet-5-5",
+        }),
+        models: ["claude-sonnet-5-5", "claude-haiku-5-5"].map((slug) => ({
+          slug,
+          name: slug,
+          isCustom: false,
+          capabilities: null,
+        })),
+      },
+    ];
+
+    /** Runs the service against `settings`; dispatch records the request and then refuses it. */
+    const withService = <A, E>(
+      settings: Parameters<typeof ServerSettings.layerTest>[0],
+      body: (
+        service: OrchestratorMcpService.OrchestratorMcpServiceShape,
+        dispatched: Ref.Ref<ReadonlyArray<{ readonly modelSelection: unknown }>>,
+      ) => Effect.Effect<A, E>,
+      parentSelection?: Parameters<typeof parentProjection>[1],
+    ) =>
+      Effect.gen(function* () {
+        const dispatched = yield* Ref.make<ReadonlyArray<{ readonly modelSelection: unknown }>>([]);
+        const layerDependencies = Layer.mergeAll(
+          NodeServices.layer,
+          Layer.mock(ThreadManagementService.ThreadManagementService)({
+            hasReceipt: () => Effect.succeed(false),
+            isProviderInstanceEnabledForProject: ({ instanceId }) =>
+              Effect.succeed(
+                settings?.providerInstances?.[instanceId]?.enabled !== false &&
+                  settings?.projectSettingsOverrides?.[projectId]?.providerInstances?.[instanceId]
+                    ?.enabled !== false,
+              ),
+            getThreadRecords: () => Effect.succeed(parentProjection([], parentSelection)),
+            dispatch: (command) =>
+              Ref.update(dispatched, (commands) => [
+                ...commands,
+                command as { readonly modelSelection: unknown },
+              ]).pipe(
+                Effect.andThen(
+                  Effect.fail(
+                    new ThreadManagementService.ThreadManagementProviderInstanceDisabledError({
+                      projectId,
+                      instanceId: codexInstanceId,
+                    }),
+                  ),
+                ),
+              ),
+          }),
+          ServerSettings.layerTest(settings),
+          providerRegistryLayer(providers),
+          adapterRegistryLayer([codexInstanceId, claudeInstanceId]),
+          Layer.mock(ProjectService.ProjectService)({}),
+          Layer.mock(SecretRequests.SecretRequests)({}),
+          Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+        );
+        return yield* Effect.gen(function* () {
+          const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+          return yield* body(service, dispatched);
+        }).pipe(Effect.provide(layerOrchestratorService.pipe(Layer.provide(layerDependencies))));
+      });
+
+    /** The model the delegation was dispatched with; dispatch always refuses after recording. */
+    const dispatchedSelection = (
+      settings: Parameters<typeof ServerSettings.layerTest>[0],
+      input: Omit<OrchestratorMcpDelegateTaskInput, "mode" | "task">,
+      parentSelection?: Parameters<typeof parentProjection>[1],
+    ) =>
+      withService(
+        settings,
+        (service, dispatched) =>
+          service.delegateTask(scope, { task: "Write the tests.", mode: "async", ...input }).pipe(
+            Effect.flip,
+            Effect.andThen(Ref.get(dispatched)),
+            Effect.map((commands) => commands[0]?.modelSelection),
+          ),
+        parentSelection,
+      );
+
+    it.effect("runs a role's task on the model configured for that role", () =>
+      Effect.gen(function* () {
+        const effort = [{ id: "effort", value: "high" }];
+        assert.deepEqual(
+          yield* dispatchedSelection(
+            { testSubagentModelSelection: { ...sonnet, options: effort } },
+            { role: "test" },
+          ),
+          { ...sonnet, options: effort },
+        );
+        // A task without a role is a general task.
+        assert.deepEqual(
+          yield* dispatchedSelection({ generalSubagentModelSelection: sonnet }, {}),
+          { ...sonnet, options: [] },
+        );
+      }),
+    );
+
+    it.effect("applies options from an otherwise empty target to the role's model", () =>
+      Effect.gen(function* () {
+        const effort = [{ id: "effort", value: "low" }];
+        assert.deepEqual(
+          yield* dispatchedSelection(
+            {
+              testSubagentModelSelection: { ...sonnet, options: [{ id: "effort", value: "high" }] },
+            },
+            { role: "test", target: { options: effort } },
+          ),
+          { ...sonnet, options: effort },
+        );
+      }),
+    );
+
+    it.effect("keeps a role on the parent's model at the role's options, not the parent's", () =>
+      Effect.gen(function* () {
+        assert.deepEqual(
+          yield* dispatchedSelection(
+            { researchSubagentModelSelection: sonnet },
+            { role: "research" },
+            { ...sonnet, options: [{ id: "effort", value: "max" }] },
+          ),
+          { ...sonnet, options: [] },
+        );
+      }),
+    );
+
+    it.effect("inherits the parent's model when the role has no model configured", () =>
+      Effect.gen(function* () {
+        assert.deepEqual(
+          yield* dispatchedSelection({ reviewSubagentModelSelection: sonnet }, { role: "test" }),
+          { instanceId: codexInstanceId, model: "gpt-5.4" },
+        );
+      }),
+    );
+
+    it.effect("prefers an explicit target over the role's model", () =>
+      Effect.gen(function* () {
+        assert.deepEqual(
+          yield* dispatchedSelection(
+            { testSubagentModelSelection: sonnet },
+            { role: "test", target: { providerInstanceId: codexInstanceId } },
+          ),
+          { instanceId: codexInstanceId, model: "gpt-5.4" },
+        );
+      }),
+    );
+
+    it.effect("lets a project override or clear the environment's role model", () =>
+      Effect.gen(function* () {
+        const haiku = { instanceId: claudeInstanceId, model: "claude-haiku-5-5" };
+        assert.deepEqual(
+          yield* dispatchedSelection(
+            {
+              testSubagentModelSelection: sonnet,
+              projectSettingsOverrides: { [projectId]: { testSubagentModelSelection: haiku } },
+            },
+            { role: "test" },
+          ),
+          { ...haiku, options: [] },
+        );
+        assert.deepEqual(
+          yield* dispatchedSelection(
+            {
+              testSubagentModelSelection: sonnet,
+              projectSettingsOverrides: { [projectId]: { testSubagentModelSelection: null } },
+            },
+            { role: "test" },
+          ),
+          { instanceId: codexInstanceId, model: "gpt-5.4" },
+        );
+      }),
+    );
+
+    it.effect("refuses a role model that cannot run, naming its setting", () =>
+      Effect.gen(function* () {
+        const cases = [
+          {
+            settings: {
+              testSubagentModelSelection: { instanceId: claudeInstanceId, model: "retired-model" },
+            },
+            code: "model_unavailable",
+          },
+          {
+            settings: {
+              testSubagentModelSelection: sonnet,
+              projectSettingsOverrides: {
+                [projectId]: { providerInstances: { [claudeInstanceId]: { enabled: false } } },
+              },
+            },
+            code: "provider_unavailable",
+          },
+        ] as const;
+        for (const testCase of cases) {
+          const outcome = yield* withService(testCase.settings, (service, dispatched) =>
+            service
+              .delegateTask(scope, { task: "Write the tests.", role: "test", mode: "async" })
+              .pipe(
+                Effect.flip,
+                Effect.flatMap((error) =>
+                  Ref.get(dispatched).pipe(Effect.map((commands) => ({ error, commands }))),
+                ),
+              ),
+          );
+          assert.equal(outcome.error.code, testCase.code);
+          assert.include(outcome.error.message, "testSubagentModelSelection");
+          assert.deepEqual(outcome.commands, [], "a refused role model never falls back");
+        }
+      }),
+    );
+
+    it.effect("reports configured role models and whether they can run", () =>
+      Effect.gen(function* () {
+        const capabilities = yield* withService(
+          {
+            testSubagentModelSelection: sonnet,
+            reviewSubagentModelSelection: { instanceId: claudeInstanceId, model: "retired-model" },
+          },
+          (service) => service.capabilities(scope),
+        );
+        assert.deepEqual(
+          capabilities.roleModels.map(({ role, model, canRun }) => ({ role, model, canRun })),
+          [
+            { role: "review", model: "retired-model", canRun: false },
+            { role: "test", model: "claude-sonnet-5-5", canRun: true },
+          ],
+        );
+        assert.include(
+          capabilities.roleModels[0]?.constraint ?? "",
+          "reviewSubagentModelSelection",
+        );
+      }),
+    );
+  });
 
   describe("scheduled tasks at modes above the caller's", () => {
     const projectId = ProjectId.make("project:scheduled");

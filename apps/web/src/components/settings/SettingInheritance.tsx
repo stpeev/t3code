@@ -4,6 +4,7 @@ import {
   type ProjectFileBackedSettingKey,
   resolveEnvironmentMachineKind,
   type ServerSettings,
+  SUBAGENT_MODEL_SELECTION_SETTING_KEYS,
   type WorktreeSubmodules,
 } from "@t3tools/contracts";
 import { CheckIcon, LayersIcon } from "lucide-react";
@@ -47,9 +48,11 @@ function formatValue(key: keyof ServerSettings, value: unknown): string {
             ? "Text generation model"
             : key === "reviewGuideModelSelection"
               ? "Source control writer model"
-              : key === "defaultThreadEnvMode" || key === "worktreeSubmodules"
-                ? "Inherit"
-                : "Not set";
+              : (SUBAGENT_MODEL_SELECTION_SETTING_KEYS as ReadonlyArray<string>).includes(key)
+                ? "Thread's model"
+                : key === "defaultThreadEnvMode" || key === "worktreeSubmodules"
+                  ? "Inherit"
+                  : "Not set";
   }
   if (typeof value === "boolean") return value ? "On" : "Off";
   if (typeof value === "number") {

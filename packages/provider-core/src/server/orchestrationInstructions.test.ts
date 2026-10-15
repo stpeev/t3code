@@ -20,6 +20,15 @@ describe("T3 orchestration provider instructions", () => {
     );
   });
 
+  it("routes role-configured work through delegate_task with the role and no target", () => {
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Always pass a `role` to `delegate_task`");
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "omit `target` unless the user named");
+    assert.include(
+      T3_CODE_ORCHESTRATION_INSTRUCTIONS,
+      "when `roleModels` lists the task's role, use `delegate_task`",
+    );
+  });
+
   it("documents structured schedules instead of JSON strings", () => {
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "structured object, never as JSON text");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, '"everyMs":3600000');

@@ -201,7 +201,8 @@ Returns:
 - the inherited provider instance and model;
 - the parent runtime and interaction modes;
 - registered provider instances and advertised models;
-- whether each provider can run a child task; and
+- whether each provider can run a child task;
+- the model configured for each `delegate_task` role, and whether it can run; and
 - feature flags for polling, cancellation, and batch thread creation.
 
 Unavailable providers include model-visible constraints such as missing V2
@@ -230,8 +231,12 @@ type DelegateTaskInput = {
 };
 ```
 
-Provider, model, runtime mode, and interaction mode inherit from the parent
-when omitted. A driver-only target inherits the parent's provider instance
+Runtime mode and interaction mode inherit from the parent when omitted. An
+omitted `target` uses the model configured for the task's role (a task without
+a role is `general`), resolved per project from the `<role>SubagentModelSelection`
+server settings, and the parent's model when the role has none. A configured
+model that cannot run fails the call with an error naming its setting rather
+than falling back, so a stale setting is visible. A driver-only target inherits the parent's provider instance
 when it can run child tasks, and otherwise selects an available instance of
 that driver; an explicit `providerInstanceId` is honored exactly and fails
 when unavailable. Selecting a different provider without a model uses that

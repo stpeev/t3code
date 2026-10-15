@@ -173,7 +173,12 @@ export const OrchestratorMcpDelegateTaskInput = Schema.Struct({
   }),
   target: Schema.optional(OrchestratorMcpTarget),
   title: Schema.optional(OrchestratorMcpTitle),
-  role: Schema.optional(OrchestratorMcpTaskRole),
+  role: Schema.optional(
+    OrchestratorMcpTaskRole.annotate({
+      description:
+        "Always set it. With target omitted, the child runs on the model orchestrator_capabilities roleModels lists for this role. Defaults to general.",
+    }),
+  ),
   isolation: Schema.optional(
     Schema.Literals(["shared", "worktree"]).annotate({
       description:
@@ -511,6 +516,17 @@ export const OrchestratorMcpProviderCapability = Schema.Struct({
 });
 export type OrchestratorMcpProviderCapability = typeof OrchestratorMcpProviderCapability.Type;
 
+export const OrchestratorMcpRoleModel = Schema.Struct({
+  role: OrchestratorMcpTaskRole,
+  providerInstanceId: ProviderInstanceId,
+  model: Schema.String,
+  options: Schema.optional(Schema.Array(ProviderOptionSelection)),
+  canRun: Schema.Boolean,
+  /** Why delegate_task with this role and no target would fail, or null when it can run. */
+  constraint: Schema.NullOr(Schema.String),
+});
+export type OrchestratorMcpRoleModel = typeof OrchestratorMcpRoleModel.Type;
+
 export const OrchestratorMcpCapabilitiesResult = Schema.Struct({
   /** The calling thread, or null when the caller is not a T3 thread. */
   parentThreadId: Schema.NullOr(ThreadId),
@@ -520,6 +536,10 @@ export const OrchestratorMcpCapabilitiesResult = Schema.Struct({
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   providers: Schema.Array(OrchestratorMcpProviderCapability),
+  roleModels: Schema.Array(OrchestratorMcpRoleModel).annotate({
+    description:
+      "Models the user configured per delegate_task role, used when target is omitted. A role absent here inherits this thread's model; a task without a role is general.",
+  }),
   features: Schema.Struct({
     appOwnedSubagents: Schema.Boolean,
     asyncPolling: Schema.Boolean,

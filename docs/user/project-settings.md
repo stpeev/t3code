@@ -131,6 +131,19 @@ itself, or **Skip** to leave them for a setup script. It resolves in the same or
 workspace default: a `"worktreeSubmodules"` value in the `t3.json` of the branch being checked out
 applies when the project and environment are both on **Inherit**.
 
+## Subagent models
+
+Agents can hand work to subagents and label each task with a role: implementation, research,
+review, design, test, or general. In **Settings → General → Subagent models**, turn a role on and
+pick the model its subagents run on, for example a faster model for tests. Select a project to
+use a different model there. A role left off runs on the model of the thread that delegated it.
+
+The agent still uses a model you name in your message. If a role's model becomes unavailable,
+for example because its provider is turned off for the project, delegation for that role fails
+with a message naming the setting instead of quietly running on another model. Agents' built-in
+subagent tools don't follow these settings, so T3 Code tells agents to delegate through its own
+tool whenever a role has a model set.
+
 ## Worktree location
 
 New worktrees go in the `worktrees` folder of the T3 home directory. To put them somewhere else,
