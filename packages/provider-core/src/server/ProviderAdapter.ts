@@ -72,6 +72,8 @@ export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
    */
   maxRuntimeMode: Schema.optional(RuntimeMode),
   workspace: Schema.optional(ProviderAdapterV2RuntimeWorkspace),
+  /** `blocked`: withhold the provider's own subagent tool so delegation goes through `delegate_task`. */
+  nativeSubagents: Schema.optional(Schema.Literals(["allowed", "blocked"])),
 });
 export type ProviderAdapterV2RuntimePolicy = typeof ProviderAdapterV2RuntimePolicy.Type;
 
