@@ -1428,7 +1428,7 @@ const CODEX_T3_MCP_TOOL_TIMEOUT_SEC = 65 * 60;
 const CODEX_T3_DIRECT_MCP_SERVER = "t3-code-direct";
 const CODEX_DIRECT_ONLY_T3_TOOL = "t3_thread_wait";
 
-function codexThreadRuntimeParams(input: {
+export function codexThreadRuntimeParams(input: {
   readonly threadId: ThreadId | null;
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly modelSelection?: { readonly model: string };
@@ -1456,6 +1456,10 @@ function codexThreadRuntimeParams(input: {
       ...(input.threadId === null
         ? {}
         : { [`shell_environment_policy.set.${PortScanner.AGENT_THREAD_ENV}`]: input.threadId }),
+      // The same switches managed Codex sets at launch; unverified that Codex honours them per thread.
+      ...(input.runtimePolicy?.nativeSubagents === "blocked"
+        ? { "features.multi_agent": false, "features.multi_agent_v2": false }
+        : {}),
       ...(t3Server === undefined
         ? {}
         : {

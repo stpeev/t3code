@@ -56,6 +56,8 @@ export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
    * it; adapters use it to refuse native mode choices a user makes beside T3 Code's own.
    */
   maxRuntimeMode: Schema.optional(RuntimeMode),
+  /** `blocked`: withhold the provider's own subagent tool so delegation goes through `delegate_task`. */
+  nativeSubagents: Schema.optional(Schema.Literals(["allowed", "blocked"])),
 });
 export type ProviderAdapterV2RuntimePolicy = typeof ProviderAdapterV2RuntimePolicy.Type;
 
