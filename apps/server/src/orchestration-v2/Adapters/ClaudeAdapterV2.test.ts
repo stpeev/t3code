@@ -376,6 +376,29 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
     });
   });
 
+  it("withholds the native Agent tool while native subagents are blocked", () => {
+    const policyFor = (nativeSubagents?: "allowed" | "blocked") =>
+      ClaudeAdapterV2.claudeRuntimeQueryPolicyForRuntimePolicy(
+        ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          cwd: "/workspace",
+          ...(nativeSubagents === undefined ? {} : { nativeSubagents }),
+        }),
+      );
+
+    const blocked = policyFor("blocked");
+    assert.deepEqual(blocked.disallowedTools, ["Agent", "Task"]);
+    assert.equal(blocked.permissionMode, "bypassPermissions");
+    assert.isUndefined(policyFor("allowed").disallowedTools);
+    assert.isUndefined(policyFor().disallowedTools);
+    // A role-model change must not replace a live query; it applies at the next open.
+    assert.equal(
+      ClaudeAdapterV2.claudeEffectiveQueryPolicyKey(blocked, {}),
+      ClaudeAdapterV2.claudeEffectiveQueryPolicyKey(policyFor("allowed"), {}),
+    );
+  });
+
   it("maps canonical read-only on-request policy to Claude default with callbacks", () => {
     const queryPolicy = ClaudeAdapterV2.claudeRuntimeQueryPolicyForRuntimePolicy(
       ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({

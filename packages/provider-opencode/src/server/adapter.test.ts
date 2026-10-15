@@ -44,6 +44,7 @@ import {
   openCodeBoundaryAfterProviderTurn,
   openCodeChildPermissionRules,
   openCodePermissionRules,
+  withNativeSubagentRule,
   openCodePermissionRequestKind,
   openCodeToolProjectionKind,
   makeOpenCodeProtocolLogger,
@@ -186,6 +187,7 @@ const makeOpenCodeRuntimeHarness = Effect.fn("makeOpenCodeRuntimeHarness")(funct
   const startTurn = (
     text = "hello",
     startProviderThread: OrchestrationV2ProviderThread = providerThread,
+    turnPolicy = policy,
   ) =>
     runtime.startTurn({
       appThread: {
@@ -226,7 +228,7 @@ const makeOpenCodeRuntimeHarness = Effect.fn("makeOpenCodeRuntimeHarness")(funct
         attachments: [],
       },
       modelSelection,
-      runtimePolicy: policy,
+      runtimePolicy: turnPolicy,
     });
   return {
     nativeSessionId,
@@ -1242,6 +1244,71 @@ describe("OpenCodeAdapterV2", () => {
       Effect.scoped,
     ),
   );
+
+  it.effect.each(["blocked", "allowed"] as const)(
+    "brings an existing session's task rule in line at turn start (%s)",
+    (nativeSubagents) =>
+      Effect.gen(function* () {
+        const nativeEvents = asyncEventStream();
+        const updates: unknown[] = [];
+        const harness = yield* makeOpenCodeRuntimeHarness(
+          `native-subagents-${nativeSubagents}`,
+          `native-subagents-${nativeSubagents}`,
+          {
+            event: {
+              subscribe: async (_input: unknown, options: { signal?: AbortSignal }) => {
+                options.signal?.addEventListener("abort", () => nativeEvents.close(), {
+                  once: true,
+                });
+                return { stream: nativeEvents.stream };
+              },
+            },
+            session: {
+              // Created before any role model existed: full access, no task deny.
+              create: async () => ({
+                data: {
+                  id: `native-subagents-${nativeSubagents}`,
+                  time: { created: 1, updated: 1 },
+                  permission: [{ permission: "*", pattern: "*", action: "allow" }],
+                },
+              }),
+              update: async (input: { permission: unknown }) => {
+                updates.push(input.permission);
+                return { data: true };
+              },
+              promptAsync: async () => ({ data: true }),
+            },
+          },
+        );
+        yield* harness.startTurn("hello", harness.providerThread, {
+          ...harness.policy,
+          nativeSubagents,
+        });
+        assert.deepEqual(
+          updates,
+          nativeSubagents === "blocked"
+            ? [
+                [
+                  { permission: "*", pattern: "*", action: "allow" },
+                  { permission: "task", pattern: "*", action: "deny" },
+                ],
+              ]
+            : [],
+        );
+      }).pipe(
+        Effect.provide(Layer.merge(IdAllocator.layer, McpProviderSessions.layer)),
+        Effect.scoped,
+      ),
+  );
+
+  it("adds and clears only T3's own task deny rule", () => {
+    const deny = { permission: "task", pattern: "*", action: "deny" } as const;
+    const base = [{ permission: "*", pattern: "*", action: "allow" } as const];
+    assert.deepEqual(withNativeSubagentRule(base, "blocked"), [...base, deny]);
+    assert.deepEqual(withNativeSubagentRule([...base, deny], "blocked"), [...base, deny]);
+    assert.deepEqual(withNativeSubagentRule([...base, deny], "allowed"), base);
+    assert.deepEqual(withNativeSubagentRule([...base, deny], undefined), base);
+  });
 
   it.effect("sends unadvertised slash commands as ordinary prompts", () =>
     Effect.gen(function* () {
@@ -2612,6 +2679,22 @@ describe("OpenCodeAdapterV2", () => {
     assert.equal(openCodeToolProjectionKind("codesearch"), "web_search");
     assert.equal(openCodeToolProjectionKind("todowrite"), "dynamic_tool");
     assert.equal(openCodeToolProjectionKind("custom_tool"), "dynamic_tool");
+  });
+
+  it("denies the native task tool in every mode while native subagents are blocked", () => {
+    for (const mode of ["approval-required", "auto-accept-edits", "full-access"] as const) {
+      const blocked = openCodePermissionRules(runtimePolicy(mode, { nativeSubagents: "blocked" }));
+      assert.equal(permissionAction(blocked, "task"), "deny", mode);
+      assert.equal(permissionAction(blocked, "read"), "allow", mode);
+      assert.equal(
+        permissionAction(
+          openCodePermissionRules(runtimePolicy(mode, { nativeSubagents: "allowed" })),
+          "task",
+        ),
+        "allow",
+        mode,
+      );
+    }
   });
 
   it("maps runtime modes to safe OpenCode permission rules", () => {

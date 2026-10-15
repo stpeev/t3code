@@ -681,6 +681,27 @@ describe("CodexAdapterV2 process spawning", () => {
     );
   });
 
+  it("turns off Codex multi-agent per thread only while native subagents are blocked", () => {
+    const configFor = (nativeSubagents?: "allowed" | "blocked") =>
+      CodexAdapterV2.codexThreadRuntimeParams({
+        mcpSession: undefined,
+        runtimePolicy: {
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          cwd: null,
+          ...(nativeSubagents === undefined ? {} : { nativeSubagents }),
+        },
+      }).config;
+
+    assert.deepEqual(configFor("blocked"), {
+      ...CodexAdapterV2.CODEX_THREAD_CONFIG,
+      "features.multi_agent": false,
+      "features.multi_agent_v2": false,
+    });
+    assert.deepEqual(configFor("allowed"), CodexAdapterV2.CODEX_THREAD_CONFIG);
+    assert.deepEqual(configFor(), CodexAdapterV2.CODEX_THREAD_CONFIG);
+  });
+
   it.effect("resolves Windows command shims through the shared spawn policy", () =>
     Effect.gen(function* () {
       const command = yield* CodexAdapterV2.makeCodexAppServerSpawnCommand({

@@ -326,6 +326,8 @@ export function makeCursorAgentOptions(input: {
       enableAgentRetries: true,
     },
     ...(mcpServers === undefined ? {} : { mcpServers }),
+    // Not persisted on the agent, so every create and resume must pass it again.
+    ...(input.runtimePolicy.nativeSubagents === "blocked" ? { disallowedTools: ["task"] } : {}),
   };
 }
 

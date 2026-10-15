@@ -335,6 +335,25 @@ describe("Pi tool discovery permissions", () => {
     },
   );
 
+  it("blocks Pi's native subagent tool even in full access while native subagents are blocked", async () => {
+    const hookFor = async (nativeSubagents?: string) => {
+      const bridge = await loadMcpBridge({
+        modern: true,
+        runtimeMode: "full-access",
+        ...(nativeSubagents === undefined ? {} : { nativeSubagents }),
+      });
+      return bridge.handlers.get("tool_call") as unknown as (
+        event: { toolName: string; input: unknown },
+        ctx: unknown,
+      ) => Promise<{ block: true; reason: string } | undefined>;
+    };
+
+    const blocked = await hookFor("blocked");
+    assert.equal((await blocked({ toolName: "subagent", input: {} }, {}))?.block, true);
+    assert.isUndefined(await blocked({ toolName: "bash", input: {} }, {}));
+    assert.isUndefined(await (await hookFor())({ toolName: "subagent", input: {} }, {}));
+  });
+
   it("allows discovery without confirmation and still gates the discovered tool", async () => {
     type ToolCallHook = (
       event: { toolName: string; input: unknown },

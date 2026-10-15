@@ -1343,6 +1343,10 @@ export function codexThreadRuntimeParams(input: {
     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
     config: {
       ...CODEX_THREAD_CONFIG,
+      // The same switches managed Codex sets at launch; unverified that Codex honours them per thread.
+      ...(input.runtimePolicy?.nativeSubagents === "blocked"
+        ? { "features.multi_agent": false, "features.multi_agent_v2": false }
+        : {}),
       ...(mcpSession === undefined
         ? {}
         : {

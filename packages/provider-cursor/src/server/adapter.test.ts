@@ -937,6 +937,25 @@ describe("CursorAdapterV2", () => {
     assert.notInclude(logged, "secret-cursor-mcp-token");
   });
 
+  it("disallows the native task tool only while native subagents are blocked", () => {
+    const optionsFor = (nativeSubagents?: "allowed" | "blocked") =>
+      makeCursorAgentOptions({
+        modelSelection: { instanceId: ProviderInstanceId.make("cursor"), model: "composer-2.5" },
+        runtimePolicy: {
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          cwd: "/workspace",
+          ...(nativeSubagents === undefined ? {} : { nativeSubagents }),
+        },
+        threadId: ThreadId.make("cursor-native-subagents-thread"),
+        mcpSession: undefined,
+      });
+
+    assert.deepEqual(optionsFor("blocked").disallowedTools, ["task"]);
+    assert.isUndefined(optionsFor("allowed").disallowedTools);
+    assert.isUndefined(optionsFor().disallowedTools);
+  });
+
   it("recognizes direct and SDK-wrapped abort failures as cancellation", () => {
     assert.isTrue(CursorAgentSdk.isCursorCancellationError({ name: "AbortError" }));
     assert.isTrue(

@@ -390,6 +390,8 @@ interface OpenCodeThreadState {
   parentSubagent: OpenCodeSubagentContext | null;
   nextChildTurnOrdinal: number;
   nextAdmissionGeneration: number;
+  /** The session's permission rules as OpenCode last reported or T3 last wrote them. */
+  permission: PermissionRuleset;
 }
 
 interface OpenCodeRequestOwner {
@@ -615,6 +617,26 @@ const OPENCODE_RESTRICTED_PERMISSIONS = [
  * allows it.
  */
 export function openCodePermissionRules(
+  runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+): PermissionRuleset {
+  return withNativeSubagentRule(
+    openCodeModePermissionRules(runtimePolicy),
+    runtimePolicy.nativeSubagents,
+  );
+}
+
+const NATIVE_SUBAGENT_DENY = { permission: "task", pattern: "*", action: "deny" } as const;
+
+/** Sets or clears T3's trailing `task` deny; the last matching rule wins, outranking full access. */
+export function withNativeSubagentRule(
+  rules: PermissionRuleset,
+  nativeSubagents: ProviderAdapter.ProviderAdapterV2RuntimePolicy["nativeSubagents"],
+): PermissionRuleset {
+  const without = rules.filter((rule) => !permissionRuleEquals(rule, NATIVE_SUBAGENT_DENY));
+  return nativeSubagents === "blocked" ? [...without, NATIVE_SUBAGENT_DENY] : without;
+}
+
+function openCodeModePermissionRules(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
 ): PermissionRuleset {
   const sandboxPolicy = recordValue(runtimePolicy, "sandboxPolicy");
@@ -1432,6 +1454,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
               parentSubagent: context,
               nextChildTurnOrdinal: 1,
               nextAdmissionGeneration: 1,
+              permission: childPermission,
             });
             yield* emitProviderEvent({
               type: "app_thread.created",
@@ -2822,6 +2845,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
           if (existing !== undefined) {
             existing.providerThread = providerThread;
             if (appThread !== null) existing.appThread = appThread;
+            existing.permission = nativeSession.permission ?? existing.permission;
             return existing;
           }
           const state: OpenCodeThreadState = {
@@ -2836,6 +2860,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
             parentSubagent: subagentsByChildSessionId.get(nativeSession.id) ?? null,
             nextChildTurnOrdinal: 1,
             nextAdmissionGeneration: 1,
+            permission: nativeSession.permission ?? [],
           };
           threads.set(nativeSession.id, state);
           return state;
@@ -3132,6 +3157,17 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
                 return yield* protocolError(
                   `OpenCode provider thread ${turnInput.providerThread.id} already has an active turn`,
                 );
+              }
+              // Sessions keep the rules they were created with, so a role-model change lands here.
+              const permission = withNativeSubagentRule(
+                state.permission,
+                turnInput.runtimePolicy.nativeSubagents,
+              );
+              if (permission.length !== state.permission.length) {
+                yield* sdkCall("session.update", { sessionID: sessionId, permission }, () =>
+                  client.session.update({ sessionID: sessionId, permission }),
+                );
+                state.permission = permission;
               }
               const parsedModel = OpenCodeRuntime.parseOpenCodeModelSlug(
                 turnInput.modelSelection.model,

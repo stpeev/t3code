@@ -178,6 +178,7 @@ export function SettingsSection({
   icon,
   titleAction,
   headerAction,
+  description,
   variant = "grouped",
   children,
   className,
@@ -189,6 +190,8 @@ export function SettingsSection({
   /** Small control shown right after the title, such as an add button. */
   titleAction?: ReactNode;
   headerAction?: ReactNode;
+  /** One line under the title about the whole section. */
+  description?: ReactNode;
   variant?: "grouped" | "plain";
   children: ReactNode;
 }) {
@@ -217,6 +220,9 @@ export function SettingsSection({
           </div>
           <div className="flex min-h-7 min-w-7 items-center justify-end">{headerAction}</div>
         </div>
+      )}
+      {description === undefined || hideTitle ? null : (
+        <p className="px-3 text-xs text-muted-foreground sm:px-4">{description}</p>
       )}
       <SettingsGroup data-settings-scroll-target={hideTitle ? "" : undefined} variant={variant}>
         {children}

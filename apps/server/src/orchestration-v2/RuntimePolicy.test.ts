@@ -16,6 +16,7 @@ import * as Stream from "effect/Stream";
 
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 
@@ -153,4 +154,52 @@ it.layer(layerTest)("RuntimePolicyV2", (it) => {
       assert.equal(yield* modeFor(providerInstanceId, "auto-accept-edits"), "auto-accept-edits");
     }),
   );
+
+  it.effect("leaves native subagents allowed without server settings", () =>
+    Effect.gen(function* () {
+      const policy = yield* RuntimePolicy.RuntimePolicyV2;
+      const now = yield* DateTime.now;
+      const resolved = yield* policy.resolve({
+        thread: makeThread({ now, worktreePath: null }),
+        modelSelection,
+      });
+      assert.equal(resolved.nativeSubagents, "allowed");
+    }),
+  );
 });
+
+it.effect("blocks native subagents while a subagent role model applies to the project", () =>
+  Effect.gen(function* () {
+    const now = yield* DateTime.now;
+    const sonnet = {
+      instanceId: ProviderInstanceId.make("claudeAgent"),
+      model: "claude-sonnet-5-5",
+    };
+    const nativeSubagentsFor = (settings: Parameters<typeof ServerSettings.layerTest>[0]) =>
+      Effect.gen(function* () {
+        const policy = yield* RuntimePolicy.RuntimePolicyV2;
+        const resolved = yield* policy.resolve({
+          thread: makeThread({ now, worktreePath: null }),
+          modelSelection,
+        });
+        return resolved.nativeSubagents;
+      }).pipe(Effect.provide(layerTest.pipe(Layer.provide(ServerSettings.layerTest(settings)))));
+
+    assert.equal(yield* nativeSubagentsFor({}), "allowed");
+    assert.equal(yield* nativeSubagentsFor({ testSubagentModelSelection: sonnet }), "blocked");
+    assert.equal(
+      yield* nativeSubagentsFor({
+        projectSettingsOverrides: { [projectId]: { reviewSubagentModelSelection: sonnet } },
+      }),
+      "blocked",
+    );
+    // A project that clears the environment's only role model gets native subagents back.
+    assert.equal(
+      yield* nativeSubagentsFor({
+        testSubagentModelSelection: sonnet,
+        projectSettingsOverrides: { [projectId]: { testSubagentModelSelection: null } },
+      }),
+      "allowed",
+    );
+  }),
+);

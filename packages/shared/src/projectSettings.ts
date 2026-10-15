@@ -9,6 +9,7 @@ import {
   resolveProjectProviderInstanceEnabled,
   type ResolvedServerSettings,
   type ServerSettings,
+  SUBAGENT_MODEL_SELECTION_SETTING_KEYS,
   type T3ProjectFile,
   type ThreadEnvMode,
   type WorktreeCleanupRules,
@@ -243,6 +244,12 @@ export function resolveNewThreadEnvMode(input: {
     folder.length > prefix.length &&
     !folder.slice(prefix.length).includes(separator);
   return isNewProjectFolder ? "local" : configured;
+}
+
+/** Whether any delegated task role has its own model in this project. */
+export function hasSubagentRoleModel(settings: ServerSettings, projectId: ProjectId): boolean {
+  const effective = resolveProjectSettings(settings, projectId).settings;
+  return SUBAGENT_MODEL_SELECTION_SETTING_KEYS.some((key) => effective[key] !== null);
 }
 
 /** Replace the project's entry, dropping it entirely when nothing is overridden. */

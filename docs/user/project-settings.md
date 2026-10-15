@@ -140,9 +140,13 @@ use a different model there. A role left off runs on the model of the thread tha
 
 The agent still uses a model you name in your message. If a role's model becomes unavailable,
 for example because its provider is turned off for the project, delegation for that role fails
-with a message naming the setting instead of quietly running on another model. Agents' built-in
-subagent tools don't follow these settings, so T3 Code tells agents to delegate through its own
-tool whenever a role has a model set.
+with a message naming the setting instead of quietly running on another model.
+
+While any role has a model in a project, T3 Code turns off agents' built-in subagent tools there
+on Claude, Cursor, OpenCode, Codex and Pi, so every subagent runs through T3 Code and gets its
+role's model. Clear every role to get the built-in tools back. The change applies by the time an
+agent session next starts. Grok, Antigravity, Muse and other ACP agents can't have their built-in
+subagents turned off, so they may still use them.
 
 ## Worktree location
 
