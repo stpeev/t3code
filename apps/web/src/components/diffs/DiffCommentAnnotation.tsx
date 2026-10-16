@@ -1,7 +1,5 @@
 import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
-import { T, useGT, useMessages } from "gt-react";
-import { reviewCommentRangeText } from "~/lib/composerContextRecords";
-import { MessageCircle, Trash2 } from "lucide-react";
+import { MessageCircle, Pencil, SendIcon, Trash2 } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -17,6 +15,8 @@ import {
 import { textDirection } from "~/textDirection";
 
 import { isCommentSubmitShortcut } from "./commentSubmitShortcut";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 interface DiffCommentSecondaryAction {
   readonly label: string;
@@ -37,6 +37,8 @@ interface DiffCommentAnnotationProps {
   onCancel: () => void;
   onComment: (text: string) => void;
   onDelete?: () => void;
+  onEdit?: () => void;
+  onSend?: () => void;
   placeholder?: string;
   submitLabel?: string;
   pending?: boolean;
@@ -57,15 +59,15 @@ export function DiffCommentAnnotation({
   onCancel,
   onComment,
   onDelete,
-  placeholder,
-  submitLabel,
+  onEdit,
+  onSend,
+  placeholder = m(msg("Add a comment…")),
+  submitLabel = m(msg("Comment")),
   pending = false,
   secondaryAction,
   focusOnMount = true,
   completionScope = null,
 }: DiffCommentAnnotationProps) {
-  const gt = useGT();
-  const messages = useMessages();
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
   const trimmedText = displayedText.trim();
@@ -95,16 +97,38 @@ export function DiffCommentAnnotation({
         >
           {displayedText}
         </p>
-        {onDelete ? (
+        {onEdit || onDelete || onSend ? (
           <span className="-my-1 -mr-1 flex shrink-0 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
-            <Button
-              variant="ghost-muted"
-              size="icon-xs"
-              aria-label={gt("Delete comment")}
-              onClick={onDelete}
-            >
-              <Trash2 className="size-3" />
-            </Button>
+            {onSend ? (
+              <Button
+                variant="ghost-muted"
+                size="icon-xs"
+                aria-label={msg("Send to chat")}
+                onClick={onSend}
+              >
+                <SendIcon className="size-3" />
+              </Button>
+            ) : null}
+            {onEdit ? (
+              <Button
+                variant="ghost-muted"
+                size="icon-xs"
+                aria-label={msg("Edit comment")}
+                onClick={onEdit}
+              >
+                <Pencil className="size-3" />
+              </Button>
+            ) : null}
+            {onDelete ? (
+              <Button
+                variant="ghost-muted"
+                size="icon-xs"
+                aria-label={msg("Delete comment")}
+                onClick={onDelete}
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            ) : null}
           </span>
         ) : null}
       </div>
@@ -139,10 +163,8 @@ export function DiffCommentAnnotation({
         size="sm"
         value={displayedText}
         dir={textDirection(displayedText)}
-        placeholder={placeholder ?? gt("Add a comment…")}
-        aria-label={gt("Comment on lines {rangeLabel}", {
-          rangeLabel: reviewCommentRangeText(rangeLabel, messages),
-        })}
+        placeholder={placeholder}
+        aria-label={m(msg("Comment on lines {rangeLabel}", { rangeLabel: rangeLabel }))}
         onValueChange={onTextChange ?? setLocalDraftText}
         onFocus={(event) => {
           const end = event.currentTarget.value.length;
@@ -194,7 +216,7 @@ export function DiffCommentAnnotation({
           disabled={speech?.preparing || pending || (!speech?.blocksSubmission && !trimmedText)}
           onClick={() => submit(speech, onComment)}
         >
-          {submitLabel ?? gt("Comment", { $context: "verb, submit button" })}
+          {submitLabel}
         </Button>
       </div>
     </div>
