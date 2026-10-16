@@ -72,7 +72,7 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
     }
     const result = await updateThreadMetadata({
       environmentId,
-      input: { threadId, branch: null, worktreePath: null },
+      input: { threadId, branch: null, worktreePath: null, interruptActiveTurn: true },
     });
     if (result._tag === "Failure") {
       toastManager.add(
