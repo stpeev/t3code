@@ -1,7 +1,5 @@
 import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
-import { T, useGT, useMessages } from "gt-react";
-import { reviewCommentRangeText } from "~/lib/composerContextRecords";
-import { MessageCircle, Trash2 } from "lucide-react";
+import { MessageCircle, Pencil, SendIcon, Trash2 } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -37,6 +35,8 @@ interface DiffCommentAnnotationProps {
   onCancel: () => void;
   onComment: (text: string) => void;
   onDelete?: () => void;
+  onEdit?: () => void;
+  onSend?: () => void;
   placeholder?: string;
   submitLabel?: string;
   pending?: boolean;
@@ -57,15 +57,15 @@ export function DiffCommentAnnotation({
   onCancel,
   onComment,
   onDelete,
-  placeholder,
-  submitLabel,
+  onEdit,
+  onSend,
+  placeholder = "Add a comment…",
+  submitLabel = "Comment",
   pending = false,
   secondaryAction,
   focusOnMount = true,
   completionScope = null,
 }: DiffCommentAnnotationProps) {
-  const gt = useGT();
-  const messages = useMessages();
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
   const trimmedText = displayedText.trim();
@@ -95,16 +95,38 @@ export function DiffCommentAnnotation({
         >
           {displayedText}
         </p>
-        {onDelete ? (
+        {onEdit || onDelete || onSend ? (
           <span className="-my-1 -mr-1 flex shrink-0 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
-            <Button
-              variant="ghost-muted"
-              size="icon-xs"
-              aria-label={gt("Delete comment")}
-              onClick={onDelete}
-            >
-              <Trash2 className="size-3" />
-            </Button>
+            {onSend ? (
+              <Button
+                variant="ghost-muted"
+                size="icon-xs"
+                aria-label="Send to chat"
+                onClick={onSend}
+              >
+                <SendIcon className="size-3" />
+              </Button>
+            ) : null}
+            {onEdit ? (
+              <Button
+                variant="ghost-muted"
+                size="icon-xs"
+                aria-label="Edit comment"
+                onClick={onEdit}
+              >
+                <Pencil className="size-3" />
+              </Button>
+            ) : null}
+            {onDelete ? (
+              <Button
+                variant="ghost-muted"
+                size="icon-xs"
+                aria-label="Delete comment"
+                onClick={onDelete}
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            ) : null}
           </span>
         ) : null}
       </div>
@@ -139,10 +161,8 @@ export function DiffCommentAnnotation({
         size="sm"
         value={displayedText}
         dir={textDirection(displayedText)}
-        placeholder={placeholder ?? gt("Add a comment…")}
-        aria-label={gt("Comment on lines {rangeLabel}", {
-          rangeLabel: reviewCommentRangeText(rangeLabel, messages),
-        })}
+        placeholder={placeholder}
+        aria-label={`Comment on lines ${rangeLabel}`}
         onValueChange={onTextChange ?? setLocalDraftText}
         onFocus={(event) => {
           const end = event.currentTarget.value.length;
@@ -161,12 +181,10 @@ export function DiffCommentAnnotation({
         }}
       />
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
-        <span className="mr-auto text-3xs text-muted-foreground/70">
-          <T>⌘/Ctrl Enter to send</T>
-        </span>
+        <span className="mr-auto text-3xs text-muted-foreground/70">⌘/Ctrl Enter to send</span>
         {speech ? <TextFieldSpeechControls speech={speech} disabled={pending} /> : null}
         <Button variant="ghost-muted" size="xs" onClick={onCancel}>
-          <T>Cancel</T>
+          Cancel
         </Button>
         {secondaryAction ? (
           <Button
@@ -188,7 +206,7 @@ export function DiffCommentAnnotation({
           disabled={speech?.preparing || pending || (!speech?.blocksSubmission && !trimmedText)}
           onClick={() => submit(speech, onComment)}
         >
-          {submitLabel ?? gt("Comment", { $context: "verb, submit button" })}
+          {submitLabel}
         </Button>
       </div>
     </div>
