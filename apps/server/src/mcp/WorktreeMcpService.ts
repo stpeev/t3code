@@ -295,6 +295,8 @@ const make = Effect.gen(function* () {
               branch: worktree.worktree.refName,
               worktreePath,
               expectedWorktreePath: null,
+              // The calling agent's own turn is running and ends by design.
+              interruptActiveTurn: true,
             })
             .pipe(
               Effect.catchCause((cause) =>

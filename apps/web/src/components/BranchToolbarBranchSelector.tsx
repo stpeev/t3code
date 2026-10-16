@@ -120,7 +120,6 @@ export function BranchToolbarBranchSelector({
   const captureContextStrip = (element: HTMLElement | null) => {
     setContextStrip(element?.closest<HTMLElement>('[data-slot="composer-context-strip"]') ?? null);
   };
-  const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, "thread session stop");
   const updateThreadMetadata = useAtomCommand(
     threadEnvironment.updateMetadata,
     "thread metadata update",
@@ -181,12 +180,7 @@ export function BranchToolbarBranchSelector({
       (hasServerThread && !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope))
     )
       return;
-    if (serverSession && worktreePath !== activeWorktreePath) {
-      void stopThreadSession({
-        environmentId,
-        input: { threadId: activeThreadId },
-      });
-    }
+    // A worktree change detaches the provider session on the server.
     if (hasServerThread) {
       void (automatic ? updateEmptyThreadMetadata : updateThreadMetadata)({
         environmentId,
@@ -399,6 +393,24 @@ export function BranchToolbarBranchSelector({
       activeWorktreePath,
       refName,
     });
+
+    // Moving worktrees restarts the agent process, which would kill the turn and its subagents.
+    if (
+      selectionTarget.nextWorktreePath !== activeWorktreePath &&
+      (serverSession?.status === "starting" ||
+        serverSession?.status === "running" ||
+        serverSession?.status === "waiting")
+    ) {
+      setIsBranchMenuOpen(false);
+      toastManager.add(
+        stackedThreadToast({
+          type: "warning",
+          title: "Turn in progress",
+          description: "Stop the turn or wait for it to finish before switching the worktree.",
+        }),
+      );
+      return;
+    }
 
     if (selectionTarget.reuseExistingWorktree) {
       setThreadBranch(refName.name, selectionTarget.nextWorktreePath);

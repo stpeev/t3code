@@ -130,6 +130,8 @@ export interface UpdateThreadMetadataInput extends ThreadCommandInput {
   readonly regenerateTitle?: boolean;
   readonly linkedPullRequest?: ThreadLinkedPullRequest | null;
   readonly expectedEmpty?: boolean;
+  /** Allow a worktree change to end a turn that is still running. */
+  readonly interruptActiveTurn?: boolean;
 }
 
 export interface SetThreadRuntimeModeInput extends ThreadCommandInput {
@@ -582,6 +584,7 @@ export const updateThreadMetadata = Effect.fn("EnvironmentCommands.updateThreadM
         ...(input.branch === undefined ? {} : { branch: input.branch }),
         ...(input.worktreePath === undefined ? {} : { worktreePath: input.worktreePath }),
         ...(input.expectedEmpty === true ? { expectedEmpty: true } : {}),
+        ...(input.interruptActiveTurn === true ? { interruptActiveTurn: true } : {}),
         ...(input.regenerateTitle === undefined ? {} : { regenerateTitle: input.regenerateTitle }),
         ...(input.linkedPullRequest === undefined
           ? {}

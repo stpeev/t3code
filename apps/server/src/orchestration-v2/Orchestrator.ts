@@ -2794,6 +2794,25 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: `Thread ${command.threadId} is no longer empty.`,
         });
     }
+    // The worktree change below detaches the provider process, which would kill the turn and
+    // every native subagent inside it. Only the agent's own handoff may do that knowingly.
+    if (
+      command.type === "thread.metadata.update" &&
+      command.interruptActiveTurn !== true &&
+      command.worktreePath !== undefined &&
+      command.worktreePath !== thread.worktreePath
+    ) {
+      const { runs } = yield* projectionStore
+        .getThreadRecords(command.threadId, ["runs"])
+        .pipe(mapDispatchError(command));
+      if (runs.some((run) => ["starting", "running", "waiting"].includes(run.status))) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Thread ${command.threadId} has a turn in progress. Stop it before switching the worktree.`,
+        });
+      }
+    }
     if (command.type === "thread.archive" && thread.archivedAt !== null) {
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,

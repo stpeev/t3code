@@ -859,6 +859,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
             commandId: CommandId.make("runtime-rollback-share"),
             threadId,
             worktreePath: null,
+            interruptActiveTurn: true,
           });
           const sharedCommandId = CommandId.make("runtime-rollback-shared");
           const sequence = yield* orchestrator.getThreadEventSequence(threadId);
@@ -901,6 +902,62 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
           assert.deepEqual(yield* outbox.listByCommandId(commandId), []);
         }
       }
+    }).pipe(Effect.provide(Layer.fresh(layerTest))),
+  );
+
+  it.effect("rejects a worktree change during a turn unless it opts into ending the turn", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const outbox = yield* EffectOutbox.EffectOutboxV2;
+      const threadId = ThreadId.make("runtime-worktree-switch-active-turn");
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("runtime-worktree-switch-create"),
+        threadId,
+        projectId: ProjectId.make("runtime-worktree-switch-project"),
+        title: "Worktree switch",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: process.cwd(),
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("runtime-worktree-switch-message"),
+        threadId,
+        messageId: MessageId.make("runtime-worktree-switch-message"),
+        text: "Start a turn.",
+        attachments: [],
+        dispatchMode: { type: "start_immediately" },
+      });
+
+      const rejectedCommandId = CommandId.make("runtime-worktree-switch-rejected");
+      const sequence = yield* orchestrator.getThreadEventSequence(threadId);
+      const rejected = yield* orchestrator
+        .dispatch({
+          type: "thread.metadata.update",
+          commandId: rejectedCommandId,
+          threadId,
+          worktreePath: null,
+        })
+        .pipe(Effect.flip);
+      assert.match(String(rejected.cause), /turn in progress/);
+      assert.equal(yield* orchestrator.getThreadEventSequence(threadId), sequence);
+      assert.deepEqual(yield* outbox.listByCommandId(rejectedCommandId), []);
+
+      yield* orchestrator.dispatch({
+        type: "thread.metadata.update",
+        commandId: CommandId.make("runtime-worktree-switch-handoff"),
+        threadId,
+        worktreePath: null,
+        interruptActiveTurn: true,
+      });
+      assert.equal((yield* orchestrator.getThreadProjection(threadId)).thread.worktreePath, null);
     }).pipe(Effect.provide(Layer.fresh(layerTest))),
   );
 
