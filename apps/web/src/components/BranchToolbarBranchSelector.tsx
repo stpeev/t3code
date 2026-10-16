@@ -119,7 +119,6 @@ export function BranchToolbarBranchSelector({
   const captureContextStrip = (element: HTMLElement | null) => {
     setContextStrip(element?.closest<HTMLElement>('[data-slot="composer-context-strip"]') ?? null);
   };
-  const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, "thread session stop");
   const updateThreadMetadata = useAtomCommand(
     threadEnvironment.updateMetadata,
     "thread metadata update",
@@ -188,27 +187,8 @@ export function BranchToolbarBranchSelector({
       !activeProject ||
       (hasServerThread && !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope))
     )
-      return false;
-    const latest = readLatestThreadState();
-    if (automatic && (latest.runtime || latest.worktreePath)) return false;
-    if (
-      isWorktreeChangeBlocked({
-        runtime: latest.runtime,
-        currentWorktreePath: latest.worktreePath,
-        nextWorktreePath: worktreePath,
-      })
-    ) {
-      toastManager.add(
-        stackedThreadToast({ type: "warning", title: WORKTREE_CHANGE_BLOCKED_MESSAGE }),
-      );
-      return false;
-    }
-    if (latest.runtime && worktreePath !== latest.worktreePath) {
-      void stopThreadSession({
-        environmentId,
-        input: { threadId: activeThreadId },
-      });
-    }
+      return;
+    // A worktree change detaches the provider session on the server.
     if (hasServerThread) {
       void (automatic ? updateEmptyThreadMetadata : updateThreadMetadata)({
         environmentId,
@@ -441,14 +421,23 @@ export function BranchToolbarBranchSelector({
       refName,
     });
 
+    // Moving worktrees restarts the agent process, which would kill the turn and its subagents.
     if (
-      isWorktreeChangeBlocked({
-        runtime: latest.runtime,
-        currentWorktreePath: latest.worktreePath,
-        nextWorktreePath: selectionTarget.nextWorktreePath,
-      })
-    )
+      selectionTarget.nextWorktreePath !== activeWorktreePath &&
+      (serverSession?.status === "starting" ||
+        serverSession?.status === "running" ||
+        serverSession?.status === "waiting")
+    ) {
+      setIsBranchMenuOpen(false);
+      toastManager.add(
+        stackedThreadToast({
+          type: "warning",
+          title: "Turn in progress",
+          description: "Stop the turn or wait for it to finish before switching the worktree.",
+        }),
+      );
       return;
+    }
 
     if (selectionTarget.reuseExistingWorktree) {
       setThreadBranch(refName.name, selectionTarget.nextWorktreePath);
