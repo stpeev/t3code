@@ -356,15 +356,8 @@ const make = Effect.gen(function* () {
               branch: worktree.refName,
               worktreePath,
               expectedWorktreePath: null,
-              // Binding detaches the session and ends the caller; a later send could lose the race.
-              ...(input.continuationPrompt === undefined
-                ? {}
-                : {
-                    continuation: {
-                      messageId: ids.continuationMessageId,
-                      text: input.continuationPrompt,
-                    },
-                  }),
+              // The calling agent's own turn is running and ends by design.
+              interruptActiveTurn: true,
             })
             .pipe(
               Effect.catchCause((cause) =>
