@@ -1113,6 +1113,7 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<boolean>;
   /** Reads http(s) media in the main process, outside renderer CORS and CSP; null on network failure. */
   readMedia: (url: string) => Promise<DesktopMediaRead | null>;
+  focusRightPanelPopout: () => Promise<void>;
   openSystemSettings: (pane: SystemSettingsPane) => Promise<boolean>;
   checkSystemPermission: (pane: SystemSettingsPane) => Promise<boolean>;
   probeRemoteEditors: () => Promise<readonly EditorId[]>;
