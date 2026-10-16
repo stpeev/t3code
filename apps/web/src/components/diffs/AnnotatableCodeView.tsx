@@ -142,6 +142,8 @@ export function AnnotatableCodeView({
     annotation: DiffCommentLineAnnotation;
   } | null>(null);
   const [draftText, setDraftText] = useState("");
+  // A saved comment being edited renders as a draft and shares draftText.
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
 
   const filesByKey = new Map(files.map((file) => [file.fileKey, file]));
   if (
@@ -172,7 +174,7 @@ export function AnnotatableCodeView({
           if (!range) return annotations;
           return appendAnnotationEntry(annotations, range, {
             id: comment.id,
-            kind: "comment",
+            kind: comment.id === editingCommentId ? "draft" : "comment",
             range,
             rangeLabel: comment.rangeLabel,
             text: comment.text,
@@ -189,7 +191,7 @@ export function AnnotatableCodeView({
           `${fileVersion}:${collapsed ? "1" : "0"}:${annotations
             .flatMap((annotation) =>
               annotation.metadata.entries.map(
-                (entry) => `${entry.id}:${entry.rangeLabel}:${entry.text}`,
+                (entry) => `${entry.id}:${entry.kind}:${entry.rangeLabel}:${entry.text}`,
               ),
             )
             .join(":")}`,
@@ -203,12 +205,30 @@ export function AnnotatableCodeView({
     if (draft?.annotation.metadata.entries.some((entry) => entry.id === entryId)) {
       setDraft(null);
       setDraftText("");
+    } else if (editingCommentId === entryId) {
+      setEditingCommentId(null);
+      setDraftText("");
     } else {
       removeReviewComment(composerDraftTarget, entryId);
     }
   };
 
+  const beginEdit = (entry: DiffCommentAnnotationEntry) => {
+    setSelectedLines(null);
+    setDraftText(entry.text);
+    setEditingCommentId(entry.id);
+  };
+
   const submitEntry = (entryId: string, text: string) => {
+    if (editingCommentId === entryId) {
+      const comment = reviewComments.find((candidate) => candidate.id === entryId);
+      if (comment) {
+        addReviewComment(composerDraftTarget, { ...comment, text }, { appendReference: false });
+      }
+      setEditingCommentId(null);
+      setDraftText("");
+      return;
+    }
     const entry = draft?.annotation.metadata.entries.find((candidate) => candidate.id === entryId);
     const file = draft ? filesByKey.get(draft.fileKey) : undefined;
     if (!entry || !file) return;
@@ -258,6 +278,8 @@ export function AnnotatableCodeView({
     });
   };
 
+  const hasOpenComment =
+    draft !== null || reviewComments.some((comment) => comment.id === editingCommentId);
   return (
     <StyledDiffCodeView<DiffCommentAnnotationGroup>
       key={codeViewKey}
@@ -277,8 +299,8 @@ export function AnnotatableCodeView({
       onSelectedLinesChange={setSelectedLines}
       options={{
         ...options,
-        enableGutterUtility: draft === null,
-        enableLineSelection: draft === null,
+        enableGutterUtility: !hasOpenComment,
+        enableLineSelection: !hasOpenComment,
         onGutterUtilityClick: beginComment,
         onRevealSearchMatch: (item) => onRevealSearchMatch(item.id),
       }}
@@ -314,6 +336,8 @@ export function AnnotatableCodeView({
                 onCancel={() => removeEntry(entry.id)}
                 onComment={(text) => submitEntry(entry.id, text)}
                 onDelete={() => removeEntry(entry.id)}
+                {...(entry.id === editingCommentId ? { submitLabel: "Save" } : {})}
+                {...(hasOpenComment ? {} : { onEdit: () => beginEdit(entry) })}
               />
             ))}
           </div>
