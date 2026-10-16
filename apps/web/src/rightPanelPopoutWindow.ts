@@ -2,7 +2,7 @@ import { isEditableFocused } from "./lib/editableFocus";
 import type { RightPanelPopoutBounds } from "./rightPanelPopoutStore";
 
 /** Window name the desktop shell matches to allow this one popup. */
-export const RIGHT_PANEL_POPOUT_WINDOW_NAME = "t3code-right-panel";
+const RIGHT_PANEL_POPOUT_WINDOW_NAME = "t3code-right-panel";
 
 const DEFAULT_WIDTH = 720;
 const DEFAULT_HEIGHT = 900;
@@ -52,7 +52,11 @@ export function isAppFocused(): boolean {
 }
 
 export function focusRightPanelPopout(): void {
-  current?.window.focus();
+  if (!current) return;
+  // Electron ignores `window.focus()` across windows, so the desktop shell raises it natively.
+  const focusNatively = window.desktopBridge?.focusRightPanelPopout;
+  if (focusNatively) void focusNatively();
+  else current.window.focus();
 }
 
 export function closeRightPanelPopout(): void {
