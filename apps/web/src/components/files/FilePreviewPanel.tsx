@@ -785,6 +785,8 @@ function EditableFileSurface({
   );
   // Saved comments live in the composer draft so they survive this surface remounting.
   const [draftEntry, setDraftEntry] = useState<FileCommentAnnotationEntry | null>(null);
+  // Kept out of lineAnnotations, whose draft entries the edit remap treats as the new comment.
+  const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const savedEntries = reviewComments
     .filter((comment) => comment.sectionId === `file:${relativePath}`)
     .map<FileCommentAnnotationEntry>((comment) => ({
@@ -867,11 +869,20 @@ function EditableFileSurface({
   const removeAnnotationEntry = (entryId: string) => {
     setSelectedRange(null);
     if (draftEntry?.id === entryId) setDraftEntry(null);
+    else if (editingComment?.id === entryId) setEditingComment(null);
     else removeReviewComment(composerDraftTarget, entryId);
   };
 
   const submitAnnotationEntry = (entryId: string, text: string) => {
     setSelectedRange(null);
+    if (editingComment?.id === entryId) {
+      const comment = reviewComments.find((candidate) => candidate.id === entryId);
+      if (comment) {
+        addReviewComment(composerDraftTarget, { ...comment, text }, { appendReference: false });
+      }
+      setEditingComment(null);
+      return;
+    }
     if (draftEntry?.id !== entryId) return;
     addReviewComment(
       composerDraftTarget,
@@ -893,7 +904,14 @@ function EditableFileSurface({
     const { startLine, endLine } = normalizeFileCommentRange(range);
     setDraftEntry({ id: nextFileCommentId(), kind: "draft", startLine, endLine, text: "" });
   };
-  const hasOpenCommentForm = draftEntry !== null;
+  const beginEdit = (entry: FileCommentAnnotationEntry) => {
+    editorRef.current?.setSelections([]);
+    editorRef.current?.blur();
+    setSelectedRange(null);
+    setEditingComment({ id: entry.id, text: entry.text });
+  };
+  const hasOpenCommentForm =
+    draftEntry !== null || reviewComments.some((comment) => comment.id === editingComment?.id);
   useEffect(() => {
     const root = surfaceRef.current;
     if (!root) return;
@@ -961,17 +979,28 @@ function EditableFileSurface({
             lineAnnotations={lineAnnotations}
             renderAnnotation={(annotation) => (
               <div className="py-1">
-                {annotation.metadata.entries.map((entry) => (
-                  <DiffCommentAnnotation
-                    key={entry.id}
-                    kind={entry.kind}
-                    rangeLabel={formatFileCommentRange(entry.startLine, entry.endLine)}
-                    text={entry.text}
-                    onCancel={() => removeAnnotationEntry(entry.id)}
-                    onComment={(text) => submitAnnotationEntry(entry.id, text)}
-                    onDelete={() => removeAnnotationEntry(entry.id)}
-                  />
-                ))}
+                {annotation.metadata.entries.map((entry) => {
+                  const editing = editingComment?.id === entry.id ? editingComment : null;
+                  return (
+                    <DiffCommentAnnotation
+                      key={entry.id}
+                      kind={editing ? "draft" : entry.kind}
+                      rangeLabel={formatFileCommentRange(entry.startLine, entry.endLine)}
+                      text={editing ? editing.text : entry.text}
+                      onCancel={() => removeAnnotationEntry(entry.id)}
+                      onComment={(text) => submitAnnotationEntry(entry.id, text)}
+                      onDelete={() => removeAnnotationEntry(entry.id)}
+                      {...(editing
+                        ? {
+                            submitLabel: "Save",
+                            onTextChange: (text: string) =>
+                              setEditingComment({ id: entry.id, text }),
+                          }
+                        : {})}
+                      {...(hasOpenCommentForm ? {} : { onEdit: () => beginEdit(entry) })}
+                    />
+                  );
+                })}
               </div>
             )}
             className="min-h-full"
