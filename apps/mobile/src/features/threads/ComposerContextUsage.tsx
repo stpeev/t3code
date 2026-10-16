@@ -6,10 +6,11 @@ import {
 import type { ProviderDriverKind } from "@t3tools/contracts";
 import { Pressable, View } from "react-native";
 
-import { SymbolView } from "../../components/AppSymbol";
-import { AppText as Text } from "../../components/AppText";
+import { SymbolView } from "../../components/ui/AppSymbol";
+import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { useBarColor } from "../usage/UsageLimitsSection";
+import { msg, T } from "gt-react-native";
 
 /** The /context-usage result, docked above the composer; it re-reads the snapshot as the turn runs. */
 export function ComposerContextUsage({
@@ -32,13 +33,15 @@ export function ComposerContextUsage({
       <View className="flex-row items-center gap-2">
         {driver ? <ProviderIcon provider={driver} size={16} /> : null}
         <View className="min-w-0 flex-1 flex-row items-baseline gap-2">
-          <Text className="text-base font-t3-medium text-foreground">Context usage</Text>
+          <Text className="text-base font-t3-medium text-foreground">
+            <T>Context usage</T>
+          </Text>
           <Text className="shrink text-sm text-foreground-muted" numberOfLines={1}>
             · {detail}
           </Text>
         </View>
         <Pressable
-          accessibilityLabel="Dismiss context usage"
+          accessibilityLabel={msg("Dismiss context usage")}
           accessibilityRole="button"
           hitSlop={12}
           onPress={onClose}
@@ -55,7 +58,9 @@ export function ComposerContextUsage({
       {used !== null ? (
         <View className="gap-1">
           <View className="flex-row items-baseline justify-between gap-3">
-            <Text className="text-sm text-foreground">Used</Text>
+            <Text className="text-sm text-foreground">
+              <T>Used</T>
+            </Text>
             <Text className="text-sm font-t3-medium tabular-nums text-foreground">
               {summary.percentage}
             </Text>
