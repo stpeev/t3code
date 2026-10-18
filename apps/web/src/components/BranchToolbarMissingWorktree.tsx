@@ -46,12 +46,16 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
   const recreate = useCallback(async () => {
     if (!branch) return;
     setPending(true);
+    // The server picks the folder, so the thread moves to wherever the new worktree lands.
     const result = await createWorktree({
       environmentId,
-      input: { cwd: projectCwd, refName: branch, path: worktreePath },
+      input: { cwd: projectCwd, refName: branch, path: null },
     });
     if (result._tag === "Success") {
-      await refreshStatus({ environmentId, input: { cwd: worktreePath } });
+      const nextPath = result.value.worktree.path;
+      if (hasSession) await stopThreadSession({ environmentId, input: { threadId } });
+      await updateThreadMetadata({ environmentId, input: { threadId, worktreePath: nextPath } });
+      await refreshStatus({ environmentId, input: { cwd: nextPath } });
     } else {
       toastManager.add(
         stackedThreadToast({
@@ -62,7 +66,17 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
       );
     }
     setPending(false);
-  }, [branch, createWorktree, environmentId, projectCwd, refreshStatus, worktreePath]);
+  }, [
+    branch,
+    createWorktree,
+    environmentId,
+    hasSession,
+    projectCwd,
+    refreshStatus,
+    stopThreadSession,
+    threadId,
+    updateThreadMetadata,
+  ]);
 
   const continueInProjectFolder = useCallback(async () => {
     setPending(true);
