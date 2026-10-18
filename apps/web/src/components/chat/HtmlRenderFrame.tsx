@@ -94,26 +94,23 @@ export function HtmlRenderFrame(props: {
       () => setFailed(true),
     );
   }, [cacheFailed, cachedExpiresAt, cachedUrl, refresh, src]);
-  const reportSelection = useCallback(
-    (selection: HtmlRenderSelection | null, frame: HTMLIFrameElement) => {
-      let detail: AssistantFrameSelection | null = null;
-      if (selection !== null) {
-        const frameRect = frame.getBoundingClientRect();
-        const { left, top, width, height } = selection.rect;
-        detail = {
-          text: selection.text,
-          start: selection.start,
-          end: selection.end,
-          rect: new DOMRect(frameRect.left + left, frameRect.top + top, width, height),
-          clear: () => frame.contentWindow?.postMessage(htmlRenderClearSelectionMessage(), "*"),
-        };
-      }
-      boxRef.current?.dispatchEvent(
-        new CustomEvent(ASSISTANT_FRAME_SELECTION_EVENT, { bubbles: true, detail }),
-      );
-    },
-    [],
-  );
+  const reportSelection = (selection: HtmlRenderSelection | null, frame: HTMLIFrameElement) => {
+    let detail: AssistantFrameSelection | null = null;
+    if (selection !== null) {
+      const frameRect = frame.getBoundingClientRect();
+      const { left, top, width, height } = selection.rect;
+      detail = {
+        text: selection.text,
+        start: selection.start,
+        end: selection.end,
+        rect: new DOMRect(frameRect.left + left, frameRect.top + top, width, height),
+        clear: () => frame.contentWindow?.postMessage(htmlRenderClearSelectionMessage(), "*"),
+      };
+    }
+    boxRef.current?.dispatchEvent(
+      new CustomEvent(ASSISTANT_FRAME_SELECTION_EVENT, { bubbles: true, detail }),
+    );
+  };
 
   return (
     <div ref={boxRef} className="group/html-render relative" style={{ height }}>
