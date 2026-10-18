@@ -1830,8 +1830,8 @@ export class GhosttyTerminalSurface {
     this.scrollbar.addEventListener("pointerup", this.onScrollbarPointerUp);
     this.scrollbar.addEventListener("pointercancel", this.onScrollbarPointerUp);
     this.scrollbar.addEventListener("keydown", this.onScrollbarKeyDown);
-    window.addEventListener("pointerup", this.onWindowPointerRelease);
-    window.addEventListener("pointercancel", this.onWindowPointerRelease);
+    this.view.addEventListener("pointerup", this.onWindowPointerRelease);
+    this.view.addEventListener("pointercancel", this.onWindowPointerRelease);
   }
 
   private removeEvents(): void {
@@ -1860,8 +1860,8 @@ export class GhosttyTerminalSurface {
     this.scrollbar.removeEventListener("pointerup", this.onScrollbarPointerUp);
     this.scrollbar.removeEventListener("pointercancel", this.onScrollbarPointerUp);
     this.scrollbar.removeEventListener("keydown", this.onScrollbarKeyDown);
-    window.removeEventListener("pointerup", this.onWindowPointerRelease);
-    window.removeEventListener("pointercancel", this.onWindowPointerRelease);
+    this.view.removeEventListener("pointerup", this.onWindowPointerRelease);
+    this.view.removeEventListener("pointercancel", this.onWindowPointerRelease);
   }
 
   private scrollViewport(deltaRows: number): void {
