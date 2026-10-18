@@ -784,49 +784,8 @@ export class GhosttyTerminalSurface {
     context.fillStyle = `rgb(${options.theme.background.r}, ${options.theme.background.g}, ${options.theme.background.b})`;
     context.fillRect(0, 0, canvas.width, canvas.height);
     const stopObservingI18n = subscribeI18n(updateAccessibleNames);
+    const fontSize = terminalFontSize(options.font?.size);
     try {
-<<<<<<< HEAD
-      const fontSize = terminalFontSize(options.font?.size);
-      try {
-        // Load bundled fonts before measuring; fallback metrics would size the wrong grid.
-        await ensureTerminalSymbolsFont();
-      } catch {}
-      const fontFamily = await loadTerminalFontFamily(options.font?.family, fontSize);
-      const metrics = measureGhosttyCell(context, fontSize, fontFamily);
-      const grid = terminalGridSize(
-        mount.clientWidth,
-        mount.clientHeight,
-        metrics,
-        CONTENT_PADDING,
-      );
-      const core = await GhosttyTerminalCore.create(
-        grid.cols,
-        grid.rows,
-        metrics.width,
-        metrics.height,
-        options.theme,
-        options.onReply,
-      );
-      const surface = new GhosttyTerminalSurface(
-        mount,
-        canvas,
-        input,
-        scrollbar,
-        scrollbarThumb,
-        context,
-        core,
-        metrics,
-        fontFamily,
-        options,
-        stopObservingI18n,
-      );
-      surface.fit();
-      return surface;
-    } catch (error) {
-      stopObservingI18n();
-      throw error;
-    }
-=======
       // Load bundled fonts before measuring; fallback metrics would size the wrong grid.
       await ensureTerminalSymbolsFont(doc);
     } catch {}
@@ -856,10 +815,10 @@ export class GhosttyTerminalSurface {
       metrics,
       fontFamily,
       options,
+      stopObservingI18n,
     );
     surface.fit();
     return surface;
->>>>>>> 448833b1f9 (feat(web): the terminal works in the popped-out right panel)
   }
 
   setVisible(visible: boolean): void {
@@ -1185,12 +1144,11 @@ export class GhosttyTerminalSurface {
     this.disposed = true;
     this.clearHoveredLink();
     this.stopObservingResize();
-<<<<<<< HEAD
+
     this.stopObservingI18n();
     document.fonts.removeEventListener("loadingdone", this.onFontsLoaded);
-=======
     this.doc.fonts.removeEventListener("loadingdone", this.onFontsLoaded);
->>>>>>> 448833b1f9 (feat(web): the terminal works in the popped-out right panel)
+
     this.dprMedia?.removeEventListener("change", this.onDevicePixelRatioChange);
     this.dprMedia = null;
     this.reducedMotionMedia?.removeEventListener("change", this.onReducedMotionChange);
@@ -2021,8 +1979,8 @@ export class GhosttyTerminalSurface {
     this.scrollbar.addEventListener("pointerup", this.onScrollbarPointerUp);
     this.scrollbar.addEventListener("pointercancel", this.onScrollbarPointerUp);
     this.scrollbar.addEventListener("keydown", this.onScrollbarKeyDown);
-    window.addEventListener("pointerup", this.onWindowPointerRelease);
-    window.addEventListener("pointercancel", this.onWindowPointerRelease);
+    this.view.addEventListener("pointerup", this.onWindowPointerRelease);
+    this.view.addEventListener("pointercancel", this.onWindowPointerRelease);
   }
 
   private removeEvents(): void {
@@ -2051,8 +2009,8 @@ export class GhosttyTerminalSurface {
     this.scrollbar.removeEventListener("pointerup", this.onScrollbarPointerUp);
     this.scrollbar.removeEventListener("pointercancel", this.onScrollbarPointerUp);
     this.scrollbar.removeEventListener("keydown", this.onScrollbarKeyDown);
-    window.removeEventListener("pointerup", this.onWindowPointerRelease);
-    window.removeEventListener("pointercancel", this.onWindowPointerRelease);
+    this.view.removeEventListener("pointerup", this.onWindowPointerRelease);
+    this.view.removeEventListener("pointercancel", this.onWindowPointerRelease);
   }
 
   private scrollViewport(deltaRows: number): void {
