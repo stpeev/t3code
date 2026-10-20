@@ -27,7 +27,7 @@ import {
 
 import { useComposerDraftStore, type DraftId } from "../composerDraftStore";
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
-import { useProject, useThreadShellsForProjectRefs } from "../state/entities";
+import { useProject, useQuietThreadShell, useThreadShellsForProjectRefs } from "../state/entities";
 import {
   ADD_TO_MACHINE_LABEL_CLASS,
   type EnvMode,
@@ -648,6 +648,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   // The composer retains resolved thread details while bootstrap cleanup can remove its shell.
   const activeProjectRef = scopeProjectRef(environmentId, projectId);
   const activeProject = useProject(activeProjectRef);
+  const missingWorktreeThread = useQuietThreadShell(worktreeMissing ? threadRef : null);
   const activeWorktreePath = forceNewWorktree ? null : worktreePath;
   const effectiveEnvMode = forceNewWorktree ? "worktree" : envMode;
   const envModeLocked = envLocked || (isServerThread && activeWorktreePath !== null);
@@ -867,14 +868,14 @@ export const BranchToolbar = memo(function BranchToolbar({
         />
       ) : null}
 
-      {worktreeMissing && serverThread?.worktreePath ? (
+      {worktreeMissing && missingWorktreeThread?.worktreePath ? (
         <BranchToolbarMissingWorktree
           environmentId={environmentId}
           threadId={threadId}
-          worktreePath={serverThread.worktreePath}
-          branch={serverThread.branch}
+          worktreePath={missingWorktreeThread.worktreePath}
+          branch={missingWorktreeThread.branch}
           projectCwd={activeProject.workspaceRoot}
-          hasSession={serverThread.runtime !== null}
+          hasSession={missingWorktreeThread.runtime !== null}
         />
       ) : null}
     </ComposerSurface.ContextStrip>
