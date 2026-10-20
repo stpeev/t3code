@@ -646,7 +646,9 @@ function ThreadStatusLabel({
   const unseenAnimationClass = useClientSettings((settings) =>
     status.label === "Completed" ? attentionHighlightClass(settings.attentionHighlight, "dot") : "",
   );
-  const dotAnimationClass = status.pulse ? "motion-safe:animate-status-pulse" : unseenAnimationClass;
+  const dotAnimationClass = status.pulse
+    ? "motion-safe:animate-status-pulse"
+    : unseenAnimationClass;
   if (compact) {
     return (
       <Tooltip>
