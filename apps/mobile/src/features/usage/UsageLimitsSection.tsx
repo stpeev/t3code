@@ -42,7 +42,7 @@ type Driver = ServerProvider["driver"];
 
 export function useBarColor(driver: Driver | null): string | null {
   const colors = useProviderColors();
-  const kind = usageProviderKind(driver);
+  const kind = driver === null ? null : usageProviderKind(driver);
   return kind ? colors[kind] : null;
 }
 
