@@ -306,21 +306,17 @@ function ThreadRouteContent(
   const selectedThreadDetail = Option.getOrNull(selectedThreadDetailState.data);
   const selectedVisibleTurnItems = useSelectedThreadVisibleTurnItems();
   // Same inputs as the web composer meter: live provider usage, then the provider thread, then compactions.
-  const contextWindow = useMemo(() => {
-    const providerTurns = selectedThreadDetail?.providerTurns ?? [];
-    const liveUsage = providerTurns.findLast((turn) => turn.tokenUsage !== undefined)?.tokenUsage;
-    return deriveLatestContextWindowSnapshot(
-      selectedVisibleTurnItems,
-      liveUsage ?? null,
-      selectedThreadDetail?.providerThreads.find(
-        (thread) => thread.id === selectedThreadDetail.thread.activeProviderThreadId,
-      ),
-    );
-  }, [selectedThreadDetail, selectedVisibleTurnItems]);
-  const contextWindowLastTurn = useMemo(
-    () => (selectedThreadDetail ? deriveLastTurnUsage(selectedThreadDetail) : null),
-    [selectedThreadDetail],
+  const contextWindow = deriveLatestContextWindowSnapshot(
+    selectedVisibleTurnItems,
+    selectedThreadDetail?.providerTurns.findLast((turn) => turn.tokenUsage !== undefined)
+      ?.tokenUsage ?? null,
+    selectedThreadDetail?.providerThreads.find(
+      (thread) => thread.id === selectedThreadDetail.thread.activeProviderThreadId,
+    ),
   );
+  const contextWindowLastTurn = selectedThreadDetail
+    ? deriveLastTurnUsage(selectedThreadDetail)
+    : null;
   const { selectedThreadCwd } = useSelectedThreadWorktree();
   const composer = useThreadComposerState();
   const gitState = useSelectedThreadGitState();
