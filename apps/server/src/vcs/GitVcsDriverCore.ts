@@ -4878,16 +4878,10 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const progress = options?.progress;
     const onCheckoutProgress = progress?.onCheckoutProgress;
 
-    // A worktree folder deleted outside Git stays registered, and `worktree add`
-    // refuses both its path and its branch until the stale entry is pruned.
     const worktreeFolderExists = yield* fileSystem
       .exists(worktreePath)
       .pipe(Effect.orElseSucceed(() => true));
-    if (!worktreeFolderExists) {
-      yield* pruneWorktrees({ cwd: input.cwd });
-    }
 
-    const checkoutWorkers = (yield* readConfigValue(input.cwd, "checkout.workers")) ?? "0";
     // Both reads leave the repository alone, so they share one round trip before the checkout.
     const [configuredCheckoutWorkers, base] = yield* Effect.all(
       [
@@ -4901,7 +4895,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const checkoutWorkers = configuredCheckoutWorkers ?? "0";
     const fastCheckout = checkoutCache !== undefined && options?.fastCheckout === true;
     const cacheGeneration = fastCheckout ? yield* checkoutCache.currentGeneration : 0;
-    const stockCheckout = executeGitWithStableDiagnostics(
+    const addWorktree = executeGitWithStableDiagnostics(
       "GitVcsDriver.createWorktree",
       input.cwd,
       [
@@ -4936,12 +4930,23 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           : {}),
       },
     );
+    // A folder deleted outside Git stays registered, and `worktree add` refuses its
+    // path (no reason tag) and its branch until the stale entry is pruned.
+    const addWorktreeWithPrune = worktreeFolderExists
+      ? addWorktree
+      : addWorktree.pipe(
+          Effect.catchIf(
+            (error) =>
+              error.reason === undefined || error.reason === "branch_checked_out_in_worktree",
+            () => pruneWorktrees({ cwd: input.cwd }).pipe(Effect.andThen(addWorktree)),
+          ),
+        );
     yield* (
       fastCheckout
         ? checkoutCache
             .create({ cwd: input.cwd, worktreePath, refName: checkoutRef, checkoutWorkers })
-            .pipe(Effect.flatMap((cloned) => (cloned ? Effect.void : stockCheckout)))
-        : stockCheckout
+            .pipe(Effect.flatMap((cloned) => (cloned ? Effect.void : addWorktreeWithPrune)))
+        : addWorktreeWithPrune
     ).pipe(
       Effect.onError(() =>
         newRefName
