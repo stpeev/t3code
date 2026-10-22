@@ -211,8 +211,6 @@ function SubagentModelRow({
                 provider={activeEntry.driverKind}
                 models={activeEntry.models}
                 model={configured.model}
-                prompt=""
-                onPromptChange={() => {}}
                 modelOptions={configured.options ?? []}
                 allowPromptInjectedEffort={false}
                 planModeEnabled={settings.planModeEnabled || selectsPlanAgent(configured.options)}
