@@ -942,6 +942,8 @@ export function NewTaskDraftScreen(props: {
         selectedThreadFeed={[]}
         activityRun={null}
         activeWorkStartedAt={null}
+        contextWindow={null}
+        contextWindowLastTurn={null}
         isCompacting={false}
         creationState={null}
         activePendingApproval={null}
