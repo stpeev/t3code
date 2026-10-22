@@ -33,7 +33,7 @@ export type DiffChangesRow =
     }
   | { readonly kind: "show-more"; readonly id: "show-more" };
 
-export const commitRowId = (sha: string) => `commit:${sha}`;
+const commitRowId = (sha: string) => `commit:${sha}`;
 
 /** A selection the list can't show (a turn, a commit off the branch) gets a pinned row to expand under. */
 export function buildDiffChangesRows(input: {
@@ -90,6 +90,7 @@ export function selectedDiffChangesRowId(
     case "branch":
       return commits?.baseRef ? "divider" : null;
     case "turn":
+    case "tool-call":
       return "pinned";
     case "commit": {
       const listed = [...(commits?.branchCommits ?? []), ...(commits?.contextCommits ?? [])].find(
@@ -100,7 +101,7 @@ export function selectedDiffChangesRowId(
   }
 }
 
-/** Rows a keyboard can land on; `show-more` is an action and `branch-header` a label, not diffs. */
+/** Rows a keyboard can land on; `show-more` is an action and `branch-header` a shortcut to the divider. */
 export function isSelectableDiffChangesRow(row: DiffChangesRow): boolean {
   return row.kind !== "show-more" && row.kind !== "branch-header";
 }
