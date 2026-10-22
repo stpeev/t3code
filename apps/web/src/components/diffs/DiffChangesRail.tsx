@@ -1,13 +1,7 @@
 import { ChevronDownIcon, ChevronRightIcon, CloudOffIcon } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { cn } from "~/lib/utils";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 
@@ -24,6 +18,9 @@ const FILE_TREE_CHROME_PX = 48;
 
 const findRowElement = (scroller: HTMLElement | null, id: string) =>
   scroller?.querySelector<HTMLElement>(`[data-changes-row="${CSS.escape(id)}"]`) ?? null;
+
+const revealRowBlock = (element: HTMLElement) =>
+  element.closest('[role="listitem"]')?.scrollIntoView({ block: "nearest" });
 
 interface DiffChangesRailProps {
   readonly rows: ReadonlyArray<DiffChangesRow>;
@@ -54,23 +51,21 @@ export function DiffChangesRail({
   renderBasePicker,
 }: DiffChangesRailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const anchorRef = useRef<{ id: string; top: number } | null>(null);
+  /** A null `top` scrolls the row's block into view instead of pinning the row in place. */
+  const anchorRef = useRef<{ id: string; top: number | null } | null>(null);
   const keyboardTimerRef = useRef<number | null>(null);
 
   const rowElement = (id: string) => findRowElement(scrollRef.current, id);
 
-  const select = useCallback(
-    (row: DiffChangesRow) => {
-      if (row.id === selectedRowId) {
-        onFilesFoldedChange(!filesFolded);
-        return;
-      }
-      const element = findRowElement(scrollRef.current, row.id);
-      anchorRef.current = element ? { id: row.id, top: element.getBoundingClientRect().top } : null;
-      onSelectRow(row);
-    },
-    [filesFolded, onFilesFoldedChange, onSelectRow, selectedRowId],
-  );
+  const select = useStableCallback((row: DiffChangesRow) => {
+    if (row.id === selectedRowId) {
+      onFilesFoldedChange(!filesFolded);
+      return;
+    }
+    const element = findRowElement(scrollRef.current, row.id);
+    anchorRef.current = element ? { id: row.id, top: element.getBoundingClientRect().top } : null;
+    onSelectRow(row);
+  });
 
   // Collapsing the block above the clicked row would otherwise pull the row upward.
   useLayoutEffect(() => {
@@ -80,7 +75,8 @@ export function DiffChangesRail({
     const scroller = scrollRef.current;
     const element = findRowElement(scroller, anchor.id);
     if (!scroller || !element) return;
-    scroller.scrollTop += element.getBoundingClientRect().top - anchor.top;
+    if (anchor.top === null) revealRowBlock(element);
+    else scroller.scrollTop += element.getBoundingClientRect().top - anchor.top;
   }, [selectedRowId]);
 
   useEffect(
@@ -113,6 +109,19 @@ export function DiffChangesRail({
     }, KEYBOARD_SELECT_DELAY_MS);
   };
 
+  // The header is a second way into the divider's branch diff, whose files open below the commits.
+  const dividerRow = rows.find((row) => row.kind === "divider");
+  const selectBranchFromHeader = useStableCallback((divider: DiffChangesRow) => {
+    if (divider.id !== selectedRowId) {
+      anchorRef.current = { id: divider.id, top: null };
+      onSelectRow(divider);
+      return;
+    }
+    onFilesFoldedChange(false);
+    const element = rowElement(divider.id);
+    if (element) revealRowBlock(element);
+  });
+
   const fileTreeHeight = FILE_TREE_CHROME_PX + fileTreeRowCount * FILE_TREE_ROW_HEIGHT_PX;
 
   return (
@@ -139,14 +148,12 @@ export function DiffChangesRail({
                 Show more
               </Button>
             ) : row.kind === "branch-header" ? (
-              <div className="mx-1 mt-2 flex min-w-0 items-center gap-1.5 px-2 pb-0.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-                <span className="truncate">This branch</span>
-                <span className="shrink-0 tabular-nums normal-case">
-                  · {row.commitCount}
-                  {row.truncated ? "+" : ""}
-                  {hasRemote && row.unpushedCount > 0 ? ` · ${row.unpushedCount} not pushed` : ""}
-                </span>
-              </div>
+              <BranchHeaderButton
+                row={row}
+                hasRemote={hasRemote}
+                selected={dividerRow !== undefined && dividerRow.id === selectedRowId}
+                onSelect={dividerRow ? () => selectBranchFromHeader(dividerRow) : null}
+              />
             ) : row.kind === "divider" ? (
               <div
                 className={cn(
@@ -187,6 +194,45 @@ export function DiffChangesRail({
         );
       })}
     </div>
+  );
+}
+
+function BranchHeaderButton({
+  row,
+  hasRemote,
+  selected,
+  onSelect,
+}: {
+  readonly row: Extract<DiffChangesRow, { kind: "branch-header" }>;
+  readonly hasRemote: boolean;
+  readonly selected: boolean;
+  readonly onSelect: (() => void) | null;
+}) {
+  return (
+    <Tooltip disabled={onSelect === null}>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            disabled={onSelect === null}
+            aria-pressed={selected}
+            className={cn(
+              "mx-1 mt-2 flex min-w-0 items-center gap-1.5 rounded-sm px-2 pb-0.5 text-left text-2xs font-medium uppercase tracking-wide text-muted-foreground outline-none enabled:hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              selected && "text-foreground",
+            )}
+            onClick={onSelect ?? undefined}
+          />
+        }
+      >
+        <span className="truncate">This branch</span>
+        <span className="shrink-0 tabular-nums normal-case">
+          · {row.commitCount}
+          {row.truncated ? "+" : ""}
+          {hasRemote && row.unpushedCount > 0 ? ` · ${row.unpushedCount} not pushed` : ""}
+        </span>
+      </TooltipTrigger>
+      <TooltipPopup side="left">Show all changes on this branch</TooltipPopup>
+    </Tooltip>
   );
 }
 
