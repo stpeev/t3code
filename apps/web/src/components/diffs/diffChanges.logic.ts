@@ -100,7 +100,7 @@ export function selectedDiffChangesRowId(
   }
 }
 
-/** Rows a keyboard can land on; `show-more` is an action and `branch-header` a label, not diffs. */
+/** Rows a keyboard can land on; `show-more` is an action and `branch-header` a shortcut to the divider. */
 export function isSelectableDiffChangesRow(row: DiffChangesRow): boolean {
   return row.kind !== "show-more" && row.kind !== "branch-header";
 }
