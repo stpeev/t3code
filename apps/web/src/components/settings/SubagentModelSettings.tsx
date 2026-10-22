@@ -1,3 +1,5 @@
+import { m } from "~/i18n/messages";
+import { msg, T } from "gt-react";
 import {
   type EnvironmentId,
   type ModelSelection,
@@ -41,38 +43,38 @@ const ROLE_ROWS: ReadonlyArray<{
 }> = [
   {
     role: "implementation",
-    label: "Implementation",
-    description: "Delegated tasks that write or change code.",
+    label: m(msg("Implementation")),
+    description: m(msg("Delegated tasks that write or change code.")),
     searchId: "subagent-model-implementation",
   },
   {
     role: "research",
-    label: "Research",
-    description: "Delegated tasks that investigate code or docs to answer a question.",
+    label: m(msg("Research")),
+    description: m(msg("Delegated tasks that investigate code or docs to answer a question.")),
     searchId: "subagent-model-research",
   },
   {
     role: "review",
-    label: "Review",
-    description: "Delegated tasks that review a change.",
+    label: m(msg("Review")),
+    description: m(msg("Delegated tasks that review a change.")),
     searchId: "subagent-model-review",
   },
   {
     role: "design",
-    label: "Design",
-    description: "Delegated tasks that plan an approach or an interface.",
+    label: m(msg("Design")),
+    description: m(msg("Delegated tasks that plan an approach or an interface.")),
     searchId: "subagent-model-design",
   },
   {
     role: "test",
-    label: "Test",
-    description: "Delegated tasks that write or run tests.",
+    label: m(msg("Test")),
+    description: m(msg("Delegated tasks that write or run tests.")),
     searchId: "subagent-model-test",
   },
   {
     role: "general",
-    label: "General",
-    description: "Delegated tasks the agent gives no role.",
+    label: m(msg("General")),
+    description: m(msg("Delegated tasks the agent gives no role.")),
     searchId: "subagent-model-general",
   },
 ];
@@ -120,8 +122,10 @@ export function SubagentModelSettings() {
   return (
     <SettingsSection
       id="subagent-models"
-      title="Subagent models"
-      description="While any role has a model, agents' built-in subagent tools are turned off on Claude, Cursor, OpenCode, Codex and Pi, so delegation goes through T3 Code."
+      title={msg("Subagent models")}
+      description={msg(
+        "While any role has a model, agents' built-in subagent tools are turned off on Claude, Cursor, OpenCode, Codex and Pi, so delegation goes through T3 Code.",
+      )}
     >
       {ROLE_ROWS.map((row) => (
         <SubagentModelRow key={row.role} {...row} shared={shared} />
@@ -166,7 +170,7 @@ function SubagentModelRow({
     if (reason) {
       toastManager.add({
         type: "error",
-        title: `${label} subagent model not saved`,
+        title: m(msg("{label} subagent model not saved", { label: label })),
         description: reason,
       });
       return;
@@ -181,12 +185,14 @@ function SubagentModelRow({
       mixed={mixed}
       {...searchableSetting(searchId)}
       title={label}
-      resetLabel={`${label.toLowerCase()} subagent model`}
+      resetLabel={m(msg("{arg0} subagent model", { arg0: label.toLowerCase() }))}
       description={description}
       status={configured === null && !mixed ? "Thread's model" : undefined}
       control={
         !shared.hasEnvironment || selection === null ? (
-          <span className="text-sm text-muted-foreground">No providers available</span>
+          <span className="text-sm text-muted-foreground">
+            <T>No providers available</T>
+          </span>
         ) : (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
             {configured !== null || mixed ? (
@@ -198,8 +204,8 @@ function SubagentModelRow({
                 instanceEntries={entries}
                 modelOptionsByInstance={modelOptions}
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                triggerAriaLabel={`${label} subagent model`}
-                {...(mixed ? { triggerLabel: "Mixed" } : {})}
+                triggerAriaLabel={m(msg("{label} subagent model", { label: label }))}
+                {...(mixed ? { triggerLabel: m(msg("Mixed")) } : {})}
                 getModelDisabledReason={disabledReason}
                 onInstanceModelChange={(instanceId: ProviderInstanceId, model: string) =>
                   save(createModelSelection(instanceId, model))
@@ -211,11 +217,9 @@ function SubagentModelRow({
                 provider={activeEntry.driverKind}
                 models={activeEntry.models}
                 model={configured.model}
-                prompt=""
-                onPromptChange={() => {}}
                 modelOptions={configured.options ?? []}
                 allowPromptInjectedEffort={false}
-                planModeEnabled={settings.planModeEnabled || selectsPlanAgent(configured.options)}
+                includePlanAgent={selectsPlanAgent(configured.options)}
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
                 onModelOptionsChange={(options) =>
                   save(createModelSelection(configured.instanceId, configured.model, options))
@@ -234,7 +238,9 @@ function SubagentModelRow({
                   createModelSelection(selection.instanceId, selection.model, selection.options),
                 );
               }}
-              aria-label={`Use a separate ${label.toLowerCase()} subagent model`}
+              aria-label={m(
+                msg("Use a separate {arg0} subagent model", { arg0: label.toLowerCase() }),
+              )}
             />
           </div>
         )
