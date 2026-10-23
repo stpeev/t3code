@@ -165,7 +165,7 @@ export function DiffChangesRail({
                   type="button"
                   data-changes-row={row.id}
                   aria-pressed={selected}
-                  className="shrink-0 rounded-sm font-medium uppercase tracking-wide outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="shrink-0 rounded-sm font-medium uppercase tracking-wide outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   onClick={() => select(row)}
                 >
                   {row.upToDate ? "Up to date with" : "Branched from"}
@@ -281,7 +281,7 @@ function ChangesRowButton({
               aria-pressed={selected}
               aria-label={accessibleName}
               className={cn(
-                "flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                 row.kind === "commit" && !row.onBranch && !selected && "text-muted-foreground",
               )}
               onClick={onSelect}
