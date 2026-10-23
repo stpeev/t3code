@@ -1,7 +1,7 @@
 export type SelectionActionPoint = { x: number; y: number };
 
 export const SELECTION_MULTI_CLICK_INTERVAL_MS = 500;
-const SELECTION_SCROLL_SETTLE_MS = 150;
+const SELECTION_SETTLE_MS = 150;
 
 export function resolveSelectionActionPosition(options: {
   bounds: { left: number; top: number; width: number; height: number };
@@ -59,6 +59,7 @@ export function observeSelectionActions({
   const document = element.ownerDocument;
   const view = document.defaultView!;
   let pointerDown = false;
+  let touch = false;
   let gestureActive = false;
   let dismissed = false;
   let restorable = false;
@@ -85,6 +86,10 @@ export function observeSelectionActions({
     cancel();
     onDismiss("cancel");
   };
+  // Mobile browsers cancel the pointer when a long-press starts selecting text.
+  const onPointerCancel = () => {
+    if (!touch) dismiss();
+  };
   const onContextMenu = () => {
     cancel();
     onDismiss("interaction");
@@ -107,7 +112,8 @@ export function observeSelectionActions({
       return;
     }
     cancelPending();
-    pointerDown = event.button === 0;
+    touch = event.pointerType === "touch";
+    pointerDown = !touch && event.button === 0;
     const inside = element.contains(event.target as Node);
     gestureActive = false;
     dismissed = true;
@@ -120,8 +126,9 @@ export function observeSelectionActions({
     if (!event.isPrimary) return;
     const target = event.target as Element | null;
     if (target?.closest("button, [role=button]")) return;
-    gestureActive = event.button === 0 && !event.defaultPrevented;
-    dismissed = !gestureActive;
+    // A touch selection ends without a mouseup, so selectionChanged shows it once it settles.
+    gestureActive = !touch && event.button === 0 && !event.defaultPrevented;
+    dismissed = !gestureActive && !touch;
   };
   const onPointerUp = (event: PointerEvent) => {
     // Preventing pointerdown (for example on a toolbar) can suppress mouseup.
@@ -155,7 +162,7 @@ export function observeSelectionActions({
     // Autoscroll during a drag must not cancel that gesture's eventual release.
     if (!pointerDown) {
       pointer = null;
-      if (restoreAfterScroll && !dismissed && restorable) schedule(SELECTION_SCROLL_SETTLE_MS);
+      if (restoreAfterScroll && !dismissed && restorable) schedule(SELECTION_SETTLE_MS);
       else dismissed = true;
     }
     onDismiss("cancel");
@@ -165,7 +172,7 @@ export function observeSelectionActions({
   element.addEventListener("pointerdown", onSelectionStart);
   view.addEventListener("pointerup", onPointerUp);
   view.addEventListener("mouseup", onMouseUp);
-  view.addEventListener("pointercancel", dismiss);
+  view.addEventListener("pointercancel", onPointerCancel);
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("focusin", onFocusIn);
   element.addEventListener("contextmenu", onContextMenu, true);
@@ -182,6 +189,10 @@ export function observeSelectionActions({
       if (isActionTarget(document.activeElement)) return;
       if (pointerDown || gestureActive) {
         onDismiss("cancel");
+      } else if (touch && !dismissed) {
+        // Selection handles keep moving the range; show the actions once it stops.
+        onDismiss("cancel");
+        schedule(SELECTION_SETTLE_MS);
       } else if (!dismissed && timer === null && frame === null) {
         schedule(0);
       }
@@ -192,7 +203,7 @@ export function observeSelectionActions({
       element.removeEventListener("pointerdown", onSelectionStart);
       view.removeEventListener("pointerup", onPointerUp);
       view.removeEventListener("mouseup", onMouseUp);
-      view.removeEventListener("pointercancel", dismiss);
+      view.removeEventListener("pointercancel", onPointerCancel);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("focusin", onFocusIn);
       element.removeEventListener("contextmenu", onContextMenu, true);
