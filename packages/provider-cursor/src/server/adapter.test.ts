@@ -1258,6 +1258,7 @@ describe("CursorAdapterV2", () => {
         },
         threadId: ThreadId.make("cursor-native-subagents-thread"),
         mcpSession: undefined,
+        platform: "linux",
       });
 
     assert.deepEqual(optionsFor("blocked").disallowedTools, ["task"]);
