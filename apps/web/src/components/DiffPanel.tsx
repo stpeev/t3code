@@ -46,6 +46,7 @@ import { useResizableWidth } from "../hooks/useResizableWidth";
 import { RightPanelResizeHandle } from "./preview/RightPanelResizeHandle";
 import { useRenderedAppearance } from "../hooks/useTheme";
 import { useStableCallback } from "../hooks/useStableCallback";
+import { toastManager } from "./ui/toast";
 import {
   buildFileDiffContentVersion,
   buildFileDiffIdentityKey,
@@ -528,10 +529,25 @@ export default function DiffPanel({
         })
       : undefined;
   const loadDiffFiles: FileDiffContentsLoader = useStableCallback(async (fileDiff) => {
-    if (!currentLoadDiffFiles) {
-      throw new Error("Diff file contents are unavailable for this selection.");
+    // The diff library only logs a failed load, so without this the expand click does nothing.
+    try {
+      if (!currentLoadDiffFiles) {
+        throw new Error("Diff file contents are unavailable for this selection.");
+      }
+      return await currentLoadDiffFiles(fileDiff);
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Couldn't expand unchanged lines",
+        description:
+          error instanceof Error && "detail" in error && typeof error.detail === "string"
+            ? error.detail
+            : error instanceof Error
+              ? error.message
+              : "An error occurred.",
+      });
+      throw error;
     }
-    return currentLoadDiffFiles(fileDiff);
   });
   const {
     scope: filePatchScope,
