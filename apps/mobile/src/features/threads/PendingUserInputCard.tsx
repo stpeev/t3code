@@ -319,16 +319,9 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                         </View>
                       </Pressable>
                       {option.preview ? (
-                        <View className="px-3.5">
-                          <QuestionText
-                            markdown={option.preview}
-                            environmentId={props.environmentId}
-                            threadId={props.threadId}
-                            workspaceRoot={props.workspaceRoot}
-                            setDirection={setDirection}
-                            preserveSoftBreaks
-                          />
-                        </View>
+                        <Text className="rounded-xl bg-input px-3.5 py-3 font-mono text-xs leading-5 text-foreground-secondary">
+                          {option.preview}
+                        </Text>
                       ) : null}
                     </View>
                   );
