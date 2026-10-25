@@ -1,5 +1,11 @@
 import type { ToolCallDiffTarget } from "../../diffPanelStore";
-import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
+import type {
+  EnvironmentId,
+  OrchestrationV2ProjectedTurnItem,
+  OrchestrationV2UserInputQuestion,
+  ScopedThreadRef,
+} from "@t3tools/contracts";
+import { questionCitationSourceId } from "../../lib/assistantTextSelection";
 import {
   toolCallLines,
   turnItemDetailRevision,
@@ -31,6 +37,7 @@ import type { TurnItemSource } from "./timelineRowContext";
 interface V2ItemInspectorProps {
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly environmentId: EnvironmentId;
+  readonly threadRef?: ScopedThreadRef | undefined;
   readonly cwd?: string | undefined;
   readonly workspaceRoot?: string | undefined;
   readonly onOpenToolDiff?: ((target: ToolCallDiffTarget) => void) | undefined;
@@ -72,6 +79,47 @@ function isJsonText(text: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** A citation source, so selected text can be cited into the answer like an assistant reply. */
+function UserInputRequestBody({
+  itemId,
+  threadRef,
+  questions,
+}: {
+  readonly itemId: string;
+  readonly threadRef: ScopedThreadRef | undefined;
+  readonly questions: ReadonlyArray<OrchestrationV2UserInputQuestion>;
+}) {
+  return (
+    <div
+      data-assistant-citation-source={questionCitationSourceId(itemId)}
+      data-assistant-citation-environment={threadRef?.environmentId}
+      data-assistant-citation-thread={threadRef?.threadId}
+      className="space-y-3 text-muted-foreground"
+    >
+      {questions.map((question) => (
+        <div key={question.id} className="space-y-1.5">
+          <p className="whitespace-pre-wrap">{question.question}</p>
+          {question.options.map((option) => (
+            <div key={option.value ?? option.label} className="space-y-1 ps-3">
+              <p>
+                <span className="font-medium text-foreground/85">{option.label}</span>
+                {option.description !== option.label ? ` — ${option.description}` : null}
+              </p>
+              {option.preview ? (
+                <pre
+                  className={cn("whitespace-pre-wrap rounded-md bg-muted/30 p-2", monoClassName)}
+                >
+                  {option.preview}
+                </pre>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function StructuredValue({
@@ -389,14 +437,10 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
 
       {item.type === "approval_request" ? <StructuredValue value={item.prompt} /> : null}
       {item.type === "user_input_request" ? (
-        <StructuredValue
-          value={item.questions
-            .map((question) =>
-              [question.question, ...question.options.map((option) => `• ${option.label}`)].join(
-                "\n",
-              ),
-            )
-            .join("\n\n")}
+        <UserInputRequestBody
+          itemId={item.id}
+          threadRef={props.threadRef}
+          questions={item.questions}
         />
       ) : null}
       {item.type === "notification" ? <StructuredValue value={item.detail} /> : null}
