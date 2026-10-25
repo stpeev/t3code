@@ -105,7 +105,7 @@ function UserInputRequestBody({
             <div key={option.value ?? option.label} className="space-y-1 ps-3">
               <p>
                 <span className="font-medium text-foreground/85">{option.label}</span>
-                {option.description !== option.label ? ` — ${option.description}` : null}
+                {option.description !== option.label ? `: ${option.description}` : null}
               </p>
               {option.preview ? (
                 <pre
