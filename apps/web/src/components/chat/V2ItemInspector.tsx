@@ -3,10 +3,6 @@ import type { ToolCallDiffTarget } from "../../diffPanelStore";
 import type {
   EnvironmentId,
   OrchestrationV2ProjectedTurnItem,
-
-  ScopedThreadRef,
-} from "@t3tools/contracts";
-
   OrchestrationV2UserInputQuestion,
   ScopedThreadRef,
 } from "@t3tools/contracts";
@@ -83,16 +79,6 @@ function SyntaxTokens({
 const monoClassName =
   "font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text";
 
-function isJsonText(text: string): boolean {
-  if (!text) return false;
-  try {
-    JSON.parse(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** A citation source, so selected text can be cited into the answer like an assistant reply. */
 function UserInputRequestBody({
   itemId,
@@ -117,7 +103,7 @@ function UserInputRequestBody({
             <div key={option.value ?? option.label} className="space-y-1 ps-3">
               <p>
                 <span className="font-medium text-foreground/85">{option.label}</span>
-                {option.description !== option.label ? ` — ${option.description}` : null}
+                {option.description !== option.label ? `: ${option.description}` : null}
               </p>
               {option.preview ? (
                 <pre
