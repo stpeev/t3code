@@ -100,6 +100,8 @@ interface AnnotatableCodeViewProps {
     collapsed: boolean,
   ) => ReactNode;
   onFileCollapsedChange: (fileKey: string, collapsed: boolean) => void;
+  onRevealSearchMatch: (fileKey: string) => void;
+  onSendComposer?: () => void;
 }
 
 interface DiffSelectionContext {
@@ -125,6 +127,8 @@ export function AnnotatableCodeView({
   renderHeaderFilenameSuffix,
   renderHeaderPrefix,
   onFileCollapsedChange,
+  onRevealSearchMatch,
+  onSendComposer,
 }: AnnotatableCodeViewProps) {
   const addReviewComment = useComposerDraftStore((store) => store.addReviewComment);
   const removeReviewComment = useComposerDraftStore((store) => store.removeReviewComment);
@@ -339,6 +343,7 @@ export function AnnotatableCodeView({
                 onDelete={() => removeEntry(entry.id)}
                 {...(entry.id === editingCommentId ? { submitLabel: "Save" } : {})}
                 {...(hasOpenComment ? {} : { onEdit: () => beginEdit(entry) })}
+                {...(hasOpenComment || !onSendComposer ? {} : { onSend: onSendComposer })}
               />
             ))}
           </div>
