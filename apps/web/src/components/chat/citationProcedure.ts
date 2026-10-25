@@ -3,13 +3,14 @@ import { runAtomCommand } from "@t3tools/client-runtime/state/runtime";
 import { sentMessageFromToolItem } from "@t3tools/shared/toolOutput";
 import type * as Effect from "effect/Effect";
 import { Atom, type AtomRegistry } from "effect/reactivity";
-import { msg } from "gt-react";
-import { m } from "../../i18n/messages";
 import type { TimelineEntry } from "../../session-logic";
+import { isQuestionCitationSourceId } from "../../lib/assistantTextSelection";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { toastManager } from "../ui/toast";
 import type { AssistantCitationRequest } from "./AssistantCitationSource";
 import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /** Whether the cited response is in the loaded history, after paging toward it. */
 export type CitedHistory =
@@ -39,21 +40,27 @@ type HistoryPageResult = Effect.Success<
 >;
 
 const MAX_CITATION_PAGES = 20;
-const HISTORY_COMMAND_LABEL = "load cited thread history";
-const HISTORY_LOAD_ERROR = "Could not load history.";
 
 const COULD_NOT_LOAD = {
   _tag: "failed",
-  title: msg("Could not load the cited response"),
-  description: msg(
-    "Load earlier turns, then click the citation to try again. Your saved quote is unchanged.",
+  title: m(msg("Could not load the cited response")),
+  description: m(
+    msg("Load earlier turns, then click the citation to try again. Your saved quote is unchanged."),
   ),
 } as const;
 
 const UNAVAILABLE = {
   _tag: "failed",
-  title: msg("The cited response is unavailable"),
-  description: msg("It may have been removed. The selected text is still saved in your citation."),
+  title: m(msg("The cited response is unavailable")),
+  description: m(
+    msg("It may have been removed. The selected text is still saved in your citation."),
+  ),
+} as const;
+
+const QUESTION_NOT_NAVIGABLE = {
+  _tag: "failed",
+  title: m(msg("Questions cannot be jumped to yet")),
+  description: m(msg("The selected text is still saved in your citation.")),
 } as const;
 
 /**
@@ -75,8 +82,8 @@ export async function loadCitedHistory(input: {
     if (thread.message === "other") {
       return {
         _tag: "failed",
-        title: msg("The citation does not refer to an assistant response"),
-        description: msg("The selected text is still saved in your citation."),
+        title: m(msg("The citation does not refer to an assistant response")),
+        description: m(msg("The selected text is still saved in your citation.")),
       };
     }
     if (!thread.hasMoreHistory) return UNAVAILABLE;
@@ -209,27 +216,31 @@ const citedHistoryAtom = Atom.family(
     return Atom.make((get): CitedHistory => {
       const controller = new AbortController();
       get.addFinalizer(() => controller.abort());
-      void loadCitedHistory({
-        signal: controller.signal,
-        readThread: () => waitForSettledThread(get.registry, settledThreadAtom, controller.signal),
-        loadThrough: async () => {
-          const result = await runAtomCommand(
-            get.registry,
-            threadEnvironment.loadEarlierHistory,
-            { environmentId, input: { threadId, throughEntryId: messageId } },
-            { label: HISTORY_COMMAND_LABEL, reportFailure: false },
-          );
-          return result._tag === "Success"
-            ? result.value
-            : { _tag: "error", message: HISTORY_LOAD_ERROR };
-        },
-      }).then((outcome) => {
+      const settled: Promise<CitedHistoryOutcome> = isQuestionCitationSourceId(messageId)
+        ? Promise.resolve(QUESTION_NOT_NAVIGABLE)
+        : loadCitedHistory({
+            signal: controller.signal,
+            readThread: () =>
+              waitForSettledThread(get.registry, settledThreadAtom, controller.signal),
+            loadThrough: async () => {
+              const result = await runAtomCommand(
+                get.registry,
+                threadEnvironment.loadEarlierHistory,
+                { environmentId, input: { threadId, throughEntryId: messageId } },
+                { label: "load cited thread history", reportFailure: false },
+              );
+              return result._tag === "Success"
+                ? result.value
+                : { _tag: "error", message: m(msg("Could not load history.")) };
+            },
+          });
+      void settled.then((outcome) => {
         if (outcome._tag === "aborted") return;
         if (outcome._tag === "failed") {
           toastManager.add({
             type: "warning",
-            title: m(outcome.title),
-            description: m(outcome.description),
+            title: outcome.title,
+            description: outcome.description,
           });
         }
         get.setSelf({ _tag: outcome._tag });
