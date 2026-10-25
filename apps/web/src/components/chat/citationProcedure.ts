@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { type AtomCommandSuccess, runAtomCommand } from "@t3tools/client-runtime/state/runtime";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import type { TimelineEntry } from "../../session-logic";
+import { isQuestionCitationSourceId } from "../../lib/assistantTextSelection";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { toastManager } from "../ui/toast";
 import type { AssistantCitationRequest } from "./AssistantCitationSource";
@@ -47,6 +48,12 @@ const UNAVAILABLE = {
   _tag: "failed",
   title: "The cited response is unavailable",
   description: "It may have been removed. The selected text is still saved in your citation.",
+} as const;
+
+const QUESTION_NOT_NAVIGABLE = {
+  _tag: "failed",
+  title: "Questions cannot be jumped to yet",
+  description: "The selected text is still saved in your citation.",
 } as const;
 
 /**
@@ -194,21 +201,25 @@ const citedHistoryAtom = Atom.family(
     return Atom.make((get): CitedHistory => {
       const controller = new AbortController();
       get.addFinalizer(() => controller.abort());
-      void loadCitedHistory({
-        signal: controller.signal,
-        readThread: () => waitForSettledThread(get.registry, settledThreadAtom, controller.signal),
-        loadThrough: async () => {
-          const result = await runAtomCommand(
-            get.registry,
-            threadEnvironment.loadEarlierHistory,
-            { environmentId, input: { threadId, throughEntryId: messageId } },
-            { label: "load cited thread history", reportFailure: false },
-          );
-          return result._tag === "Success"
-            ? result.value
-            : { _tag: "error", message: "Could not load history." };
-        },
-      }).then((outcome) => {
+      const settled: Promise<CitedHistoryOutcome> = isQuestionCitationSourceId(messageId)
+        ? Promise.resolve(QUESTION_NOT_NAVIGABLE)
+        : loadCitedHistory({
+            signal: controller.signal,
+            readThread: () =>
+              waitForSettledThread(get.registry, settledThreadAtom, controller.signal),
+            loadThrough: async () => {
+              const result = await runAtomCommand(
+                get.registry,
+                threadEnvironment.loadEarlierHistory,
+                { environmentId, input: { threadId, throughEntryId: messageId } },
+                { label: "load cited thread history", reportFailure: false },
+              );
+              return result._tag === "Success"
+                ? result.value
+                : { _tag: "error", message: "Could not load history." };
+            },
+          });
+      void settled.then((outcome) => {
         if (outcome._tag === "aborted") return;
         if (outcome._tag === "failed") {
           toastManager.add({

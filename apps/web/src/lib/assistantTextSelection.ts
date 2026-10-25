@@ -1,4 +1,8 @@
-import { ASSISTANT_CITATION_CONTEXT_LENGTH, type AssistantCitation } from "@t3tools/contracts";
+import {
+  ASSISTANT_CITATION_CONTEXT_LENGTH,
+  MessageId,
+  type AssistantCitation,
+} from "@t3tools/contracts";
 
 import { mathWrapperOf } from "../markdown-clipboard";
 
@@ -21,6 +25,17 @@ export type AssistantFrameSelection = {
   readonly rect: DOMRect;
   readonly clear: () => void;
 };
+
+const QUESTION_SOURCE_PREFIX = "question:";
+
+/** A pending question is a citation source though it is not a message; its id is namespaced. */
+export function questionCitationSourceId(turnItemId: string) {
+  return MessageId.make(`${QUESTION_SOURCE_PREFIX}${turnItemId}`);
+}
+
+export function isQuestionCitationSourceId(id: string) {
+  return id.startsWith(QUESTION_SOURCE_PREFIX);
+}
 
 export type AssistantCitationSourceAnchor = {
   source: HTMLElement;
@@ -177,9 +192,11 @@ function readAssistantText(root: HTMLElement) {
   return { text: parts.join(""), chunks };
 }
 
-function excludedAncestor(node: Node): Element | null {
+/** Only controls inside `root` count; a source may itself sit in a disclosure row's button. */
+function excludedAncestor(node: Node, root: Element): Element | null {
   const element = node.nodeType === 1 ? (node as Element) : node.parentElement;
-  return element?.closest(EXCLUDED_SELECTOR) ?? null;
+  const excluded = element?.closest(EXCLUDED_SELECTOR) ?? null;
+  return excluded && root.contains(excluded) ? excluded : null;
 }
 
 function isUsableRange(root: HTMLElement, range: Range): boolean {
@@ -187,8 +204,8 @@ function isUsableRange(root: HTMLElement, range: Range): boolean {
     range.collapsed ||
     !root.contains(range.startContainer) ||
     !root.contains(range.endContainer) ||
-    excludedAncestor(range.startContainer) !== null ||
-    excludedAncestor(range.endContainer) !== null
+    excludedAncestor(range.startContainer, root) !== null ||
+    excludedAncestor(range.endContainer, root) !== null
   ) {
     return false;
   }
@@ -280,7 +297,7 @@ export function resolveAssistantCitationRange(
   root: HTMLElement,
   selector: AssistantTextSelector,
 ): Range | null {
-  if (excludedAncestor(root) !== null) return null;
+  if (excludedAncestor(root, root) !== null) return null;
   const stream = readAssistantText(root);
   const match = findAssistantCitationText(stream.text, selector);
   if (match === null) return null;
