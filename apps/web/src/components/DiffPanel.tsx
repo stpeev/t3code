@@ -6,12 +6,13 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
-import type {
-  ProjectId,
-  ReviewBranchCommitsResult,
-  ScopedThreadRef,
-  RunId,
-  VcsCommit,
+import {
+  AuthOrchestrationOperateScope,
+  type ProjectId,
+  type ReviewBranchCommitsResult,
+  type ScopedThreadRef,
+  type RunId,
+  type VcsCommit,
 } from "@t3tools/contracts";
 import {
   ArrowRightIcon,
@@ -104,6 +105,7 @@ import {
 } from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { useEnvironmentQuery } from "../state/query";
+import { useEnvironmentScope } from "../state/session";
 import { useAtomCommand } from "../state/use-atom-command";
 import { serverEnvironment } from "../state/server";
 import { reviewEnvironment } from "../state/review";
@@ -225,6 +227,7 @@ interface DiffPanelProps {
   composerDraftTarget: ScopedThreadRef | DraftId;
   workspaceMutationId: string | null;
   visible: boolean;
+  onSendComposer?: () => void;
 }
 
 export default function DiffPanel({
@@ -235,8 +238,13 @@ export default function DiffPanel({
   composerDraftTarget,
   workspaceMutationId,
   visible,
+  onSendComposer,
 }: DiffPanelProps) {
   const resolvedTheme = useRenderedAppearance();
+  const canSendComposer = useEnvironmentScope(
+    threadRef?.environmentId ?? null,
+    AuthOrchestrationOperateScope,
+  );
   const settings = useClientSettings((settings) => ({
     diffFilesCollapsed: settings.diffFilesCollapsed,
     diffIgnoreWhitespace: settings.diffIgnoreWhitespace,
@@ -1571,7 +1579,9 @@ export default function DiffPanel({
                         }
                       : {})}
                     onRevealSearchMatch={unfoldDiffFile}
+                    {...(onSendComposer && canSendComposer ? { onSendComposer } : {})}
                     renderHeaderPrefix={(fileDiff, fileKey, collapsed) => {
+                      const unavailable = fileDiff.cacheKey?.endsWith(":pending") === true;
                       return (
                         <DiffFileCollapseToggle
                           filePath={resolveFileDiffPath(fileDiff)}
