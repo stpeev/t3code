@@ -125,7 +125,13 @@ export function observeSelectionActions({
   const onSelectionStart = (event: PointerEvent) => {
     if (!event.isPrimary) return;
     const target = event.target as Element | null;
-    if (target?.closest("button, [role=button]")) return;
+    // A citation source inside a disclosure row is selectable text, not part of the row's button.
+    if (
+      target?.closest("button, [role=button]") &&
+      !target.closest("[data-assistant-citation-source]")
+    ) {
+      return;
+    }
     // A touch selection ends without a mouseup, so selectionChanged shows it once it settles.
     gestureActive = !touch && event.button === 0 && !event.defaultPrevented;
     dismissed = !gestureActive && !touch;

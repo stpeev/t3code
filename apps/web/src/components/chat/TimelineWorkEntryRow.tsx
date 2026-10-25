@@ -298,8 +298,11 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       ? notificationChildThreadId(workEntry.projectedItem.item.source)
       : undefined;
   const groupView = use(WorkGroupViewCtx);
+  // An unanswered question opens by default so its options and previews are readable and quotable.
   const [expanded, setExpanded] = useState(
-    () => groupView?.state.expandedEntries.has(workEntry.id) ?? false,
+    () =>
+      (groupView?.state.expandedEntries.has(workEntry.id) ?? false) ||
+      (workEntry.itemType === "user_input_request" && !workEntry.questionAnswer),
   );
   const noticeMessage =
     workEntry.structuredPayload?.type === "system_notice"
@@ -712,6 +715,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               onInitialOutputReady={onInitialOutputReady}
               projectedItem={workEntry.projectedItem}
               environmentId={ctx.activeThreadEnvironmentId}
+              threadRef={ctx.threadRef ?? undefined}
               cwd={ctx.markdownCwd}
               workspaceRoot={workspaceRoot}
               onOpenToolDiff={ctx.onOpenToolDiff}
