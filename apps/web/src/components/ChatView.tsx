@@ -3024,6 +3024,7 @@ export default function ChatView(props: ChatViewProps) {
     void onSend(undefined, "auto", "foreground", { annotation, image });
   };
   const sendPreviewAnnotationStable = useStableCallback(sendPreviewAnnotation);
+  const sendComposerStable = useStableCallback(() => void onSend());
   const onComposerResumeStable = useStableCallback(onResume);
   const onComposerCompactContextStable = useStableCallback(onCompactContext);
   // Read from the projection the footer renders, so the scroll below sees the new message.
@@ -3258,6 +3259,7 @@ export default function ChatView(props: ChatViewProps) {
       workspaceMutationId={workspaceMutationId}
       getShortcutContext={getShortcutContextStable}
       onSendAnnotation={sendPreviewAnnotationStable}
+      onSendComposer={sendComposerStable}
       onCloseSurface={closeRightPanelSurface}
       terminal={{
         launchContext: activeTerminalLaunchContext ?? null,
