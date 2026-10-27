@@ -19,8 +19,12 @@ import {
 } from "~/reviewCommentContext";
 
 import { nextFileCommentId } from "../files/fileCommentAnnotations";
+import type { RemovedLineRun } from "./collapseRemovedLines";
 import { DiffCommentAnnotation } from "./DiffCommentAnnotation";
+import { RemovedLinesBar } from "./RemovedLinesBar";
 import { StyledDiffCodeView, type StyledDiffCodeViewOptions } from "./StyledDiffCodeView";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 interface DiffCommentAnnotationEntry {
   id: string;
@@ -32,6 +36,7 @@ interface DiffCommentAnnotationEntry {
 
 interface DiffCommentAnnotationGroup {
   entries: DiffCommentAnnotationEntry[];
+  removedRun?: RemovedLineRun;
 }
 
 type DiffCommentLineAnnotation = DiffLineAnnotation<DiffCommentAnnotationGroup>;
@@ -81,7 +86,9 @@ interface AnnotatableCodeViewProps {
     fileKey: string;
     fileVersion: number;
     collapsed: boolean;
+    removedLineRuns?: ReadonlyArray<RemovedLineRun>;
   }>;
+  onToggleRemovedLines?: (fileKey: string, runKey: string) => void;
   pendingFiles: ReadonlyArray<FileDiffMetadata>;
   sectionId: string;
   sectionTitle: string;
@@ -99,7 +106,6 @@ interface AnnotatableCodeViewProps {
     fileKey: string,
     collapsed: boolean,
   ) => ReactNode;
-  onFileCollapsedChange: (fileKey: string, collapsed: boolean) => void;
   onRevealSearchMatch: (fileKey: string) => void;
   onSendComposer?: () => void;
 }
@@ -113,6 +119,7 @@ export function AnnotatableCodeView({
   projectId,
   codeViewKey,
   files,
+  onToggleRemovedLines,
   pendingFiles,
   sectionId,
   sectionTitle,
@@ -126,7 +133,6 @@ export function AnnotatableCodeView({
   renderHeaderMetadata,
   renderHeaderFilenameSuffix,
   renderHeaderPrefix,
-  onFileCollapsedChange,
   onRevealSearchMatch,
   onSendComposer,
 }: AnnotatableCodeViewProps) {
@@ -165,7 +171,7 @@ export function AnnotatableCodeView({
     setSelectedLines(null);
   }
   const items: CodeViewDiffItem<DiffCommentAnnotationGroup>[] = files.map(
-    ({ fileDiff, filePath, fileKey, fileVersion, collapsed }) => {
+    ({ fileDiff, filePath, fileKey, fileVersion, collapsed, removedLineRuns = [] }) => {
       const persisted = reviewComments
         .filter(
           (comment) =>
@@ -184,7 +190,16 @@ export function AnnotatableCodeView({
             text: comment.text,
           });
         }, []);
-      const annotations = draft?.fileKey === fileKey ? [...persisted, draft.annotation] : persisted;
+      const removedRunAnnotations = removedLineRuns.map((run): DiffCommentLineAnnotation => ({
+        side: run.side,
+        lineNumber: run.lineNumber,
+        metadata: { entries: [], removedRun: run },
+      }));
+      const annotations = [
+        ...persisted,
+        ...(draft?.fileKey === fileKey ? [draft.annotation] : []),
+        ...removedRunAnnotations,
+      ];
       return {
         id: fileKey,
         type: "diff",
@@ -193,11 +208,13 @@ export function AnnotatableCodeView({
         collapsed,
         version: fnv1a32(
           `${fileVersion}:${collapsed ? "1" : "0"}:${annotations
-            .flatMap((annotation) =>
-              annotation.metadata.entries.map(
+            .flatMap((annotation) => {
+              const run = annotation.metadata.removedRun;
+              if (run) return [`${run.key}:${run.expanded ? "1" : "0"}`];
+              return annotation.metadata.entries.map(
                 (entry) => `${entry.id}:${entry.kind}:${entry.rangeLabel}:${entry.text}`,
-              ),
-            )
+              );
+            })
             .join(":")}`,
         ),
       };
@@ -306,8 +323,7 @@ export function AnnotatableCodeView({
         enableGutterUtility: !hasOpenComment,
         enableLineSelection: !hasOpenComment,
         onGutterUtilityClick: beginComment,
-        onItemCollapsedChange: (_item, nextItem) =>
-          onFileCollapsedChange(nextItem.id, nextItem.collapsed === true),
+        onRevealSearchMatch: (item) => onRevealSearchMatch(item.id),
       }}
       renderHeaderFilenameSuffix={(item) =>
         item.type === "diff" ? renderHeaderFilenameSuffix(item.fileDiff) : null
@@ -317,7 +333,17 @@ export function AnnotatableCodeView({
           ? renderHeaderPrefix(item.fileDiff, item.id, item.collapsed === true)
           : null
       }
-      renderAnnotation={(...[annotation]) => {
+      renderAnnotation={(...[annotation, , item]) => {
+        const removedRun = annotation.metadata.removedRun;
+        if (removedRun) {
+          return (
+            <RemovedLinesBar
+              lineCount={removedRun.lineCount}
+              expanded={removedRun.expanded}
+              onToggle={() => onToggleRemovedLines?.(item.id, removedRun.key)}
+            />
+          );
+        }
         const hasDraft = annotation.metadata.entries.some((entry) => entry.kind === "draft");
         return (
           <div
@@ -341,7 +367,7 @@ export function AnnotatableCodeView({
                 onCancel={() => removeEntry(entry.id)}
                 onComment={(text) => submitEntry(entry.id, text)}
                 onDelete={() => removeEntry(entry.id)}
-                {...(entry.id === editingCommentId ? { submitLabel: "Save" } : {})}
+                {...(entry.id === editingCommentId ? { submitLabel: m(msg("Save")) } : {})}
                 {...(hasOpenComment ? {} : { onEdit: () => beginEdit(entry) })}
                 {...(hasOpenComment || !onSendComposer ? {} : { onSend: onSendComposer })}
               />

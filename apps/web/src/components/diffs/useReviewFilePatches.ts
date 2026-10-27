@@ -25,6 +25,7 @@ export function useReviewFilePatches({
   source,
   baseRef,
   ignoreWhitespace,
+  contextLines,
   theme,
   previewInput,
   preview,
@@ -34,6 +35,7 @@ export function useReviewFilePatches({
   source: ReviewDiffPreviewSource | null;
   baseRef: string | null;
   ignoreWhitespace: boolean;
+  contextLines: number | undefined;
   theme: "light" | "dark";
   /** The preview the file list came from; a newer revision of it refreshes loaded patches. */
   previewInput: ReviewDiffPreviewInput | undefined;
@@ -48,6 +50,7 @@ export function useReviewFilePatches({
     source?.headRef,
     baseRef,
     ignoreWhitespace,
+    contextLines,
   ]);
   const files = sortedReviewFiles(source);
   const automaticPaths = files.slice(0, INITIAL_FILE_COUNT).map((file) => file.path);
@@ -63,6 +66,7 @@ export function useReviewFilePatches({
     source,
     baseRef,
     ignoreWhitespace,
+    contextLines,
     previewInput,
     scope,
     requested,
@@ -151,11 +155,16 @@ export function useReviewFilePatches({
       ] as const;
     }),
   );
+  // Requested files render collapsed with a load-on-expand toggle even before their patch settles;
+  // files beyond the loaded batch stay out of the code view until requested.
+  const readyFilePaths = new Set(paths);
   return {
+    scope,
     fileStates,
     isPending: [...patches.values()].some((patch) => patch._tag === "Initial" || patch.waiting),
     retry,
     requestFile,
+    readyFilePaths,
     renderableFiles,
     remainingFileCount: source ? files.length - settledFileCount : 0,
     loadNextFiles,
@@ -168,6 +177,7 @@ function reviewFileQueries({
   source,
   baseRef,
   ignoreWhitespace,
+  contextLines,
   previewInput,
   scope,
   requested,
@@ -177,6 +187,7 @@ function reviewFileQueries({
   source: ReviewDiffPreviewSource | null;
   baseRef: string | null;
   ignoreWhitespace: boolean;
+  contextLines: number | undefined;
   previewInput: ReviewDiffPreviewInput | undefined;
   scope: string;
   requested: { scope: string; paths: string[] };
@@ -203,6 +214,7 @@ function reviewFileQueries({
                   ...(source.kind === "commit" ? { commitSha: source.id } : {}),
                   ...(source.mergeBase ? { mergeBase: source.mergeBase } : {}),
                   ignoreWhitespace,
+                  ...(contextLines === undefined ? {} : { contextLines }),
                   file: {
                     path: file.path,
                     previousPath: file.previousPath,
