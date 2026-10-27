@@ -25,6 +25,7 @@ export function useReviewFilePatches({
   source,
   baseRef,
   ignoreWhitespace,
+  contextLines,
   theme,
   previewInput,
   preview,
@@ -34,6 +35,7 @@ export function useReviewFilePatches({
   source: ReviewDiffPreviewSource | null;
   baseRef: string | null;
   ignoreWhitespace: boolean;
+  contextLines: number | undefined;
   theme: "light" | "dark";
   /** The preview the file list came from; a newer revision of it refreshes loaded patches. */
   previewInput: ReviewDiffPreviewInput | undefined;
@@ -48,6 +50,7 @@ export function useReviewFilePatches({
     source?.headRef,
     baseRef,
     ignoreWhitespace,
+    contextLines,
   ]);
   const files = sortedReviewFiles(source);
   const automaticPaths = files.slice(0, INITIAL_FILE_COUNT).map((file) => file.path);
@@ -63,6 +66,7 @@ export function useReviewFilePatches({
     source,
     baseRef,
     ignoreWhitespace,
+    contextLines,
     previewInput,
     scope,
     requested,
@@ -168,6 +172,7 @@ function reviewFileQueries({
   source,
   baseRef,
   ignoreWhitespace,
+  contextLines,
   previewInput,
   scope,
   requested,
@@ -177,6 +182,7 @@ function reviewFileQueries({
   source: ReviewDiffPreviewSource | null;
   baseRef: string | null;
   ignoreWhitespace: boolean;
+  contextLines: number | undefined;
   previewInput: ReviewDiffPreviewInput | undefined;
   scope: string;
   requested: { scope: string; paths: string[] };
@@ -202,6 +208,7 @@ function reviewFileQueries({
                   ...(baseRef ? { baseRef } : {}),
                   ...(source.kind === "commit" ? { commitSha: source.id } : {}),
                   ignoreWhitespace,
+                  ...(contextLines === undefined ? {} : { contextLines }),
                   file: {
                     path: file.path,
                     previousPath: file.previousPath,
