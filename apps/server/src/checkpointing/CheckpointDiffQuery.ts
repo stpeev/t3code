@@ -208,6 +208,7 @@ export const make = Effect.gen(function* () {
         toCheckpointRef: toCheckpoint.ref,
         fallbackFromToHead: false,
         ignoreWhitespace,
+        ...(input.contextLines === undefined ? {} : { contextLines: input.contextLines }),
       };
       const authoredPaths = yield* checkpointStore
         .listAuthoredPaths(comparison)
@@ -300,6 +301,7 @@ export const make = Effect.gen(function* () {
       fromTurnCount: 0,
       toTurnCount: input.toTurnCount,
       ignoreWhitespace,
+      ...(input.contextLines === undefined ? {} : { contextLines: input.contextLines }),
     });
     if (!isTurnDiffResult(turnDiff)) {
       return yield* new CheckpointDiffResultInvalidError({

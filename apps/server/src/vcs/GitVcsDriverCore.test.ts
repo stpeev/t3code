@@ -2895,6 +2895,36 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("widens review patch context when asked", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const lines = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`);
+        yield* writeTextFile(cwd, "notes.txt", `${lines.join("\n")}\n`);
+        yield* git(cwd, ["add", "notes.txt"]);
+        yield* git(cwd, ["commit", "-m", "add notes"]);
+        yield* writeTextFile(cwd, "notes.txt", `${lines.with(14, "line 15 changed").join("\n")}\n`);
+
+        const workingTreeDiff = (contextLines?: number) =>
+          driver
+            .getReviewDiffPreview({
+              cwd,
+              ...(contextLines === undefined ? {} : { contextLines }),
+              file: { path: "notes.txt", previousPath: null, sourceKind: "working-tree" },
+            })
+            .pipe(
+              Effect.map(
+                (preview) =>
+                  preview.sources.find((source) => source.kind === "working-tree")?.diff ?? "",
+              ),
+            );
+
+        assert.include(yield* workingTreeDiff(), "@@ -12,7 +12,7 @@");
+        assert.include(yield* workingTreeDiff(10), "@@ -5,21 +5,21 @@");
+      }),
+    );
+
     it.effect("detects an unstaged rename with edits without mutating a split index", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();
@@ -4059,14 +4089,15 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         yield* commitFile(cwd, "later.txt", "later\n", "later commit");
         yield* writeTextFile(cwd, "dirty.txt", "dirty\n");
 
-        const preview = yield* driver.getReviewDiffPreview({ cwd, commit: sha.slice(0, 12) });
+        const preview = yield* driver.getReviewDiffPreview({ cwd, commitSha: sha });
 
         assert.strictEqual(preview.sources.length, 1);
         const source = preview.sources[0]!;
         assert.strictEqual(source.kind, "commit");
         assert.strictEqual(source.baseRef, parentSha);
         assert.strictEqual(source.headRef, sha);
-        assert.include(source.title, "change readme");
+        assert.strictEqual(source.title, `Commit ${sha.slice(0, 7)}`);
+        assert.strictEqual(source.commitSubject, "change readme");
         assert.deepStrictEqual(
           source.files?.map((file) => file.path),
           ["README.md"],
@@ -4075,7 +4106,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
 
         const scoped = yield* driver.getReviewDiffPreview({
           cwd,
-          commit: sha,
+          commitSha: sha,
           file: { path: "README.md", previousPath: null, sourceKind: "commit" },
         });
         assert.include(scoped.sources[0]!.diff, "b/README.md");
@@ -4099,7 +4130,8 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         const driver = yield* GitVcsDriver.GitVcsDriver;
         const rootSha = yield* git(cwd, ["rev-parse", "HEAD"]);
 
-        const source = (yield* driver.getReviewDiffPreview({ cwd, commit: rootSha })).sources[0]!;
+        const source = (yield* driver.getReviewDiffPreview({ cwd, commitSha: rootSha }))
+          .sources[0]!;
 
         assert.notStrictEqual(source.baseRef, rootSha);
         assert.deepStrictEqual(
@@ -4132,7 +4164,8 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         yield* git(cwd, ["merge", "--no-ff", "--no-edit", "-m", "merge feature", "feature/merged"]);
         const mergeSha = yield* git(cwd, ["rev-parse", "HEAD"]);
 
-        const source = (yield* driver.getReviewDiffPreview({ cwd, commit: mergeSha })).sources[0]!;
+        const source = (yield* driver.getReviewDiffPreview({ cwd, commitSha: mergeSha }))
+          .sources[0]!;
 
         assert.strictEqual(source.baseRef, firstParent);
         assert.deepStrictEqual(
@@ -4145,9 +4178,9 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
     it.effect("rejects a commit input that is not a hex object id", () =>
       Effect.sync(() => {
         const decode = Schema.decodeUnknownOption(ReviewDiffPreviewInput);
-        assert.isTrue(Option.isNone(decode({ cwd: "/repo", commit: "--output=x" })));
-        assert.isTrue(Option.isNone(decode({ cwd: "/repo", commit: "HEAD" })));
-        assert.isTrue(Option.isSome(decode({ cwd: "/repo", commit: "abc1234" })));
+        assert.isTrue(Option.isNone(decode({ cwd: "/repo", commitSha: "--output=x" })));
+        assert.isTrue(Option.isNone(decode({ cwd: "/repo", commitSha: "HEAD" })));
+        assert.isTrue(Option.isSome(decode({ cwd: "/repo", commitSha: "a".repeat(40) })));
       }),
     );
   });
