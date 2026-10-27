@@ -49,6 +49,7 @@ export function RightPanelPopout(props: { title: string; children: ReactNode }) 
   const popout = useSyncExternalStore(subscribeRightPanelPopout, getRightPanelPopout);
   const showing = location === "popout" && open;
 
+  // oxlint-disable-next-line t3code/react-effect-budget -- Opens the popout browser window.
   useEffect(() => {
     if (!showing) return;
     const store = useRightPanelPopoutStore.getState();
@@ -70,6 +71,7 @@ export function RightPanelPopout(props: { title: string; children: ReactNode }) 
     });
   }, [showing]);
 
+  // oxlint-disable-next-line t3code/react-effect-budget -- Syncs the popout window's title.
   useEffect(() => {
     setRightPanelPopoutTitle(props.title);
   }, [props.title]);
