@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { DiffContextLines, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { GitCommandError } from "./git.ts";
 import { VcsError } from "./vcs.ts";
 
@@ -22,6 +22,7 @@ export const ReviewDiffPreviewInput = Schema.Struct({
   sourceKind: Schema.optionalKey(Schema.Literals(["working-tree", "branch-range"])),
   trackedOnly: Schema.optionalKey(Schema.Boolean),
   metadataOnly: Schema.optionalKey(Schema.Boolean),
+  contextLines: Schema.optionalKey(DiffContextLines),
   file: Schema.optionalKey(
     Schema.Struct({
       path: Schema.NonEmptyString,

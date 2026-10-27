@@ -1474,6 +1474,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           "--submodule=short",
           ...PATCH_RENDER_PREFIX_ARGS,
           ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
+          ...(input.contextLines === undefined ? [] : [`--unified=${input.contextLines}`]),
           `${fromRevision}^{commit}`,
           `${input.toCheckpointRef}^{commit}`,
           // Paths are repository-relative, while cwd can be a subdirectory.
