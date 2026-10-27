@@ -67,7 +67,7 @@ export function DiffChangesRail({
     onSelectRow(row);
   });
 
-  // Collapsing the block above the clicked row would otherwise pull the row upward.
+  // oxlint-disable-next-line t3code/react-effect-budget -- Pins the clicked row as the block above collapses.
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
     if (!anchor || anchor.id !== selectedRowId) return;
@@ -79,6 +79,7 @@ export function DiffChangesRail({
     else scroller.scrollTop += element.getBoundingClientRect().top - anchor.top;
   }, [selectedRowId]);
 
+  // oxlint-disable-next-line t3code/react-effect-budget -- Cancels a pending keyboard selection on unmount.
   useEffect(
     () => () => {
       if (keyboardTimerRef.current !== null) window.clearTimeout(keyboardTimerRef.current);
