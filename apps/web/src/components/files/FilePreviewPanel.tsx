@@ -91,7 +91,6 @@ import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import {
   type FileCommentAnnotationEntry,
   type FileCommentAnnotationGroup,
-  type FileCommentLineAnnotation,
   formatFileCommentRange,
   groupFileCommentEntries,
   nextFileCommentId,
