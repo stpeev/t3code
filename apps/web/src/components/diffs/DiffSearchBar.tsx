@@ -87,7 +87,7 @@ export function DiffSearchBar({
     }
   };
 
-  // Every open request, including one while already open, lands in the input with it selected.
+  // oxlint-disable-next-line t3code/react-effect-budget -- Each open request selects the mounted input.
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
