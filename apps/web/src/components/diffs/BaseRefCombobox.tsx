@@ -91,7 +91,7 @@ export function BaseRefCombobox({
           render={
             <ComboboxTrigger
               render={<Button variant="ghost-muted" size="xs" />}
-              className="min-w-9 max-w-48 shrink redesign:shrink-0"
+              className="min-w-9 max-w-48 shrink-0"
               aria-label={`Change comparison target. Currently ${displayRef}`}
             />
           }
