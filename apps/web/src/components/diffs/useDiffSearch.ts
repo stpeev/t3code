@@ -71,6 +71,7 @@ export function useDiffSearch<LAnnotation>({
     active.query === searchedQuery ? Math.min(active.index, result.matches.length - 1) : -1;
   const pendingReveal = useRef<PendingReveal | null>(null);
 
+  // oxlint-disable-next-line t3code/react-effect-budget -- Starts a new query at the viewer's scroll position.
   useEffect(() => {
     if (active.query === searchedQuery) return;
     const index = firstMatchIndexFrom(
@@ -82,6 +83,7 @@ export function useDiffSearch<LAnnotation>({
     pendingReveal.current = index < 0 ? null : { index, expand: false };
   }, [active.query, searchedQuery, result.matches, fileOrder, viewer]);
 
+  // oxlint-disable-next-line t3code/react-effect-budget -- Scrolls the viewer once the match's file renders.
   useEffect(() => {
     const pending = pendingReveal.current;
     if (!pending || !viewer?.getInstance()) return;
@@ -109,12 +111,14 @@ export function useDiffSearch<LAnnotation>({
 
   const [highlighter] = useState(createDiffSearchHighlighter);
   const paintState = useRef({ lines, matches: result.matches, activeIndex });
+  // oxlint-disable-next-line t3code/react-effect-budget -- Paints highlights into the viewer's own DOM.
   useEffect(() => {
     paintState.current = { lines, matches: result.matches, activeIndex };
     for (const item of viewer?.getInstance()?.getRenderedItems() ?? []) {
       highlighter.paintFile(item.id, item.element, lines.get(item.id), result.matches, activeIndex);
     }
   }, [highlighter, lines, result.matches, activeIndex, viewer]);
+  // oxlint-disable-next-line t3code/react-effect-budget -- Clears the painted highlights on unmount.
   useEffect(() => highlighter.clear, [highlighter]);
 
   // Stable so passing it to the viewer never invalidates its options.
