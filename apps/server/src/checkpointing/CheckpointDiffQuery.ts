@@ -418,17 +418,58 @@ export const make = Effect.gen(function* () {
       }
 
       const excludePaths = nested?.get(toScope.id);
-      const diff = yield* patchBetween(
-        {
-          cwd: toScope.cwd,
-          fromCheckpointRef,
-          toCheckpointRef: toCheckpoint.ref,
-          fallbackFromToHead: false,
-          ignoreWhitespace,
-          ...(excludePaths === undefined ? {} : { excludePaths }),
-        },
-        CHECKPOINT_DIFF_MAX_OUTPUT_BYTES,
-      );
+      const comparison = {
+        cwd: toScope.cwd,
+        fromCheckpointRef,
+        toCheckpointRef: toCheckpoint.ref,
+        fallbackFromToHead: false,
+        ignoreWhitespace,
+        ...(excludePaths === undefined ? {} : { excludePaths }),
+        ...(input.contextLines === undefined ? {} : { contextLines: input.contextLines }),
+      };
+      const authoredPaths = yield* checkpointStore
+        .listAuthoredPaths(comparison)
+        .pipe(Effect.orElseSucceed(() => null));
+      const files =
+        authoredPaths === null
+          ? []
+          : yield* checkpointStore.diffCheckpoints({ ...comparison, format: "numstat" }).pipe(
+              Effect.map(parseTurnDiffFilesFromNumstat),
+              Effect.orElseSucceed(() => []),
+            );
+      const retainedFiles = files.filter((file) => !isGitImport(file, authoredPaths));
+      // Select retained paths before generating a patch, so imported bulk cannot exhaust its output limit.
+      const pathBatches =
+        retainedFiles.length === files.length ? [undefined] : batchFilePaths(retainedFiles);
+      let diff = "";
+      let remainingBytes = CHECKPOINT_DIFF_MAX_OUTPUT_BYTES;
+      for (const filePaths of pathBatches) {
+        const patch = yield* checkpointStore
+          .diffCheckpoints({
+            ...comparison,
+            ...(filePaths === undefined ? {} : { filePaths }),
+            // One extra byte distinguishes an exact fit from a truncated patch.
+            maxOutputBytes: remainingBytes + 1,
+          })
+          .pipe(Effect.withSpan("checkpoint.turnDiff.diffCheckpoints"));
+        const patchBytes = Buffer.byteLength(patch);
+        diff += patch;
+        if (patchBytes > remainingBytes) {
+          // Reserve marker space only on overflow, which may trim an earlier batch.
+          // Streaming decode drops an incomplete final UTF-8 character at the byte boundary.
+          diff =
+            new TextDecoder().decode(
+              Buffer.from(diff).subarray(
+                0,
+                CHECKPOINT_DIFF_MAX_OUTPUT_BYTES -
+                  Buffer.byteLength(CHECKPOINT_DIFF_TRUNCATED_MARKER),
+              ),
+              { stream: true },
+            ) + CHECKPOINT_DIFF_TRUNCATED_MARKER;
+          break;
+        }
+        remainingBytes -= patchBytes;
+      }
       return yield* withRepositories(diff);
     },
   );
@@ -469,6 +510,7 @@ export const make = Effect.gen(function* () {
       fromTurnCount: 0,
       toTurnCount: input.toTurnCount,
       ignoreWhitespace,
+      ...(input.contextLines === undefined ? {} : { contextLines: input.contextLines }),
     });
     if (!isTurnDiffResult(turnDiff)) {
       return yield* new CheckpointDiffResultInvalidError({

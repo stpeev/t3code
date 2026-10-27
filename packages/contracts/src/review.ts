@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { DiffContextLines, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { GitCommandError } from "./git.ts";
 import { VcsError } from "./vcs.ts";
 
@@ -33,6 +33,7 @@ export const ReviewDiffPreviewInput = Schema.Struct({
   /** From a trackedOnly result, so the complete read adds only the untracked files. */
   completionToken: Schema.optionalKey(Schema.String),
   metadataOnly: Schema.optionalKey(Schema.Boolean),
+  contextLines: Schema.optionalKey(DiffContextLines),
   file: Schema.optionalKey(
     Schema.Struct({
       path: Schema.NonEmptyString,

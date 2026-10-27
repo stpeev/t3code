@@ -4951,6 +4951,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const diffArgs = [
       ...REVIEW_DIFF_ARGS,
       ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
+      ...(input.contextLines === undefined ? [] : [`--unified=${input.contextLines}`]),
     ];
     // A pair diffs one tree-ish against another; a string is a single ref or `a...b` range.
     const refArgs = (ref: string | readonly [string, string]) =>

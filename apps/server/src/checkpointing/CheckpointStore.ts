@@ -42,6 +42,7 @@ export interface DiffCheckpointsInput {
   readonly toCheckpointRef: CheckpointRef;
   readonly fallbackFromToHead?: boolean;
   readonly ignoreWhitespace: boolean;
+  readonly contextLines?: number;
   readonly format?: "patch" | "numstat";
   /** Maximum bytes collected from the diff command. */
   readonly maxOutputBytes?: number;
