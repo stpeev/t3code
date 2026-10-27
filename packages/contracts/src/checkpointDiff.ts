@@ -2,7 +2,12 @@ import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 import * as Struct from "effect/Struct";
 
-import { NonNegativeInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import {
+  DiffContextLines,
+  NonNegativeInt,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "./baseSchemas.ts";
 
 export const TurnCountRange = Schema.Struct({
   fromTurnCount: NonNegativeInt,
@@ -30,6 +35,7 @@ export const OrchestrationGetTurnDiffInput = TurnCountRange.mapFields(
   Struct.assign({
     threadId: ThreadId,
     ignoreWhitespace: Schema.optionalKey(Schema.Boolean),
+    contextLines: Schema.optionalKey(DiffContextLines),
   }),
   { unsafePreserveChecks: true },
 );
@@ -42,6 +48,7 @@ export const OrchestrationGetFullThreadDiffInput = Schema.Struct({
   threadId: ThreadId,
   toTurnCount: NonNegativeInt,
   ignoreWhitespace: Schema.optionalKey(Schema.Boolean),
+  contextLines: Schema.optionalKey(DiffContextLines),
 });
 export type OrchestrationGetFullThreadDiffInput = typeof OrchestrationGetFullThreadDiffInput.Type;
 

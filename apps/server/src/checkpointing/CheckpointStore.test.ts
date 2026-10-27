@@ -181,6 +181,39 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
       }),
     );
 
+    it.effect("widens the context around a change when asked", () =>
+      Effect.gen(function* () {
+        const tmp = yield* makeTmpDir();
+        yield* initRepoWithCommit(tmp);
+        const checkpointStore = yield* CheckpointStore.CheckpointStore;
+        const threadId = ThreadId.make("thread-checkpoint-store-context");
+        const fromCheckpointRef = checkpointRefForThreadTurn(threadId, 0);
+        const toCheckpointRef = checkpointRefForThreadTurn(threadId, 1);
+        const lines = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`);
+        const filePath = NodePath.join(tmp, "notes.txt");
+
+        yield* writeTextFile(filePath, `${lines.join("\n")}\n`);
+        yield* checkpointStore.captureCheckpoint({ cwd: tmp, checkpointRef: fromCheckpointRef });
+        yield* writeTextFile(filePath, `${lines.with(14, "line 15 changed").join("\n")}\n`);
+        yield* checkpointStore.captureCheckpoint({ cwd: tmp, checkpointRef: toCheckpointRef });
+
+        const comparison = {
+          cwd: tmp,
+          fromCheckpointRef,
+          toCheckpointRef,
+          ignoreWhitespace: false,
+        };
+        const defaultDiff = yield* checkpointStore.diffCheckpoints(comparison);
+        const widenedDiff = yield* checkpointStore.diffCheckpoints({
+          ...comparison,
+          contextLines: 10,
+        });
+
+        expect(defaultDiff).toContain("@@ -12,7 +12,7 @@");
+        expect(widenedDiff).toContain("@@ -5,21 +5,21 @@");
+      }),
+    );
+
     it.effect("can hide indentation churn when changes wrap existing lines", () =>
       Effect.gen(function* () {
         const tmp = yield* makeTmpDir();

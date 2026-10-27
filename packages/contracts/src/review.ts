@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { DiffContextLines, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { GitCommandError } from "./git.ts";
 import { VcsError } from "./vcs.ts";
 
@@ -19,6 +19,7 @@ export const ReviewDiffPreviewInput = Schema.Struct({
   /** Diffs this one commit against its first parent, instead of the working tree and branch. */
   commit: Schema.optionalKey(ReviewCommitSha),
   ignoreWhitespace: Schema.optionalKey(Schema.Boolean),
+  contextLines: Schema.optionalKey(DiffContextLines),
   file: Schema.optionalKey(
     Schema.Struct({
       path: Schema.NonEmptyString,

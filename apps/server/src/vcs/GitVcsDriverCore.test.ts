@@ -1603,6 +1603,36 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("widens review patch context when asked", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const lines = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`);
+        yield* writeTextFile(cwd, "notes.txt", `${lines.join("\n")}\n`);
+        yield* git(cwd, ["add", "notes.txt"]);
+        yield* git(cwd, ["commit", "-m", "add notes"]);
+        yield* writeTextFile(cwd, "notes.txt", `${lines.with(14, "line 15 changed").join("\n")}\n`);
+
+        const workingTreeDiff = (contextLines?: number) =>
+          driver
+            .getReviewDiffPreview({
+              cwd,
+              ...(contextLines === undefined ? {} : { contextLines }),
+              file: { path: "notes.txt", previousPath: null, sourceKind: "working-tree" },
+            })
+            .pipe(
+              Effect.map(
+                (preview) =>
+                  preview.sources.find((source) => source.kind === "working-tree")?.diff ?? "",
+              ),
+            );
+
+        assert.include(yield* workingTreeDiff(), "@@ -12,7 +12,7 @@");
+        assert.include(yield* workingTreeDiff(10), "@@ -5,21 +5,21 @@");
+      }),
+    );
+
     it.effect("detects an unstaged rename with edits without mutating a split index", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();

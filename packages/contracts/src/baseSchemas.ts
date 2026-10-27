@@ -31,6 +31,8 @@ export const TrimmedNonEmptyString = TrimmedString.check(isNonBlank);
 export const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 export const PositiveInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 export const PortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }));
+/** Unchanged lines a patch keeps around each change, as passed to `git diff --unified`. */
+export const DiffContextLines = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100 }));
 
 export const DpopFailureReason = Schema.Literals([
   "time_window",
