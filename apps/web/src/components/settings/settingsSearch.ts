@@ -645,6 +645,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["stacked split side by side unified inline view"],
   },
   {
+    id: "collapse-removed-lines",
+    title: "Collapse removed lines",
+    to: "/settings/general",
+    searchTerms: ["deleted deletions hide fold stacked diff new code context"],
+  },
+  {
     id: "proactive-panels",
     title: "Proactive panels",
     to: "/settings/diffs",

@@ -24,6 +24,7 @@ export function useReviewFilePatches({
   source,
   baseRef,
   ignoreWhitespace,
+  contextLines,
   theme,
   previewInput,
   preview,
@@ -33,6 +34,7 @@ export function useReviewFilePatches({
   source: ReviewDiffPreviewSource | null;
   baseRef: string | null;
   ignoreWhitespace: boolean;
+  contextLines: number | undefined;
   theme: "light" | "dark";
   /** The preview the file list came from; a newer revision of it refreshes loaded patches. */
   previewInput: ReviewDiffPreviewInput | undefined;
@@ -46,6 +48,7 @@ export function useReviewFilePatches({
     source?.diffHash,
     baseRef,
     ignoreWhitespace,
+    contextLines,
   ]);
   const [requested, setRequested] = useState(() => ({ scope, indices: DEFAULT_INDICES }));
   const queries = reviewFileQueries({
@@ -54,6 +57,7 @@ export function useReviewFilePatches({
     source,
     baseRef,
     ignoreWhitespace,
+    contextLines,
     previewInput,
     scope,
     requested,
@@ -163,6 +167,7 @@ function reviewFileQueries({
   source,
   baseRef,
   ignoreWhitespace,
+  contextLines,
   previewInput,
   scope,
   requested,
@@ -172,6 +177,7 @@ function reviewFileQueries({
   source: ReviewDiffPreviewSource | null;
   baseRef: string | null;
   ignoreWhitespace: boolean;
+  contextLines: number | undefined;
   previewInput: ReviewDiffPreviewInput | undefined;
   scope: string;
   requested: { scope: string; indices: number[] };
@@ -195,6 +201,7 @@ function reviewFileQueries({
                   ...(baseRef ? { baseRef } : {}),
                   ...(source.kind === "commit" && source.headRef ? { commit: source.headRef } : {}),
                   ignoreWhitespace,
+                  ...(contextLines === undefined ? {} : { contextLines }),
                   file: {
                     path: file.path,
                     previousPath: file.previousPath,

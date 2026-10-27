@@ -19,7 +19,9 @@ import {
 } from "~/reviewCommentContext";
 
 import { nextFileCommentId } from "../files/fileCommentAnnotations";
+import type { RemovedLineRun } from "./collapseRemovedLines";
 import { DiffCommentAnnotation } from "./DiffCommentAnnotation";
+import { RemovedLinesBar } from "./RemovedLinesBar";
 import { StyledDiffCodeView, type StyledDiffCodeViewOptions } from "./StyledDiffCodeView";
 
 interface DiffCommentAnnotationEntry {
@@ -32,6 +34,7 @@ interface DiffCommentAnnotationEntry {
 
 interface DiffCommentAnnotationGroup {
   entries: DiffCommentAnnotationEntry[];
+  removedRun?: RemovedLineRun;
 }
 
 type DiffCommentLineAnnotation = DiffLineAnnotation<DiffCommentAnnotationGroup>;
@@ -79,7 +82,9 @@ interface AnnotatableCodeViewProps {
     fileKey: string;
     fileVersion: number;
     collapsed: boolean;
+    removedLineRuns?: ReadonlyArray<RemovedLineRun>;
   }>;
+  onToggleRemovedLines?: (fileKey: string, runKey: string) => void;
   pendingFiles: ReadonlyArray<FileDiffMetadata>;
   sectionId: string;
   sectionTitle: string;
@@ -107,6 +112,7 @@ interface DiffSelectionContext {
 export function AnnotatableCodeView({
   codeViewKey,
   files,
+  onToggleRemovedLines,
   pendingFiles,
   sectionId,
   sectionTitle,
@@ -157,7 +163,7 @@ export function AnnotatableCodeView({
     setSelectedLines(null);
   }
   const items: CodeViewDiffItem<DiffCommentAnnotationGroup>[] = files.map(
-    ({ fileDiff, filePath, fileKey, fileVersion, collapsed }) => {
+    ({ fileDiff, filePath, fileKey, fileVersion, collapsed, removedLineRuns = [] }) => {
       const persisted = reviewComments
         .filter(
           (comment) =>
@@ -176,7 +182,16 @@ export function AnnotatableCodeView({
             text: comment.text,
           });
         }, []);
-      const annotations = draft?.fileKey === fileKey ? [...persisted, draft.annotation] : persisted;
+      const removedRunAnnotations = removedLineRuns.map((run): DiffCommentLineAnnotation => ({
+        side: run.side,
+        lineNumber: run.lineNumber,
+        metadata: { entries: [], removedRun: run },
+      }));
+      const annotations = [
+        ...persisted,
+        ...(draft?.fileKey === fileKey ? [draft.annotation] : []),
+        ...removedRunAnnotations,
+      ];
       return {
         id: fileKey,
         type: "diff",
@@ -185,11 +200,13 @@ export function AnnotatableCodeView({
         collapsed,
         version: fnv1a32(
           `${fileVersion}:${collapsed ? "1" : "0"}:${annotations
-            .flatMap((annotation) =>
-              annotation.metadata.entries.map(
+            .flatMap((annotation) => {
+              const run = annotation.metadata.removedRun;
+              if (run) return [`${run.key}:${run.expanded ? "1" : "0"}`];
+              return annotation.metadata.entries.map(
                 (entry) => `${entry.id}:${entry.kind}:${entry.rangeLabel}:${entry.text}`,
-              ),
-            )
+              );
+            })
             .join(":")}`,
         ),
       };
@@ -307,7 +324,17 @@ export function AnnotatableCodeView({
           ? renderHeaderPrefix(item.fileDiff, item.id, item.collapsed === true)
           : null
       }
-      renderAnnotation={(...[annotation]) => {
+      renderAnnotation={(...[annotation, , item]) => {
+        const removedRun = annotation.metadata.removedRun;
+        if (removedRun) {
+          return (
+            <RemovedLinesBar
+              lineCount={removedRun.lineCount}
+              expanded={removedRun.expanded}
+              onToggle={() => onToggleRemovedLines?.(item.id, removedRun.key)}
+            />
+          );
+        }
         const hasDraft = annotation.metadata.entries.some((entry) => entry.kind === "draft");
         return (
           <div

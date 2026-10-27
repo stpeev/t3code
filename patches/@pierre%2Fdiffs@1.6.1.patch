@@ -1243,6 +1243,122 @@ index 39fe30e47b3e524a72eec9b25bdcd37559b7b9d3..600442e3eb9697e8657f5f7e93ff2823
  			properties: { "data-additions-count": "" }
  		}));
  	}
+diff --git a/dist/utils/renderDiffWithHighlighter.js b/dist/utils/renderDiffWithHighlighter.js
+index a067dd165f11393427e1891533eb6537621a2cf9..632304bf878b3f8f41f66ba8480c98adc6937c7b 100644
+--- a/dist/utils/renderDiffWithHighlighter.js
++++ b/dist/utils/renderDiffWithHighlighter.js
+@@ -42,18 +42,16 @@ function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText,
+ 		return bucket;
+ 	}
+ 	function appendContent(lineContent, lineIndex, segments, contentWrapper) {
+-		if (isWindowedHighlight) {
+-			let segment = segments.at(-1);
+-			if (segment == null || segment.targetIndex + segment.count !== lineIndex) {
+-				segment = {
+-					targetIndex: lineIndex,
+-					originalOffset: contentWrapper.length,
+-					count: 0
+-				};
+-				segments.push(segment);
+-			}
+-			segment.count++;
++		let segment = segments.at(-1);
++		if (segment == null || segment.targetIndex + segment.count !== lineIndex) {
++			segment = {
++				targetIndex: lineIndex,
++				originalOffset: contentWrapper.length,
++				count: 0
++			};
++			segments.push(segment);
+ 		}
++		segment.count++;
+ 		contentWrapper.push(lineContent);
+ 	}
+ 	iterateOverDiff({
+@@ -118,7 +116,10 @@ function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText,
+ 			languageOverride: forcePlainText ? "text" : diff.lang,
+ 			lazyLineAST
+ 		});
+-		if (shouldGroupAll) {
++		// t3code: a diff may skip lines it never renders (folded removed lines), so place highlighted
++		// lines by line index unless they are contiguous, which keeps the original fast paths.
++		const isContiguousFrom = (segments, start) => segments.every((segment, index) => segment.targetIndex === (index === 0 ? start : segments[index - 1].targetIndex + segments[index - 1].count));
++		if (shouldGroupAll && isContiguousFrom(bucket.deletionSegments, 0) && isContiguousFrom(bucket.additionSegments, 0)) {
+ 			code.deletionLines = deletionLines;
+ 			code.additionLines = additionLines;
+ 			continue;
+@@ -131,7 +132,12 @@ function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText,
+ 			code.additionLines,
+ 			additionLines,
+ 			bucket.additionSegments
+-		]]) if (segments.length > 0) for (const segment of segments) for (let index = 0; index < segment.count; index++) target[segment.targetIndex + index] = lines[segment.originalOffset + index];
++		]]) if (isWindowedHighlight) for (const segment of segments) for (let index = 0; index < segment.count; index++) target[segment.targetIndex + index] = lines[segment.originalOffset + index];
++		else if (!isContiguousFrom(segments, target.length)) for (const segment of segments) for (let index = 0; index < segment.count; index++) {
++			const source = segment.originalOffset + index;
++			if (lazyLineAST) setDeferredArrayItem(target, segment.targetIndex + index, () => lines[source]);
++			else target[segment.targetIndex + index] = lines[source];
++		}
+ 		else if (lazyLineAST) {
+ 			const offset = target.length;
+ 			for (let index = 0; index < lines.length; index++) setDeferredArrayItem(target, offset + index, () => lines[index]);
+diff --git a/dist/worker/worker.js b/dist/worker/worker.js
+index ecfe9f2d553817cce880d724932a584152126969..68ef3d1aa6cb2b56594da132782033e784c65b02 100644
+--- a/dist/worker/worker.js
++++ b/dist/worker/worker.js
+@@ -1610,18 +1610,16 @@ function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText,
+ 		return bucket;
+ 	}
+ 	function appendContent(lineContent, lineIndex, segments, contentWrapper) {
+-		if (isWindowedHighlight) {
+-			let segment = segments.at(-1);
+-			if (segment == null || segment.targetIndex + segment.count !== lineIndex) {
+-				segment = {
+-					targetIndex: lineIndex,
+-					originalOffset: contentWrapper.length,
+-					count: 0
+-				};
+-				segments.push(segment);
+-			}
+-			segment.count++;
++		let segment = segments.at(-1);
++		if (segment == null || segment.targetIndex + segment.count !== lineIndex) {
++			segment = {
++				targetIndex: lineIndex,
++				originalOffset: contentWrapper.length,
++				count: 0
++			};
++			segments.push(segment);
+ 		}
++		segment.count++;
+ 		contentWrapper.push(lineContent);
+ 	}
+ 	iterateOverDiff({
+@@ -1686,7 +1684,10 @@ function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText,
+ 			languageOverride: forcePlainText ? "text" : diff.lang,
+ 			lazyLineAST
+ 		});
+-		if (shouldGroupAll) {
++		// t3code: a diff may skip lines it never renders (folded removed lines), so place highlighted
++		// lines by line index unless they are contiguous, which keeps the original fast paths.
++		const isContiguousFrom = (segments, start) => segments.every((segment, index) => segment.targetIndex === (index === 0 ? start : segments[index - 1].targetIndex + segments[index - 1].count));
++		if (shouldGroupAll && isContiguousFrom(bucket.deletionSegments, 0) && isContiguousFrom(bucket.additionSegments, 0)) {
+ 			code.deletionLines = deletionLines;
+ 			code.additionLines = additionLines;
+ 			continue;
+@@ -1699,7 +1700,12 @@ function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText,
+ 			code.additionLines,
+ 			additionLines,
+ 			bucket.additionSegments
+-		]]) if (segments.length > 0) for (const segment of segments) for (let index = 0; index < segment.count; index++) target[segment.targetIndex + index] = lines[segment.originalOffset + index];
++		]]) if (isWindowedHighlight) for (const segment of segments) for (let index = 0; index < segment.count; index++) target[segment.targetIndex + index] = lines[segment.originalOffset + index];
++		else if (!isContiguousFrom(segments, target.length)) for (const segment of segments) for (let index = 0; index < segment.count; index++) {
++			const source = segment.originalOffset + index;
++			if (lazyLineAST) setDeferredArrayItem(target, segment.targetIndex + index, () => lines[source]);
++			else target[segment.targetIndex + index] = lines[source];
++		}
+ 		else if (lazyLineAST) {
+ 			const offset = target.length;
+ 			for (let index = 0; index < lines.length; index++) setDeferredArrayItem(target, offset + index, () => lines[index]);
 diff --git a/package.json b/package.json
 index 0cc43c4a7de60dc1a80a4b383f1fe4a477ae6d07..60b7d17d619bc5efcdc4e871b673e878e67d3710 100644
 --- a/package.json

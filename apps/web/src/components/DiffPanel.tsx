@@ -18,6 +18,7 @@ import {
   ChevronDownIcon,
   Columns2Icon,
   FlaskConicalOffIcon,
+  FoldVerticalIcon,
   FolderTreeIcon,
   PilcrowIcon,
   Rows3Icon,
@@ -110,6 +111,7 @@ import { reviewEnvironment } from "../state/review";
 import { vcsEnvironment } from "../state/vcs";
 import { createGitDiffFileContentsLoader } from "../lib/diffFileContents";
 
+import { collapseRemovedLines as collapseFileRemovedLines } from "./diffs/collapseRemovedLines";
 import { useReviewFilePatches } from "./diffs/useReviewFilePatches";
 import { DiffFileLoadingBoundary } from "./diffs/DiffFileLoadingBoundary";
 import { DiffFileStatus } from "./diffs/DiffFileStatus";
@@ -119,6 +121,8 @@ const DIFF_FILE_TREE_STORAGE_KEY = "t3code.diffFileTreeOpen";
 const DIFF_CHANGES_FILES_FOLDED_STORAGE_KEY = "t3code.diffChangesFilesFolded";
 const DIFF_CHANGES_RAIL_WIDTH_STORAGE_KEY = "t3code.diffChangesRailWidth";
 const COMMIT_CONTEXT_PAGE_SIZE = 10;
+const COLLAPSED_REMOVED_CONTEXT_LINES = 10;
+const NO_EXPANDED_RUNS: ReadonlySet<string> = new Set();
 const fileEntryCache = new WeakMap<
   FileDiffMetadata,
   { fileDiff: FileDiffMetadata; fileKey: string; fileVersion: number }
@@ -232,6 +236,7 @@ export default function DiffPanel({
     AuthOrchestrationOperateScope,
   );
   const settings = useClientSettings((settings) => ({
+    diffCollapseRemovedLines: settings.diffCollapseRemovedLines,
     diffFilesCollapsed: settings.diffFilesCollapsed,
     diffIgnoreWhitespace: settings.diffIgnoreWhitespace,
     diffLayout: settings.diffLayout,
@@ -239,6 +244,11 @@ export default function DiffPanel({
     wordWrap: settings.wordWrap,
   }));
   const diffLayout = settings.diffLayout;
+  const collapseRemovedLines = diffLayout === "stacked" && settings.diffCollapseRemovedLines;
+  const diffContextLines = collapseRemovedLines ? COLLAPSED_REMOVED_CONTEXT_LINES : undefined;
+  const [expandedRemovedRuns, setExpandedRemovedRuns] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [wordWrap, setWordWrap] = useState(settings.wordWrap);
   const [diffIgnoreWhitespace, setDiffIgnoreWhitespace] = useState(settings.diffIgnoreWhitespace);
   const [fileTreeOpen, setFileTreeOpen] = useLocalStorage(
@@ -425,6 +435,7 @@ export default function DiffPanel({
       fromTurnCount: selectedCheckpointRange?.fromTurnCount ?? null,
       toTurnCount: selectedCheckpointRange?.toTurnCount ?? null,
       ignoreWhitespace: diffIgnoreWhitespace,
+      ...(diffContextLines === undefined ? {} : { contextLines: diffContextLines }),
       cacheScope: selectedTurn ? `turn:${selectedTurn.runId}` : null,
     },
     { enabled: isGitRepo && selectedTurn !== undefined },
@@ -436,6 +447,7 @@ export default function DiffPanel({
           ...(selectedBaseRef ? { baseRef: selectedBaseRef } : {}),
           ...(selectedCommitSha ? { commit: selectedCommitSha } : {}),
           ignoreWhitespace: diffIgnoreWhitespace,
+          ...(diffContextLines === undefined ? {} : { contextLines: diffContextLines }),
         }
       : undefined;
   const canRefreshGitDiff =
@@ -578,6 +590,7 @@ export default function DiffPanel({
     source: lazySource,
     baseRef: lazySource?.baseRef ?? selectedBaseRef,
     ignoreWhitespace: diffIgnoreWhitespace,
+    contextLines: diffContextLines,
     theme: resolvedTheme,
     previewInput: branchDiffPreviewInput,
     preview: renderablePatch,
@@ -644,14 +657,40 @@ export default function DiffPanel({
       ({ fileDiff }) =>
         !lazySource || !readyFilePaths || readyFilePaths.has(resolveFileDiffPath(fileDiff)),
     )
-    .map(({ fileDiff, fileKey, fileVersion }) => ({
-      fileDiff,
-      filePath: resolveFileDiffPath(fileDiff),
-      fileKey,
-      fileVersion,
-      collapsed:
-        collapsedDiffFileKeys.has(fileKey) || fileDiff.cacheKey?.endsWith(":pending") === true,
-    }));
+    .map(({ fileDiff, fileKey, fileVersion }) => {
+      const runPrefix = `${fileKey}:${fileVersion}:`;
+      const removed = collapseRemovedLines
+        ? collapseFileRemovedLines(
+            fileDiff,
+            expandedRemovedRuns.size === 0
+              ? NO_EXPANDED_RUNS
+              : new Set(
+                  [...expandedRemovedRuns]
+                    .filter((key) => key.startsWith(runPrefix))
+                    .map((key) => key.slice(runPrefix.length)),
+                ),
+          )
+        : null;
+      return {
+        fileDiff: removed?.fileDiff ?? fileDiff,
+        filePath: resolveFileDiffPath(fileDiff),
+        fileKey,
+        fileVersion,
+        removedLineRuns: removed?.runs ?? [],
+        collapsed:
+          collapsedDiffFileKeys.has(fileKey) || fileDiff.cacheKey?.endsWith(":pending") === true,
+      };
+    });
+  const toggleRemovedLines = (fileKey: string, runKey: string) => {
+    const file = codeViewFiles.find((candidate) => candidate.fileKey === fileKey);
+    if (!file) return;
+    const key = `${fileKey}:${file.fileVersion}:${runKey}`;
+    setExpandedRemovedRuns((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  };
   const pendingFiles = renderableFiles.filter(
     (file) => file.cacheKey?.endsWith(":pending") && isFileShown(file),
   );
@@ -1053,6 +1092,33 @@ export default function DiffPanel({
             <Columns2Icon className="size-3.5" />
           </Toggle>
         </ToggleGroup>
+        {diffLayout === "stacked" && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Toggle
+                  aria-label={
+                    settings.diffCollapseRemovedLines
+                      ? "Show removed lines"
+                      : "Collapse removed lines"
+                  }
+                  variant="ghost"
+                  size="sm"
+                  pressed={settings.diffCollapseRemovedLines}
+                  onPressedChange={(pressed) => {
+                    setExpandedRemovedRuns(NO_EXPANDED_RUNS);
+                    updateClientSettings({ diffCollapseRemovedLines: Boolean(pressed) });
+                  }}
+                />
+              }
+            >
+              <FoldVerticalIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {settings.diffCollapseRemovedLines ? "Show removed lines" : "Collapse removed lines"}
+            </TooltipPopup>
+          </Tooltip>
+        )}
         {diffFileKeys.length > 0 && (
           <Tooltip>
             <TooltipTrigger
@@ -1321,6 +1387,7 @@ export default function DiffPanel({
                     codeViewKey={`${codeViewMountKey}:${lazySource ? filePatchScope : "preview"}`}
                     className="h-full min-h-0 overflow-auto"
                     files={codeViewFiles}
+                    onToggleRemovedLines={toggleRemovedLines}
                     pendingFiles={pendingFiles}
                     renderCodeViewFooter={renderLoadingBoundary}
                     sectionId={reviewSectionId}

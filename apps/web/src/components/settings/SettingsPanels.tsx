@@ -525,6 +525,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Diff whitespace changes"]
       : []),
     ...(settings.diffLayout !== DEFAULT_UNIFIED_SETTINGS.diffLayout ? ["Diff layout"] : []),
+    ...(settings.diffCollapseRemovedLines !== DEFAULT_UNIFIED_SETTINGS.diffCollapseRemovedLines
+      ? ["Collapse removed lines"]
+      : []),
     ...(settings.proactivePanelsEnabled !== DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled
       ? ["Proactive panels"]
       : []),
@@ -655,6 +658,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       diffFilesCollapsed: DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed,
       diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
       diffLayout: DEFAULT_UNIFIED_SETTINGS.diffLayout,
+      diffCollapseRemovedLines: DEFAULT_UNIFIED_SETTINGS.diffCollapseRemovedLines,
       proactivePanelsEnabled: DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled,
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       foldCompletedTurns: DEFAULT_UNIFIED_SETTINGS.foldCompletedTurns,
@@ -1431,6 +1435,32 @@ export function DiffsSettingsPanel() {
                 </SelectItem>
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("collapse-removed-lines")}
+          description="In the stacked layout, fold each run of removed lines into a bar and show more surrounding code."
+          resetAction={
+            settings.diffCollapseRemovedLines !==
+            DEFAULT_UNIFIED_SETTINGS.diffCollapseRemovedLines ? (
+              <SettingResetButton
+                label="collapse removed lines"
+                onClick={() =>
+                  updateSettings({
+                    diffCollapseRemovedLines: DEFAULT_UNIFIED_SETTINGS.diffCollapseRemovedLines,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.diffCollapseRemovedLines}
+              onCheckedChange={(checked) =>
+                updateSettings({ diffCollapseRemovedLines: Boolean(checked) })
+              }
+              aria-label="Collapse removed lines"
+            />
           }
         />
         <SettingsRow
