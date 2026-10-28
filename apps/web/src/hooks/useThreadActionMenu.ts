@@ -20,7 +20,9 @@ import { msg } from "gt-react";
 import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
+  moveTargetProjectId,
   threadActionRequiresOperate,
+  threadMoveTargets,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { titleRegenerationToast } from "../components/threadTitleRegenerationToast";
@@ -152,6 +154,7 @@ export function useThreadActionMenu(input: {
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         supports,
         snoozePresets,
+        moveTargets: threadMoveTargets(projects, thread),
         canShareWithGuest,
         canTurnIntoProject: canTurnThreadIntoProject(threadRef),
       });
@@ -194,6 +197,20 @@ export function useThreadActionMenu(input: {
           failureToast(title, squashAtomCommandFailure(result));
         }
       };
+      const moveTarget = projects.find(
+        (project) =>
+          project.environmentId === thread.environmentId &&
+          project.id === moveTargetProjectId(action),
+      );
+      if (moveTarget) {
+        await reportFailure("Failed to move thread", () =>
+          updateThreadMetadata({
+            environmentId: threadRef.environmentId,
+            input: { threadId: threadRef.threadId, projectId: moveTarget.id },
+          }),
+        );
+        return;
+      }
       switch (action) {
         case "find":
           onFind?.(threadRef);
