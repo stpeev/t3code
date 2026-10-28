@@ -30,7 +30,6 @@ export function contextUsageBannerItem(
   return {
     id,
     variant: "info",
-    priority: "notice",
     icon: <GaugeIcon />,
     title: "Context usage",
     description: [summary.tokens, ...summary.notes].join(" · "),
