@@ -140,6 +140,30 @@ function getCachedFileEntry(fileDiff: FileDiffMetadata) {
   return entry;
 }
 
+// Outside the component: React Compiler can't compile a throw inside try.
+async function loadDiffFilesOrToast(
+  load: FileDiffContentsLoader | undefined,
+  fileDiff: FileDiffMetadata,
+) {
+  // The diff library only logs a failed load, so without this the expand click does nothing.
+  try {
+    if (!load) throw new Error("Diff file contents are unavailable for this selection.");
+    return await load(fileDiff);
+  } catch (error) {
+    toastManager.add({
+      type: "error",
+      title: "Couldn't expand unchanged lines",
+      description:
+        error instanceof Error && "detail" in error && typeof error.detail === "string"
+          ? error.detail
+          : error instanceof Error
+            ? error.message
+            : "An error occurred.",
+    });
+    throw error;
+  }
+}
+
 const EMPTY_COLLAPSED_DIFF_FILE_KEYS: ReadonlySet<string> = new Set();
 
 function DiffFileCollapseToggle({
@@ -553,27 +577,9 @@ export default function DiffPanel({
           cacheKey: selectedGitSource.diffHash,
         })
       : undefined;
-  const loadDiffFiles: FileDiffContentsLoader = useStableCallback(async (fileDiff) => {
-    // The diff library only logs a failed load, so without this the expand click does nothing.
-    try {
-      if (!currentLoadDiffFiles) {
-        throw new Error("Diff file contents are unavailable for this selection.");
-      }
-      return await currentLoadDiffFiles(fileDiff);
-    } catch (error) {
-      toastManager.add({
-        type: "error",
-        title: "Couldn't expand unchanged lines",
-        description:
-          error instanceof Error && "detail" in error && typeof error.detail === "string"
-            ? error.detail
-            : error instanceof Error
-              ? error.message
-              : "An error occurred.",
-      });
-      throw error;
-    }
-  });
+  const loadDiffFiles: FileDiffContentsLoader = useStableCallback((fileDiff) =>
+    loadDiffFilesOrToast(currentLoadDiffFiles, fileDiff),
+  );
   const {
     scope: filePatchScope,
     isPending: areFilePatchesPending,
