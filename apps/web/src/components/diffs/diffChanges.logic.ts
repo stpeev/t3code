@@ -90,6 +90,7 @@ export function selectedDiffChangesRowId(
     case "branch":
       return commits?.baseRef ? "divider" : null;
     case "turn":
+    case "tool-call":
       return "pinned";
     case "commit": {
       const listed = [...(commits?.branchCommits ?? []), ...(commits?.contextCommits ?? [])].find(

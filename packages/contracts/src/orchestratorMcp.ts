@@ -612,7 +612,7 @@ export const OrchestratorMcpProviderCapability = Schema.Struct({
 });
 export type OrchestratorMcpProviderCapability = typeof OrchestratorMcpProviderCapability.Type;
 
-export const OrchestratorMcpEnvironmentLink =Schema.Struct({
+export const OrchestratorMcpEnvironmentLink = Schema.Struct({
   environmentId: EnvironmentId,
   label: Schema.String,
   /** Whether it answered just now. An expired link must be linked again there. */

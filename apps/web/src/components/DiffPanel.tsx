@@ -313,12 +313,12 @@ export default function DiffPanel({
     diffSelection.kind === "branch" ||
     diffSelection.kind === "unstaged" ||
     diffSelection.kind === "commit";
-  const toolCallItems = useQuietThreadVisibleTurnItems(toolCallSelection ? routeThreadRef : null);
+  const toolCallItems = useQuietThreadVisibleTurnItems(toolCallSelection ? threadRef : null);
   const toolCallDetail = useTurnItemDetail(
-    toolCallSelection && routeThreadRef
+    toolCallSelection && threadRef
       ? {
           ...resolveToolCallDiffTarget(toolCallSelection, toolCallItems),
-          environmentId: routeThreadRef.environmentId,
+          environmentId: threadRef.environmentId,
         }
       : null,
   );
