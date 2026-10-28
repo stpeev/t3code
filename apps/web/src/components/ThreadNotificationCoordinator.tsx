@@ -1,3 +1,4 @@
+import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import {
   type EnvironmentThreadShell,
   type PendingSubagentRequest,
@@ -163,6 +164,7 @@ export function startThreadNotifications(
             : {}),
           hideCopyButton: true,
           mainWindowOnly: true,
+          sidebarThreadKey: scopedThreadKey(scopeThreadRef(environmentId, thread.id)),
           leadingIcon:
             kind === "completion" ? (
               <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />

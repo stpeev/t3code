@@ -85,6 +85,34 @@ export function buildVisibleToastLayout<TToast extends object>(
   };
 }
 
+type OrderableToast = ToastWithTransitionStatus & {
+  limited?: boolean | undefined;
+  data?: { sidebarThreadKey?: string | undefined } | undefined;
+};
+
+/** Thread alerts go behind other toasts in sidebar order; re-limits, as Base UI limits by arrival. */
+export function orderToastsBySidebarThread<TToast extends OrderableToast>(
+  toasts: readonly TToast[],
+  sidebarThreadKeys: readonly string[],
+  limit: number,
+): TToast[] {
+  const rankByKey = new Map(sidebarThreadKeys.map((key, index) => [key, index]));
+  const rank = (toast: TToast) => {
+    const key = toast.data?.sidebarThreadKey;
+    if (key === undefined) return -1;
+    return rankByKey.get(key) ?? sidebarThreadKeys.length;
+  };
+  let liveIndex = 0;
+  return toasts
+    .toSorted((left, right) => rank(left) - rank(right))
+    .map((toast) => {
+      if (toast.transitionStatus === "ending") return toast;
+      const limited = liveIndex >= limit;
+      liveIndex += 1;
+      return (toast.limited ?? false) === limited ? toast : { ...toast, limited };
+    });
+}
+
 function normalizeToastHeight(height: number | null | undefined): number {
   return typeof height === "number" && Number.isFinite(height) && height > 0 ? height : 0;
 }
