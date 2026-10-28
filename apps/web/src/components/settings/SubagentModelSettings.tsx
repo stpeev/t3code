@@ -11,11 +11,9 @@ import { createModelSelection } from "@t3tools/shared/model";
 
 import { getCustomModelOptionsByInstance, selectsPlanAgent } from "../../modelSelection";
 import {
-  applyProviderInstanceSettings,
-  deriveProviderInstanceEntries,
+  providerInstanceEntriesFor,
   type ProviderInstanceEntry,
   resolveDefaultProviderModelSelection,
-  sortProviderInstanceEntries,
 } from "../../providerInstances";
 import { useEnvironmentProviders, useEnvironments } from "../../state/environments";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
@@ -91,13 +89,7 @@ export function SubagentModelSettings() {
     (representative?.serverConfig
       ? providersByEnvironment.get(representative.environmentId)
       : undefined) ?? EMPTY_SERVER_PROVIDERS;
-  const entries = sortProviderInstanceEntries(
-    applyProviderInstanceSettings(
-      deriveProviderInstanceEntries(providers),
-      settings,
-      target?.projectId ?? null,
-    ),
-  );
+  const entries = providerInstanceEntriesFor(providers, settings, target?.projectId ?? null);
   const runnableInstanceIds = new Set(
     entries.filter((entry) => entry.enabled && entry.isAvailable).map((entry) => entry.instanceId),
   );
