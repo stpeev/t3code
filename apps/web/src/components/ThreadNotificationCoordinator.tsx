@@ -1,5 +1,4 @@
-import { msg } from "gt-react";
-import { m } from "../i18n/messages";
+import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import {
   type EnvironmentThreadShell,
   type PendingSubagentRequest,
@@ -36,7 +35,9 @@ import {
   unlockNotificationAudio,
 } from "../threadNotifications";
 import { resolveBackgroundThreadRequest } from "./backgroundThreadAnnouncement";
+import { PipelineStageChip } from "./pipelineStageChip";
 import { ProjectFavicon } from "./ProjectFavicon";
+import { readThreadPipelineStageLabels } from "./threadPipelineActions";
 import { resolveSidebarThreadStatus, type SidebarThreadStatus } from "./Sidebar.logic";
 import {
   createThreadNotificationGate,
@@ -46,6 +47,8 @@ import {
 } from "./ThreadNotificationCoordinator.logic";
 import { Badge } from "./ui/badge";
 import { toastManager } from "./ui/toast";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /** Base UI's default toast timeout, applied as focused time for toasts raised in the background. */
 const BACKGROUND_TOAST_VISIBLE_MS = 5_000;
@@ -56,8 +59,6 @@ interface NotificationState extends ThreadNotificationObservation {
   readonly thread: EnvironmentThreadShell;
   readonly status: SidebarThreadStatus;
 }
-
-type ToastId = ReturnType<typeof toastManager.add>;
 
 interface WatchedEnvironment {
   unsubscribe: () => void;
@@ -154,6 +155,9 @@ export function startThreadNotifications(
       : undefined;
     const project = projectShell ? { ...projectShell, environmentId } : undefined;
     const body = project ? `${project.title} · ${thread.title}` : thread.title;
+    const stageLabels = readThreadPipelineStageLabels({ environmentId, id: thread.id });
+    // The shell carries only a bounded snippet of the thread's last visible message.
+    const latestMessageSnippet = state.raw.latestVisibleMessage?.text.trim() ?? null;
     const {
       notificationMode: mode,
       inAppNotificationsEnabled,
@@ -164,16 +168,16 @@ export function startThreadNotifications(
     const active = activeRouteParams(router);
     const title =
       kind === "completion"
-        ? m(msg("Thread completed"))
+        ? "Thread completed"
         : status === "approval"
-          ? m(msg("Approval needed"))
+          ? "Approval needed"
           : status === "limited"
-            ? m(msg("Usage limit reached"))
+            ? "Usage limit reached"
             : status === "failed"
-              ? m(msg("Thread failed"))
+              ? "Thread failed"
               : status === "request"
-                ? m(msg("Guest request"))
-                : m(msg("Input needed"));
+                ? "Guest request"
+                : "Input needed";
     if (hasNotificationSound(mode)) {
       void playNotificationSound(kind, () =>
         hasNotificationSound(getClientSettings().notificationMode),
@@ -199,16 +203,24 @@ export function startThreadNotifications(
         ...(inAppNotificationsPersistent || !mainWindowFocused ? { timeout: 0 } : {}),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
-        description: project ? (
+        description: (
           <>
-            <Badge variant="outline" className="me-1 align-text-bottom">
-              <ProjectFavicon project={project} className="size-3" />
-              {project.title}
-            </Badge>
+            {project ? (
+              <Badge variant="outline" className="me-1 align-text-bottom">
+                <ProjectFavicon project={project} className="size-3" />
+                {project.title}
+              </Badge>
+            ) : null}
             {thread.title}
+            {stageLabels === null ? null : (
+              <PipelineStageChip labels={stageLabels} compact className="ms-1 align-text-bottom" />
+            )}
+            {latestMessageSnippet === null || latestMessageSnippet === "" ? null : (
+              <span className="mt-0.5 block truncate whitespace-nowrap">
+                {latestMessageSnippet}
+              </span>
+            )}
           </>
-        ) : (
-          thread.title
         ),
         data: {
           ...(!inAppNotificationsPersistent && !mainWindowFocused
@@ -216,6 +228,7 @@ export function startThreadNotifications(
             : {}),
           hideCopyButton: true,
           mainWindowOnly: true,
+          sidebarThreadKey: scopedThreadKey(scopeThreadRef(environmentId, thread.id)),
           leadingIcon:
             kind === "completion" ? (
               <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
