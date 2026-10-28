@@ -18,6 +18,8 @@ import {
 } from "../rightPanelPopoutWindow";
 import { PortalContainerProvider } from "./ui/portal-container";
 import { toastManager } from "./ui/toast";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 // Docking unmounts RightPanelPopout before its effects can react, so the store closes the window itself.
 useRightPanelPopoutStore.subscribe((state) => {
@@ -49,7 +51,7 @@ export function RightPanelPopout(props: { title: string; children: ReactNode }) 
   const popout = useSyncExternalStore(subscribeRightPanelPopout, getRightPanelPopout);
   const showing = location === "popout" && open;
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Opens the popout browser window.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Opens the popout browser window.
   useEffect(() => {
     if (!showing) return;
     const store = useRightPanelPopoutStore.getState();
@@ -66,12 +68,12 @@ export function RightPanelPopout(props: { title: string; children: ReactNode }) 
     store.dock();
     toastManager.add({
       type: "warning",
-      title: "The browser blocked the panel window",
-      description: "Allow pop-ups for this site to move the panel into its own window.",
+      title: m(msg("The browser blocked the panel window")),
+      description: m(msg("Allow pop-ups for this site to move the panel into its own window.")),
     });
   }, [showing]);
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Syncs the popout window's title.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Syncs the popout window's title.
   useEffect(() => {
     setRightPanelPopoutTitle(props.title);
   }, [props.title]);
@@ -91,13 +93,17 @@ export function RightPanelPopoutUnsupported(props: { label: string }) {
   return (
     <Empty className="flex-1">
       <EmptyHeader>
-        <EmptyTitle>{props.label} works in the main window</EmptyTitle>
-        <EmptyDescription>Dock the panel to use this tab.</EmptyDescription>
+        <EmptyTitle>
+          {props.label} <T>works in the main window</T>
+        </EmptyTitle>
+        <EmptyDescription>
+          <T>Dock the panel to use this tab.</T>
+        </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
         <Button variant="outline" onClick={() => useRightPanelPopoutStore.getState().dock()}>
           <SquareArrowDownLeftIcon />
-          Dock in main window
+          <T>Dock in main window</T>
         </Button>
       </EmptyContent>
     </Empty>

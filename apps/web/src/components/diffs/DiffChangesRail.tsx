@@ -11,6 +11,8 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { CommitDetails } from "./CommitDetails";
 import { isSelectableDiffChangesRow, type DiffChangesRow } from "./diffChanges.logic";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const KEYBOARD_SELECT_DELAY_MS = 150;
 const FILE_TREE_ROW_HEIGHT_PX = 24;
@@ -67,7 +69,7 @@ export function DiffChangesRail({
     onSelectRow(row);
   });
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Pins the clicked row as the block above collapses.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Pins the clicked row as the block above collapses.
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
     if (!anchor || anchor.id !== selectedRowId) return;
@@ -79,7 +81,7 @@ export function DiffChangesRail({
     else scroller.scrollTop += element.getBoundingClientRect().top - anchor.top;
   }, [selectedRowId]);
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Cancels a pending keyboard selection on unmount.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Cancels a pending keyboard selection on unmount.
   useEffect(
     () => () => {
       if (keyboardTimerRef.current !== null) window.clearTimeout(keyboardTimerRef.current);
@@ -129,7 +131,7 @@ export function DiffChangesRail({
     <div
       ref={scrollRef}
       role="list"
-      aria-label="Changes"
+      aria-label={msg("Changes")}
       className="flex min-h-0 w-full flex-col overflow-y-auto py-1 [container-type:size]"
       onKeyDown={onKeyDown}
     >
@@ -146,7 +148,7 @@ export function DiffChangesRail({
                 className="mx-2 my-1 justify-start"
                 onClick={onShowMore}
               >
-                Show more
+                <T>Show more</T>
               </Button>
             ) : row.kind === "branch-header" ? (
               <BranchHeaderButton
@@ -169,7 +171,7 @@ export function DiffChangesRail({
                   className="shrink-0 rounded-sm font-medium uppercase tracking-wide outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   onClick={() => select(row)}
                 >
-                  {row.upToDate ? "Up to date with" : "Branched from"}
+                  {row.upToDate ? m(msg("Up to date with")) : m(msg("Branched from"))}
                 </button>
                 {renderBasePicker(row.baseRef)}
               </div>
@@ -225,14 +227,20 @@ function BranchHeaderButton({
           />
         }
       >
-        <span className="truncate">This branch</span>
+        <span className="truncate">
+          <T>This branch</T>
+        </span>
         <span className="shrink-0 tabular-nums normal-case">
           · {row.commitCount}
           {row.truncated ? "+" : ""}
-          {hasRemote && row.unpushedCount > 0 ? ` · ${row.unpushedCount} not pushed` : ""}
+          {hasRemote && row.unpushedCount > 0
+            ? m(msg(" · {arg0} not pushed", { arg0: row.unpushedCount }))
+            : ""}
         </span>
       </TooltipTrigger>
-      <TooltipPopup side="left">Show all changes on this branch</TooltipPopup>
+      <TooltipPopup side="left">
+        <T>Show all changes on this branch</T>
+      </TooltipPopup>
     </Tooltip>
   );
 }
@@ -312,7 +320,9 @@ function ChangesRowButton({
             </>
           ) : row.kind === "working-tree" ? (
             <>
-              <span className="truncate text-xs">Working tree</span>
+              <span className="truncate text-xs">
+                <T>Working tree</T>
+              </span>
               {row.fileCount > 0 ? (
                 <span className="flex min-w-0 gap-2 text-2xs text-muted-foreground">
                   <span className="tabular-nums">
@@ -325,7 +335,9 @@ function ChangesRowButton({
                   />
                 </span>
               ) : (
-                <span className="text-2xs text-muted-foreground">Clean</span>
+                <span className="text-2xs text-muted-foreground">
+                  <T>Clean</T>
+                </span>
               )}
             </>
           ) : (
@@ -344,7 +356,7 @@ function ChangesRowButton({
           size="icon-xs"
           variant="ghost"
           className="my-auto mr-1 shrink-0"
-          aria-label={expanded ? "Hide files" : "Show files"}
+          aria-label={expanded ? m(msg("Hide files")) : m(msg("Show files"))}
           aria-expanded={expanded}
           onClick={onToggleFolded}
         >
