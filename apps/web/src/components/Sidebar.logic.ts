@@ -643,7 +643,7 @@ export function attentionHighlightClass(
 ): string {
   if (animation === "none") return "";
   if (animation === "blink") return "motion-safe:animate-status-blink";
-  return shape === "text" ? "status-sheen" : "motion-safe:animate-status-pulse";
+  return shape === "text" ? "status-sheen font-semibold" : "motion-safe:animate-status-pulse";
 }
 
 const THREAD_STATUS_PRIORITY: Record<ThreadStatusPill["label"], number> = {

@@ -589,7 +589,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
-/* Bright band over a dimmed base, swept by the mask so icon and text light up together. */
+/* Dim band swept over a full-strength base; `exclude` turns the band's alpha into a cut-out. */
 @keyframes status-sheen {
   from {
     mask-position:
@@ -607,12 +607,19 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 @utility status-sheen {
   @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
     mask-image:
-      linear-gradient(to right, transparent, black 35%, black 65%, transparent),
-      linear-gradient(rgb(0 0 0 / 15%), rgb(0 0 0 / 15%));
+      linear-gradient(
+        to right,
+        transparent,
+        rgb(0 0 0 / 70%) 35%,
+        rgb(0 0 0 / 70%) 65%,
+        transparent
+      ),
+      linear-gradient(black, black);
     mask-size:
       3rem 100%,
       100% 100%;
     mask-repeat: no-repeat;
+    mask-composite: exclude;
     animation: status-sheen 2.6s steps(40) infinite;
   }
 }
