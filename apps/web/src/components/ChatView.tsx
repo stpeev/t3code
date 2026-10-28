@@ -1080,6 +1080,7 @@ export default function ChatView(props: ChatViewProps) {
   const rightPanelInline = !rightPanelPoppedOut && !shouldUsePlanSidebarSheet;
   const rightPanelInSheet = !rightPanelPoppedOut && shouldUsePlanSidebarSheet;
   const popoutSyncRef = useRef<RightPanelPopoutSyncSnapshot | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the popout window and thread panel stores in step
   useEffect(() => {
     if (!rightPanelPoppedOut || !activeThreadRef || !activeThreadKey) {
       popoutSyncRef.current = null;

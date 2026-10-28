@@ -67,7 +67,7 @@ export function DiffChangesRail({
     onSelectRow(row);
   });
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Pins the clicked row as the block above collapses.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Pins the clicked row as the block above collapses.
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
     if (!anchor || anchor.id !== selectedRowId) return;
@@ -79,7 +79,7 @@ export function DiffChangesRail({
     else scroller.scrollTop += element.getBoundingClientRect().top - anchor.top;
   }, [selectedRowId]);
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Cancels a pending keyboard selection on unmount.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Cancels a pending keyboard selection on unmount.
   useEffect(
     () => () => {
       if (keyboardTimerRef.current !== null) window.clearTimeout(keyboardTimerRef.current);

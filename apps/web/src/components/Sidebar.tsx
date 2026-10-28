@@ -1727,7 +1727,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     snoozedThreadKeysRef.current = snoozedThreadKeys;
     sectionByThreadKeyRef.current = sectionByThreadKey;
   });
-  // oxlint-disable-next-line t3code/react-effect-budget -- the toast stack outside the sidebar follows its order
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the toast stack outside the sidebar follows its order
   useEffect(() => {
     publishSidebarThreadOrder(searchableThreads.map(threadShellKey));
   });

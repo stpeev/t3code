@@ -483,7 +483,7 @@ function useFileLineReveal(
 ): FilePostRender {
   const [revealStatesByPath] = useState(() => new Map<string, FileRevealState>());
   const scrollTrackerRef = useRef<FileScrollTracker | null>(null);
-  // oxlint-disable-next-line t3code/react-effect-budget -- Stops recording before the next file clamps scrollTop.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Stops recording before the next file clamps scrollTop.
   useLayoutEffect(
     () => () => {
       scrollTrackerRef.current?.dispose();
