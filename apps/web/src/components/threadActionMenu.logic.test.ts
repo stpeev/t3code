@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildThreadActionMenuItems, type ThreadActionMenuState } from "./threadActionMenu.logic";
+import {
+  buildThreadActionMenuItems,
+  moveTargetProjectId,
+  threadMoveTargets,
+  type ThreadActionMenuState,
+} from "./threadActionMenu.logic";
 
 const baseState: ThreadActionMenuState = {
   canOperate: true,
@@ -24,6 +29,7 @@ const baseState: ThreadActionMenuState = {
   snoozePresets: [
     { id: "hour", label: "In 1 hour", whenLabel: "3:00 PM", snoozedUntil: "2026-08-07T15:00:00Z" },
   ],
+  moveTargets: [],
 };
 
 describe("buildThreadActionMenuItems", () => {
@@ -87,5 +93,28 @@ describe("buildThreadActionMenuItems", () => {
   it("disables only rename where no inline title editor exists", () => {
     const items = buildThreadActionMenuItems({ ...baseState, canRename: false });
     expect(items.filter((item) => item.disabled).map((item) => item.id)).toEqual(["rename"]);
+  });
+
+  it("offers other projects as move targets, disabled while the thread is running", () => {
+    const targets = threadMoveTargets(
+      [
+        { id: "p-current", environmentId: "env", title: "Current" },
+        { id: "p-zeta", environmentId: "env", title: "Zeta" },
+        { id: "p-alpha", environmentId: "env", title: "Alpha" },
+        { id: "p-remote", environmentId: "other-env", title: "Remote" },
+      ],
+      { environmentId: "env", projectId: "p-current" },
+    );
+    const move = (isRunning: boolean) =>
+      buildThreadActionMenuItems({ ...baseState, moveTargets: targets, isRunning }).find(
+        (item) => item.id === "move-to-project",
+      );
+    expect(move(false)?.children?.map((child) => child.label)).toEqual(["Alpha", "Zeta"]);
+    expect(move(false)?.disabled).toBe(false);
+    expect(move(true)?.disabled).toBe(true);
+    expect(moveTargetProjectId("move-to-project:p-alpha")).toBe("p-alpha");
+    expect(
+      buildThreadActionMenuItems(baseState).some((item) => item.id === "move-to-project"),
+    ).toBe(false);
   });
 });

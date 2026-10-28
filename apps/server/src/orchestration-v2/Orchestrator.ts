@@ -4600,13 +4600,45 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: `Thread ${command.threadId} is no longer empty.`,
         });
     }
-    // The worktree change below detaches the provider process, which would kill the turn and
+    const movesProject =
+      command.type === "thread.metadata.update" &&
+      command.projectId !== undefined &&
+      command.projectId !== thread.projectId;
+    const changesWorkspace =
+      movesProject ||
+      (command.type === "thread.metadata.update" &&
+        command.worktreePath !== undefined &&
+        command.worktreePath !== thread.worktreePath);
+    if (
+      command.type === "thread.metadata.update" &&
+      command.projectId !== undefined &&
+      command.projectId !== thread.projectId
+    ) {
+      if (
+        thread.lineage.relationshipToParent === "subagent" ||
+        isProviderNativeSubagentThread(thread)
+      ) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Thread ${command.threadId} is a subagent and moves with its parent's work only.`,
+        });
+      }
+      const target = yield* projects.get(command.projectId).pipe(mapDispatchError(command));
+      if (Option.isNone(target) || target.value.deletedAt !== null) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Project ${command.projectId} does not exist.`,
+        });
+      }
+    }
+    // The workspace change below detaches the provider process, which would kill the turn and
     // every native subagent inside it. Only the agent's own handoff may do that knowingly.
     if (
       command.type === "thread.metadata.update" &&
       command.interruptActiveTurn !== true &&
-      command.worktreePath !== undefined &&
-      command.worktreePath !== thread.worktreePath
+      changesWorkspace
     ) {
       const { runs } = yield* projectionStore
         .getThreadRecords(command.threadId, ["runs"])
@@ -4615,7 +4647,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
-          cause: `Thread ${command.threadId} has a turn in progress. Stop it before switching the worktree.`,
+          cause: movesProject
+            ? `Thread ${command.threadId} has a turn in progress. Stop it before moving the thread.`
+            : `Thread ${command.threadId} has a turn in progress. Stop it before switching the worktree.`,
         });
       }
     }
@@ -4838,9 +4872,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       command.type === "provider.switch" ||
       command.type === "thread.archive" ||
       command.type === "thread.settle" ||
-      (command.type === "thread.metadata.update" &&
-        command.worktreePath !== undefined &&
-        command.worktreePath !== thread.worktreePath);
+      changesWorkspace;
     const providerContext = needsProviderState
       ? yield* projectionStore
           .getThreadProviderContext(
@@ -5256,6 +5288,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                     Date.parse(thread.limitRecovery.resetAt)
                 ? { snoozedUntil: null, snoozedAt: null, lastSnoozeWakeAt: now }
                 : {}),
+            ...(command.projectId === undefined || command.projectId === thread.projectId
+              ? {}
+              : {
+                  projectId: command.projectId,
+                  branch: null,
+                  worktreePath: null,
+                  branchPullRequest: null,
+                }),
             ...(command.branch === undefined ? {} : { branch: command.branch }),
             ...(command.worktreePath === undefined ? {} : { worktreePath: command.worktreePath }),
             ...(command.linkedPullRequest === undefined
@@ -5933,6 +5973,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         { concurrency: 1, discard: true },
       );
     }
+
+    // Archive and settle stop idle background work; serialized commands prevent starts racing detach.
+    // Settlement rejects active or blocked runs.
 
     if (command.type === "thread.archive") {
       yield* Ref.update(effects, (existing) => [

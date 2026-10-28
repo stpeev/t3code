@@ -22,7 +22,10 @@ import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.sn
 import {
   buildThreadActionMenuItems,
   isThreadTriageAction,
+  moveTargetProjectId,
+
   threadActionRequiresOperate,
+  threadMoveTargets,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { titleRegenerationToast } from "../components/threadTitleRegenerationToast";
@@ -150,12 +153,13 @@ export function useThreadActionMenu(input: {
       hasCompletedRun: thread.latestRun?.completedAt != null,
       supports,
       snoozePresets,
+      moveTargets: threadMoveTargets(projects, thread),
       canShareWithGuest,
       canTurnIntoProject: canTurnThreadIntoProject(threadRef),
     });
     const run = async (action: ThreadActionMenuId) => {
-      const api = readLocalApi();
-      if (!api) return;
+  
+> 0b5c2827a0 (feat: threads can move to another project)
       if (
         threadActionRequiresOperate(action) &&
         !(isThreadTriageAction(action)
@@ -194,6 +198,20 @@ export function useThreadActionMenu(input: {
           failureToast(title, squashAtomCommandFailure(result));
         }
       };
+      const moveTarget = projects.find(
+        (project) =>
+          project.environmentId === thread.environmentId &&
+          project.id === moveTargetProjectId(action),
+      );
+      if (moveTarget) {
+        await reportFailure("Failed to move thread", () =>
+          updateThreadMetadata({
+            environmentId: threadRef.environmentId,
+            input: { threadId: threadRef.threadId, projectId: moveTarget.id },
+          }),
+        );
+        return;
+      }
       switch (action) {
         case "find":
           onFind?.(threadRef);
