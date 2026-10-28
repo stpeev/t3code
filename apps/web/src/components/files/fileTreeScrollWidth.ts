@@ -8,7 +8,7 @@ export interface FileTreeHostModel {
 
 /** Holds the tree at its widest rendered row so virtualized rows leaving cannot yank the horizontal scroll. */
 export function useFileTreeScrollWidth(model: FileTreeHostModel, resetKey: unknown) {
-  // oxlint-disable-next-line t3code/react-effect-budget -- Watches rows the third-party tree renders in its shadow DOM.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Watches the tree's shadow-DOM rows.
   useEffect(() => {
     const scroller = model
       .getFileTreeContainer()
