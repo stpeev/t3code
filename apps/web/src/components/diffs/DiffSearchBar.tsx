@@ -87,7 +87,7 @@ export function DiffSearchBar({
     }
   };
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Each open request selects the mounted input.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Each open request selects the mounted input.
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
