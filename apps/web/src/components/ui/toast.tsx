@@ -28,15 +28,19 @@ import {
 import {
   buildVisibleToastLayout,
   hasVisibleToastAction,
+  orderToastsBySidebarThread,
   shouldHideCollapsedToastContent,
   shouldRenderThreadScopedToast,
 } from "./toast.logic";
+import { useSidebarThreadOrderStore } from "~/sidebarThreadOrderStore";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
 import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
 
 export type ThreadToastData = {
   threadRef?: ScopedThreadRef | null;
   threadId?: ThreadId | null;
+  /** Stacks this toast by the thread's sidebar position, behind toasts without one. */
+  sidebarThreadKey?: string;
   leadingIcon?: ReactNode;
   tooltipStyle?: boolean;
   onClose?: (() => void) | undefined;
@@ -590,37 +594,42 @@ function ToastProvider({
   return (
     <Toast.Provider toastManager={mainToastManager} limit={limit} {...props}>
       {children}
-      <Toasts position={position} container={null} />
+      <Toasts position={position} limit={limit} container={null} />
       <Toast.Provider toastManager={popoutToastManager} limit={limit} {...props}>
-        <PopoutToasts position={position} />
+        <PopoutToasts position={position} limit={limit} />
       </Toast.Provider>
     </Toast.Provider>
   );
 }
 
 // Falls back to the main window once the popout closes, so its toasts are not lost.
-function PopoutToasts({ position }: { position: ToastPosition }) {
+function PopoutToasts({ position, limit }: { position: ToastPosition; limit: number }) {
   const root = useSyncExternalStore(
     subscribeRightPanelPopout,
     () => getRightPanelPopout()?.root ?? null,
     () => null,
   );
-  return <Toasts position={position} container={root} />;
+  return <Toasts position={position} limit={limit} container={root} />;
 }
 
 function Toasts({
   position,
+  limit,
   container,
 }: {
   position: ToastPosition;
+  limit: number;
   container: HTMLElement | null;
 }) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
+  const sidebarThreadKeys = useSidebarThreadOrderStore((state) => state.threadKeys);
   const view = container?.ownerDocument.defaultView ?? window;
   const activeThreadRef = useActiveThreadRefFromRoute();
   const isTop = position.startsWith("top");
-  const visibleToasts = toasts.filter((toast) =>
-    shouldRenderThreadScopedToast(toast.data, activeThreadRef),
+  const visibleToasts = orderToastsBySidebarThread(
+    toasts.filter((toast) => shouldRenderThreadScopedToast(toast.data, activeThreadRef)),
+    sidebarThreadKeys,
+    limit,
   );
   const visibleToastLayout = buildVisibleToastLayout(visibleToasts);
 

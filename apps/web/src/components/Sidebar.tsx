@@ -120,6 +120,7 @@ import {
   getThreadKeysToDeselectAfterDelete,
   useThreadSelectionStore,
 } from "../threadSelectionStore";
+import { publishSidebarThreadOrder } from "../sidebarThreadOrderStore";
 import {
   canTurnThreadIntoProject,
   useAcknowledgeThreadWoke,
@@ -1790,6 +1791,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     settledThreadKeysRef.current = settledThreadKeys;
     snoozedThreadKeysRef.current = snoozedThreadKeys;
     sectionByThreadKeyRef.current = sectionByThreadKey;
+  });
+  // oxlint-disable-next-line t3code/react-effect-budget -- the toast stack outside the sidebar follows its order
+  useEffect(() => {
+    publishSidebarThreadOrder(searchableThreads.map(threadShellKey));
   });
   const startActionSweep = useStableCallback(
     (threadRef: ScopedThreadRef, action: SidebarSweepAction, event: PointerEvent) => {
