@@ -37,6 +37,7 @@ import * as EffectOutbox from "./EffectOutbox.ts";
 import * as EventSink from "./EventSink.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
+import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
@@ -54,6 +55,7 @@ const layerDatabase = SqlitePersistence.layerMemory;
 const layerTest = Layer.mergeAll(
   layerDatabase,
   ProjectionStore.layer.pipe(Layer.provide(layerDatabase)),
+  ProjectStore.layer.pipe(Layer.provide(layerDatabase)),
   EffectOutbox.layer.pipe(Layer.provide(layerDatabase)),
   ProviderReplayHarness.layerWithRegistry(
     { name: "control-reads" },
@@ -1486,6 +1488,95 @@ it.effect("explicit settle clears snooze atomically and stays idempotent after r
     assert.deepInclude(yield* projections.getThreadShell(threadId), active);
     assert.deepInclude((yield* projections.getThreadProjection(threadId)).thread, active);
   }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect(
+  "moves a thread to another project, clearing its worktree and detaching its session",
+  () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const projects = yield* ProjectStore.ProjectStoreV2;
+      const threadId = ThreadId.make("thread:move-project");
+      const targetProjectId = ProjectId.make("project:move-target");
+      const now = yield* DateTime.now;
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("create-move-project"),
+        threadId,
+        projectId: ProjectId.make("project:move-source"),
+        title: "Movable",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: "feature",
+        worktreePath: "/source/worktrees/feature",
+        createdBy: "user",
+        creationSource: "web",
+      });
+      yield* projections.apply({
+        id: EventId.make("attach-move-project"),
+        type: "provider-session.attached",
+        threadId,
+        occurredAt: now,
+        payload: {
+          id: ProviderSessionId.make("session:move-project"),
+          driver: adapter.driver,
+          providerInstanceId: instanceId,
+          status: "ready",
+          cwd: "/source/worktrees/feature",
+          model: modelSelection.model,
+          capabilities: CodexProviderCapabilitiesV2,
+          createdAt: now,
+          updatedAt: now,
+          lastError: null,
+        },
+      });
+      const move = (commandId: string) =>
+        orchestrator.dispatch({
+          type: "thread.metadata.update",
+          commandId: CommandId.make(commandId),
+          threadId,
+          projectId: targetProjectId,
+        });
+
+      assert.isTrue(Result.isFailure(yield* move("move-to-missing-project").pipe(Effect.result)));
+      assert.equal(
+        (yield* projections.getThread(threadId)).worktreePath,
+        "/source/worktrees/feature",
+      );
+
+      yield* projects.apply({
+        sequence: 1,
+        eventId: EventId.make("event:move-target"),
+        aggregateKind: "project",
+        aggregateId: targetProjectId,
+        occurredAt: DateTime.formatIso(now),
+        commandId: null,
+        causationEventId: null,
+        correlationId: null,
+        metadata: {},
+        type: "project.created",
+        payload: {
+          projectId: targetProjectId,
+          title: "Target",
+          workspaceRoot: "/target",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: DateTime.formatIso(now),
+          updatedAt: DateTime.formatIso(now),
+        },
+      });
+      yield* move("move-to-target-project");
+
+      const moved = { projectId: targetProjectId, branch: null, worktreePath: null } as const;
+      assert.deepInclude(yield* projections.getThread(threadId), moved);
+      assert.deepInclude(yield* projections.getThreadShell(threadId), moved);
+      assert.deepEqual(
+        (yield* projections.getThreadProviderContext(threadId)).providerSessions,
+        [],
+      );
+    }).pipe(Effect.provide(layerTest)),
 );
 
 it.effect("dispatch records the command outcome and its duration", () =>

@@ -167,7 +167,9 @@ import { ProjectEnvironmentBadge } from "./ProjectEnvironmentBadge";
 import {
   buildDraftActionMenuItems,
   buildThreadActionMenuItems,
+  moveTargetProjectId,
   threadActionRequiresOperate,
+  threadMoveTargets,
 } from "./threadActionMenu.logic";
 import {
   applySidebarThreadDrop,
@@ -2572,12 +2574,35 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 titleRegeneration: configLoaded,
               },
               snoozePresets,
+              moveTargets: threadMoveTargets([...projectByKey.values()], thread),
             }),
             position,
           ),
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
         if (threadActionRequiresOperate(clicked.value) && !checkThreadOperations([thread])) return;
+        const moveTargetId = moveTargetProjectId(clicked.value);
+        const moveTarget = [...projectByKey.values()].find(
+          (project) =>
+            project.environmentId === thread.environmentId && project.id === moveTargetId,
+        );
+        if (moveTarget) {
+          const result = await updateThreadMetadata({
+            environmentId: threadRef.environmentId,
+            input: { threadId: threadRef.threadId, projectId: moveTarget.id },
+          });
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to move thread",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
         if (clicked.value?.startsWith("snooze:")) {
           const preset =
             clicked.value === "snooze:custom"
