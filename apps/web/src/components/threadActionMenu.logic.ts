@@ -21,6 +21,8 @@ export type ThreadActionMenuId =
   | "regenerate-title"
   | "mark-unread"
   | "share-guest"
+  | "move-to-project"
+  | `move-to-project:${string}`
   | "copy"
   | "copy-path"
   | "copy-branch"
@@ -91,10 +93,33 @@ export interface ThreadActionMenuState {
     readonly titleRegeneration: boolean;
   };
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
+  /** Other projects in the thread's environment. */
+  readonly moveTargets: ReadonlyArray<{ readonly projectId: string; readonly label: string }>;
   /** Guest links need their own grant, so the caller checks it instead of `canOperate`. */
   readonly canShareWithGuest?: boolean;
   /** A No project thread with its own folder, on a server that can promote it. */
   readonly canTurnIntoProject?: boolean;
+}
+
+export function threadMoveTargets(
+  projects: ReadonlyArray<{
+    readonly id: string;
+    readonly environmentId: string;
+    readonly title: string;
+  }>,
+  thread: { readonly environmentId: string; readonly projectId: string },
+): ThreadActionMenuState["moveTargets"] {
+  return projects
+    .filter(
+      (project) =>
+        project.environmentId === thread.environmentId && project.id !== thread.projectId,
+    )
+    .map((project) => ({ projectId: project.id, label: project.title }))
+    .toSorted((a, b) => a.label.localeCompare(b.label));
+}
+
+export function moveTargetProjectId(action: ThreadActionMenuId): string | null {
+  return action.startsWith("move-to-project:") ? action.slice("move-to-project:".length) : null;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -220,6 +245,20 @@ export function buildThreadActionMenuItems(
                 checked: !state.autoSettleEnabled,
               },
             ],
+          },
+        ]
+      : []),
+    ...(state.moveTargets.length > 0
+      ? [
+          {
+            id: "move-to-project" as const,
+            label: "Move to project",
+            icon: "folder",
+            disabled: state.isRunning,
+            children: state.moveTargets.map((target) => ({
+              id: `move-to-project:${target.projectId}` as const,
+              label: target.label,
+            })),
           },
         ]
       : []),

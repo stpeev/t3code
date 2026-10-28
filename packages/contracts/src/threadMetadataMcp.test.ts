@@ -19,4 +19,10 @@ describe("ThreadMetadataMcpUpdateInput", () => {
       decodeUpdate({ action: "regenerate_title", clientRequestId: "metadata-\udc00" }),
     );
   });
+
+  it("requires projectId for move and rejects it for other actions", () => {
+    assert.equal(decodeUpdate({ action: "move", projectId: "project-b" }).projectId, "project-b");
+    assert.throws(() => decodeUpdate({ action: "move" }));
+    assert.throws(() => decodeUpdate({ action: "regenerate_title", projectId: "project-b" }));
+  });
 });
