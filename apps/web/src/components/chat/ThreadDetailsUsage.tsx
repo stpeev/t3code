@@ -15,12 +15,15 @@ import {
 import { formatDuration, limitsNotice } from "@t3tools/shared/usageLimitsCopy";
 import { Link } from "@tanstack/react-router";
 import { msg, useGT, useLocale, useMessages } from "gt-react";
+import {
+  type ContextWindowSnapshot,
+  formatContextWindowTokens,
+} from "@t3tools/client-runtime/context-window";
 import type { ReactNode } from "react";
 
 import { usePrimarySettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
-import type { ContextWindowSnapshot } from "@t3tools/client-runtime/state/context-window";
-import { formatContextWindowTokens } from "../../lib/contextWindow";
+
 import { cn } from "../../lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
