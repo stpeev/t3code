@@ -174,7 +174,7 @@ export function resolveInitialMainWindowBounds(
 }
 
 /** Must match `RIGHT_PANEL_POPOUT_WINDOW_NAME` in apps/web/src/rightPanelPopoutWindow.ts. */
-export const RIGHT_PANEL_POPOUT_FRAME_NAME = "t3code-right-panel";
+const RIGHT_PANEL_POPOUT_FRAME_NAME = "t3code-right-panel";
 
 const RIGHT_PANEL_POPOUT_DEFAULT_SIZE = { width: 720, height: 900 };
 

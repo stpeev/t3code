@@ -2,7 +2,7 @@ import { isEditableFocused } from "./lib/editableFocus";
 import type { RightPanelPopoutBounds } from "./rightPanelPopoutStore";
 
 /** Window name the desktop shell matches to allow this one popup. */
-export const RIGHT_PANEL_POPOUT_WINDOW_NAME = "t3code-right-panel";
+const RIGHT_PANEL_POPOUT_WINDOW_NAME = "t3code-right-panel";
 
 const DEFAULT_WIDTH = 720;
 const DEFAULT_HEIGHT = 900;

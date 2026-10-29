@@ -33,7 +33,7 @@ export type DiffChangesRow =
     }
   | { readonly kind: "show-more"; readonly id: "show-more" };
 
-export const commitRowId = (sha: string) => `commit:${sha}`;
+const commitRowId = (sha: string) => `commit:${sha}`;
 
 /** A selection the list can't show (a turn, a commit off the branch) gets a pinned row to expand under. */
 export function buildDiffChangesRows(input: {

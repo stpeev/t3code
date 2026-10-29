@@ -27,7 +27,7 @@ export const MAX_DIFF_SEARCH_MATCHES = 5000;
 const EMPTY_RESULT: DiffSearchResult = { matches: [], truncated: false };
 
 /** Smart case: a query with any uppercase letter matches case exactly. */
-export function isCaseSensitiveQuery(query: string): boolean {
+function isCaseSensitiveQuery(query: string): boolean {
   return query !== query.toLowerCase();
 }
 

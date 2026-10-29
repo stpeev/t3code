@@ -146,7 +146,7 @@ export function pickClosestBranch(
 }
 
 /** Parses `git log -z` output written with {@link COMMIT_LOG_FORMAT}. */
-export function parseCommitLog(
+function parseCommitLog(
   stdout: string,
   unpushedShas: ReadonlySet<string>,
 ): ReadonlyArray<VcsCommit> {
