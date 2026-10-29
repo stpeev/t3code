@@ -85,7 +85,7 @@ export function buildFileReviewComment(input: {
   };
 }
 
-export function isFileReviewComment(comment: ReviewCommentContext): boolean {
+function isFileReviewComment(comment: ReviewCommentContext): boolean {
   return comment.sectionId === `file:${comment.filePath}`;
 }
 
