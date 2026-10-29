@@ -5150,6 +5150,19 @@ function claudeCreatedTaskFromText(
 }
 
 const CLAUDE_TASK_TOOL_NAMES = new Set(["TaskCreate", "TaskUpdate", "TaskList"]);
+
+/** Where Claude's own worktree tools left the live session, or undefined for any other tool. */
+function claudeWorktreeToolCwd(toolName: string, output: unknown): string | undefined {
+  switch (toolName) {
+    case "EnterWorktree":
+      return text(field(output, "worktreePath"));
+    case "ExitWorktree":
+      return text(field(output, "restoredCwd"));
+    default:
+      return undefined;
+  }
+}
+
 const decodeClaudeTaskFile = Schema.decodeUnknownOption(
   Schema.fromJsonString(
     Schema.Struct({
@@ -10846,6 +10859,17 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 (toolCall.toolName.startsWith("mcp__") ? withoutForgedMcpApp(output) : output),
               completedAt: yield* DateTime.now,
             });
+            const movedCwd = isClaudeToolResultError(toolResult)
+              ? undefined
+              : claudeWorktreeToolCwd(toolCall.toolName, claudeNativeToolOutputValue(output));
+            if (movedCwd !== undefined && toolCall.threadId === context.input.threadId) {
+              yield* emitProviderEvent({
+                type: "app_thread.workspace_moved",
+                driver: CLAUDE_PROVIDER,
+                threadId: context.input.threadId,
+                cwd: movedCwd,
+              });
+            }
             // Subagents write to the session's shared task store, so their
             // task tools update the parent turn's list. Failed or never-run
             // calls changed nothing.

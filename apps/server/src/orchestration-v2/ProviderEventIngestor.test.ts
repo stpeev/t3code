@@ -5,6 +5,7 @@ import {
   CheckpointId,
   CheckpointRef,
   CheckpointScopeId,
+  EventId,
   MessageId,
   GitCommandError,
   type ModelSelection,
@@ -45,6 +46,7 @@ import * as EventSink from "./EventSink.ts";
 import * as EventStore from "./EventStore.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProjectionStore from "./ProjectionStore.ts";
+import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import * as ProviderUsageAnalytics from "../telemetry/ProviderUsageAnalytics.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
@@ -60,9 +62,11 @@ import {
 } from "./RunExecutionService.ts";
 
 const layerTestDatabase = SqlitePersistence.layerMemory;
-const layerTestStores = Layer.merge(EventStore.layer, ProjectionStore.layer).pipe(
-  Layer.provide(layerTestDatabase),
-);
+const layerTestStores = Layer.mergeAll(
+  EventStore.layer,
+  ProjectionStore.layer,
+  ProjectStore.layer,
+).pipe(Layer.provide(layerTestDatabase));
 
 const layerTestEventSink = EventSink.layer.pipe(
   Layer.provide(Layer.mergeAll(layerTestStores, layerTestDatabase)),
@@ -2058,6 +2062,70 @@ layer("ProviderEventIngestorV2", (it) => {
         assert.equal(stored.length, 1);
         assert.equal(gitReads, scenario === "explicit" ? 0 : 1);
       }),
+  );
+
+  it.effect("binds the thread to the checkout the agent moved its session into", () =>
+    Effect.gen(function* () {
+      const { repo, worktreePath } = yield* makeSharedWorktree;
+      const now = yield* DateTime.now;
+      const sink = yield* EventSink.EventSinkV2;
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const projects = yield* ProjectStore.ProjectStoreV2;
+      const ids = yield* IdAllocator.IdAllocatorV2;
+      const ingestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
+      const root = yield* threadCreatedEvent(now);
+      if (root.type !== "thread.created") throw new Error("Expected thread fixture");
+      yield* sink.write({ events: [root] });
+      yield* projects.apply({
+        sequence: 0,
+        eventId: EventId.make(`seed:${root.payload.projectId}`),
+        aggregateKind: "project",
+        aggregateId: root.payload.projectId,
+        occurredAt: DateTime.formatIso(now),
+        commandId: null,
+        causationEventId: null,
+        correlationId: null,
+        metadata: {},
+        type: "project.created",
+        payload: {
+          projectId: root.payload.projectId,
+          title: "Moved workspace",
+          workspaceRoot: repo,
+          defaultModelSelection: modelSelection,
+          scripts: [],
+          createdAt: DateTime.formatIso(now),
+          updatedAt: DateTime.formatIso(now),
+        },
+      });
+      const moveTo = (cwd: string) =>
+        Effect.gen(function* () {
+          return yield* ingestor.ingestNormalized({
+            providerSessionId: yield* ids.allocate.providerSession({
+              providerInstanceId: modelSelection.instanceId,
+              threadId: root.threadId,
+            }),
+            providerInstanceId: modelSelection.instanceId,
+            threadId: root.threadId,
+            event: {
+              type: "app_thread.workspace_moved",
+              driver: CODEX_DRIVER,
+              threadId: root.threadId,
+              cwd,
+            },
+          });
+        });
+
+      yield* moveTo(worktreePath);
+      const entered = yield* projections.getThread(root.threadId);
+      assert.equal(entered.worktreePath, worktreePath);
+      assert.equal(entered.branch, "t3/abcd1234");
+      assert.deepEqual(yield* moveTo(worktreePath), []);
+
+      yield* moveTo(repo);
+      const exited = yield* projections.getThread(root.threadId);
+      assert.isNull(exited.worktreePath);
+      assert.equal(exited.branch, "main");
+    }),
   );
 
   it.effect("updates provider child metadata without recreating its saved thread", () =>

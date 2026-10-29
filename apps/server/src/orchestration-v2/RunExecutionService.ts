@@ -387,6 +387,8 @@ export function routeProviderEvent(
   switch (event.type) {
     case "provider_session.updated":
       return [false, state];
+    case "app_thread.workspace_moved":
+      return [event.threadId === input.threadId, state];
     case "app_thread.created": {
       if (event.appThread.id === input.threadId) {
         return [true, state];

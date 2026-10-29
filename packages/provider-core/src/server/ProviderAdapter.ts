@@ -89,6 +89,13 @@ export const ProviderAdapterV2Event = Schema.Union([
     appThread: OrchestrationV2AppThread,
     createOnly: Schema.optional(Schema.Boolean),
   }),
+  /** The agent moved its own live session into another checkout, as Claude's EnterWorktree does. */
+  Schema.Struct({
+    type: Schema.Literal("app_thread.workspace_moved"),
+    driver: ProviderDriverKind,
+    threadId: ThreadId,
+    cwd: Schema.String,
+  }),
   Schema.Struct({
     type: Schema.Literal("provider_session.updated"),
     driver: ProviderDriverKind,

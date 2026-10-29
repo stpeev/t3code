@@ -21,6 +21,7 @@ import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SqlError from "effect/sql/SqlError";
 
@@ -35,6 +36,7 @@ import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
+import * as ProjectStore from "./ProjectStore.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import { makeProviderFailureTurnItem } from "@t3tools/provider-core/server/failure";
@@ -242,6 +244,7 @@ export const layer: Layer.Layer<
   | GitVcsDriver.GitVcsDriver
   | IdAllocator.IdAllocatorV2
   | ProjectionStore.ProjectionStoreV2
+  | ProjectStore.ProjectStoreV2
   | ThreadCommandExecutor.ThreadCommandExecutor
   | ProviderInstanceRegistry.ProviderInstanceRegistry
 > = Layer.effect(
@@ -250,6 +253,7 @@ export const layer: Layer.Layer<
     const eventSink = yield* EventSink.EventSinkV2;
     const git = yield* GitVcsDriver.GitVcsDriver;
     const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const projects = yield* ProjectStore.ProjectStoreV2;
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
     const analytics = yield* ProviderTurnAnalytics;
@@ -383,6 +387,42 @@ export const layer: Layer.Layer<
       },
     );
 
+    /** The live process already runs in the new checkout, so this rebinds without the command's session detach. */
+    const followMovedWorkspace = Effect.fn("ProviderEventIngestor.followMovedWorkspace")(function* (
+      input: ProviderEventIngestInput,
+      moved: { threadId: ThreadId; cwd: string },
+    ) {
+      return yield* threadCommands
+        .withLock(
+          moved.threadId,
+          Effect.gen(function* () {
+            const thread = yield* projections.getThread(moved.threadId);
+            const project = yield* projects.get(thread.projectId);
+            if (Option.isNone(project)) return [];
+            const worktreePath = moved.cwd === project.value.workspaceRoot ? null : moved.cwd;
+            const branch = yield* git.resolveBranchName(moved.cwd, "HEAD");
+            if (worktreePath === thread.worktreePath && branch === thread.branch) return [];
+            const now = yield* DateTime.now;
+            const event = yield* makeDomainEvent(input, {
+              type: "thread.metadata-updated",
+              threadId: thread.id,
+              payload: { ...thread, worktreePath, branch, updatedAt: now },
+              occurredAt: now,
+            });
+            return yield* eventSink.write({ events: [event] }).pipe(retryLockTimeout);
+          }),
+        )
+        .pipe(
+          Effect.catchCause((cause) =>
+            Effect.logWarning("Following the agent's moved workspace failed", {
+              threadId: moved.threadId,
+              cwd: moved.cwd,
+              cause,
+            }).pipe(Effect.as([])),
+          ),
+        );
+    });
+
     /** Retire rewound runs like CheckpointRollbackService; retain the reporting run and its lastRunOrdinal. */
     const rollBackRewoundRuns = Effect.fn("ProviderEventIngestor.rollBackRewoundRuns")(function* (
       input: ProviderEventIngestInput,
@@ -500,6 +540,9 @@ export const layer: Layer.Layer<
                   payload: input.event.providerSession,
                 }),
               ];
+            case "app_thread.workspace_moved":
+              // ingestNormalized writes the full thread row under the thread lock.
+              return [];
             case "provider_thread.updated": {
               const threadId = input.event.providerThread.appThreadId ?? input.threadId;
               const updated = yield* makeDomainEvent(input, {
@@ -703,6 +746,9 @@ export const layer: Layer.Layer<
         /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
         Effect.fnUntraced(
           function* (input) {
+            if (input.event.type === "app_thread.workspace_moved") {
+              return yield* followMovedWorkspace(input, input.event);
+            }
             const events = yield* normalize(input);
             if (events.length === 0) {
               return [];

@@ -10274,7 +10274,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
   type TaskToolCall =
     | { name: "TaskCreate"; input: TaskCreateInput; output: TaskCreateOutput }
     | { name: "TaskUpdate"; input: TaskUpdateInput; output: TaskUpdateOutput }
-    | { name: "TaskList"; input: Record<string, never>; output: TaskListOutput };
+    | { name: "TaskList"; input: Record<string, never>; output: TaskListOutput }
+    | { name: "EnterWorktree"; input: { path: string }; output: Record<string, string> }
+    | { name: "ExitWorktree"; input: { action: "keep" }; output: Record<string, string> };
 
   function taskToolFrames(
     tool: TaskToolCall,
@@ -10410,7 +10412,11 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             session_id: WAKE_NATIVE_SESSION,
           }),
         );
-      return { configDir, startTurn, call, launchSubagent, finishTurn, plans };
+      const workspaceMoves = () =>
+        harness.events.flatMap((event) =>
+          event.type === "app_thread.workspace_moved" ? [event.cwd] : [],
+        );
+      return { configDir, startTurn, call, launchSubagent, finishTurn, plans, workspaceMoves };
     });
 
   const makeTaskToolHarness = makeTaskToolHarnessWithOptions();
@@ -10425,6 +10431,35 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     input,
     output: { success, taskId: input.taskId, updatedFields: ["status"] },
   });
+
+  it.effect("reports Claude's own worktree moves so the thread follows its session", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeTaskToolHarness;
+      const worktreePath = "/repo/.claude/worktrees/feature";
+      const enter: TaskToolCall = {
+        name: "EnterWorktree",
+        input: { path: worktreePath },
+        output: { worktreePath, worktreeBranch: "feature", message: "Entered worktree." },
+      };
+      const exit: TaskToolCall = {
+        name: "ExitWorktree",
+        input: { action: "keep" },
+        output: { action: "keep", originalCwd: "/repo", worktreePath, restoredCwd: "/repo" },
+      };
+      yield* harness.startTurn();
+      yield* harness.call(enter);
+      yield* harness.call(exit, { isError: true });
+      yield* harness.call(exit);
+      yield* harness.finishTurn();
+
+      assert.deepEqual(harness.workspaceMoves(), [worktreePath, "/repo"]);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+      ),
+    ),
+  );
 
   it.effect("persists a todo_list from inline Claude task-tool frames", () =>
     Effect.gen(function* () {
