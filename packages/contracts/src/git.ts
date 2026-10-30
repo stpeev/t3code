@@ -156,7 +156,7 @@ export const VcsListRefsInput = Schema.Struct({
 });
 export type VcsListRefsInput = typeof VcsListRefsInput.Type;
 
-export const VCS_LIST_COMMITS_MAX_CONTEXT = 200;
+const VCS_LIST_COMMITS_MAX_CONTEXT = 200;
 export const VCS_COMMIT_BODY_MAX_LENGTH = 2_000;
 
 export const VcsListCommitsInput = Schema.Struct({
@@ -419,6 +419,7 @@ export const GitCommandFailureReason = Schema.Literals([
   "authentication_failed",
   "branch_already_exists",
   "branch_checked_out_in_worktree",
+  "checkout_blocked_by_local_changes",
   "config_locked",
   "host_key_unverified",
   "not_a_repository",

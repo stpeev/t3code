@@ -190,7 +190,7 @@ export function pickClosestBranch(
 }
 
 /** Parses `git log -z` output written with {@link COMMIT_LOG_FORMAT}. */
-export function parseCommitLog(
+function parseCommitLog(
   stdout: string,
   unpushedShas: ReadonlySet<string>,
 ): ReadonlyArray<VcsCommit> {
@@ -600,6 +600,10 @@ const GIT_FAILURE_REASON_PATTERNS: ReadonlyArray<readonly [RegExp, GitCommandFai
   [/a branch named .+ already exists/i, "branch_already_exists"],
   // A ref cannot nest under an existing ref, nor contain one.
   [/'refs\/[^'\n]+' exists; cannot create 'refs\//i, "ref_name_conflict"],
+  [
+    /^error: (?:Your local changes to the following files|The following untracked working tree files) would be overwritten by checkout:/im,
+    "checkout_blocked_by_local_changes",
+  ],
   // The same prefix also reports permission errors, which retrying cannot fix.
   [/could not lock config file .+: File exists/i, "config_locked"],
   [
@@ -638,13 +642,15 @@ const GIT_FAILURE_REASON_DETAILS: Partial<Record<GitCommandFailureReason, string
     "The remote has commits this branch doesn't have. Pull or rebase, then push again.",
   config_locked:
     "Another Git process kept the repository's config locked. Wait for it to finish, then retry.",
+  checkout_blocked_by_local_changes:
+    "Uncommitted changes would be overwritten by this checkout. Commit or stash them, then try again.",
 };
 
-function gitFailureDetail(reason: GitCommandFailureReason | null): string {
-  return (
-    (reason === null ? undefined : GIT_FAILURE_REASON_DETAILS[reason]) ??
-    "Git command exited with a non-zero status."
-  );
+function gitFailureDetail(
+  reason: GitCommandFailureReason | null,
+  fallback = "Git command exited with a non-zero status.",
+): string {
+  return (reason === null ? undefined : GIT_FAILURE_REASON_DETAILS[reason]) ?? fallback;
 }
 
 // Existing non-commit objects share the missing-ref fatal diagnostic; Git
@@ -1708,7 +1714,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           new GitCommandError({
             ...gitCommandContext({ operation, cwd, args }),
             ...(reason === null ? {} : { reason }),
-            detail: options.fallbackErrorDetail ?? gitFailureDetail(reason),
+            detail: gitFailureDetail(reason, options.fallbackErrorDetail),
             ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
             stdoutLength: result.stdout.length,
             stderrLength: result.stderr.length,
@@ -2794,7 +2800,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     ),
   );
 
-  const resolveBaseBranchForNoUpstream = Effect.fn("resolveBaseBranchForNoUpstream")(function* (
+  const findBaseBranchForNoUpstream = Effect.fn("resolveBaseBranchForNoUpstream")(function* (
     cwd: string,
     refName: string,
     options?: {
@@ -2866,7 +2872,6 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         if (trace) trace.degraded = true;
         return null;
       }),
-    );
     );
     const candidates = [
       Effect.succeed(configuredBaseBranch),
@@ -3077,7 +3082,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     function* (
       cwd: string,
       refName: string,
-      options?: { readonly allowRemoteOfCurrent?: boolean },
+      options?: {
+        readonly allowRemoteOfCurrent?: boolean;
+        readonly knownOriginDefaultBranch?: string | null;
+        readonly inferClosest?: boolean;
+      },
     ) {
       const key = { cwd: normalizeRepositoryPathsCacheKey(cwd), refName };
       const allowRemoteOfCurrent = options?.allowRemoteOfCurrent === true;
@@ -5237,6 +5246,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     cwd: string,
     branch: string | null,
     explicitBaseRef?: string,
+    knownOriginDefaultBranch: string | null = null,
   ) {
     const base =
       explicitBaseRef !== undefined
@@ -6120,9 +6130,12 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       }
 
       const contextLimit = input.contextLimit ?? LIST_COMMITS_DEFAULT_CONTEXT;
+      const currentBranch = input.baseRef
+        ? null
+        : yield* readCurrentBranch("GitVcsDriver.listCommits.currentBranch", cwd);
       const inferredBase =
-        !input.baseRef && repository.currentBranch
-          ? yield* resolveBaseBranchForNoUpstream(cwd, repository.currentBranch, {
+        !input.baseRef && currentBranch
+          ? yield* resolveBaseBranchForNoUpstream(cwd, currentBranch, {
               inferClosest: yield* readInferParentBranch,
             }).pipe(Effect.orElseSucceed(() => null))
           : null;
