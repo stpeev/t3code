@@ -251,7 +251,7 @@ const ThreadReadTool = Tool.make("t3_thread_read", {
 
 const ThreadUpdateTool = Tool.make("t3_thread_update", {
   description:
-    "Rename a thread (`action:'rename'` with `title`), regenerate its title, or move it to another project (`action:'move'` with `projectId`; clears its branch and worktree, refused mid-turn). Omit `threadId` for this thread. Branch and worktree cannot be set here.",
+    "Rename a thread (`action:'rename'` with `title`), regenerate its title, or move it to another project (`action:'move'` with `projectId`; clears its branch and worktree; moving this thread ends your turn, other threads must be idle). Omit `threadId` for this thread. Branch and worktree cannot be set here.",
   // Keeps the input's action/field check, which rebuilding the struct would drop.
   parameters: ThreadMetadataMcpUpdateInput.mapFields(
     Struct.assign({ environmentId: OrchestratorMcpEnvironmentTarget }),

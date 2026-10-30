@@ -15,6 +15,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import { userFacingDispatchErrorMessage } from "../orchestration-v2/UserFacingErrors.ts";
 import type { McpInvocationScope } from "./McpInvocationContext.ts";
 import { threadNotFound } from "./threadAccess.ts";
 
@@ -63,6 +64,7 @@ function metadataCommand(input: {
   readonly commandId: CommandId;
   readonly threadId: ThreadId;
   readonly update: ThreadMetadataMcpUpdateInput;
+  readonly isCallerThread: boolean;
 }): Extract<OrchestrationV2Command, { readonly type: "thread.metadata.update" }> {
   switch (input.update.action) {
     case "rename":
@@ -85,6 +87,8 @@ function metadataCommand(input: {
         commandId: input.commandId,
         threadId: input.threadId,
         projectId: input.update.projectId!,
+        // An agent moving its own thread ends its turn by design; other threads stay guarded.
+        ...(input.isCallerThread ? { interruptActiveTurn: true } : {}),
       };
   }
 }
@@ -168,13 +172,14 @@ const make = Effect.gen(function* () {
           commandId: updateCommandId,
           threadId,
           update: input,
+          isCallerThread: threadId === scope.thread?.threadId,
         }),
       )
       .pipe(
         Effect.mapError((error) =>
           failure(
             "orchestration_error",
-            `Unable to ${input.action} for thread ${threadId}: ${errorMessage(error)}`,
+            `Unable to ${input.action} for thread ${threadId}: ${userFacingDispatchErrorMessage(error) ?? errorMessage(error)}`,
           ),
         ),
       );
