@@ -2212,6 +2212,29 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
     );
 
     it.effect.each([
+      { label: "an uncommitted change", path: "README.md" },
+      { label: "an untracked file", path: "notes.md" },
+    ])("tells the user to commit or stash $label that blocks a switch", ({ path }) =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-q", "-b", "other"]);
+        yield* writeTextFile(cwd, path, "other\n");
+        yield* git(cwd, ["add", path]);
+        yield* git(cwd, ["commit", "-q", "-m", "other"]);
+        yield* git(cwd, ["checkout", "-q", initialBranch]);
+        yield* writeTextFile(cwd, path, "local work\n");
+
+        const error = yield* driver.switchRef({ cwd, refName: "other" }).pipe(Effect.flip);
+
+        assert.deepInclude(error, { reason: "checkout_blocked_by_local_changes" });
+        assert.include(error.message, "Commit or stash them");
+        assert.notInclude(error.message, path);
+      }),
+    );
+
+    it.effect.each([
       // Git cannot tell a missing revision from a missing file in these.
       { label: "an argument that may be a path", args: ["log", "-1", "missing"] },
       {
