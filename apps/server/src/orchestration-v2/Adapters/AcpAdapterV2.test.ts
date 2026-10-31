@@ -101,6 +101,11 @@ import {
 
 const DEFAULT_GROK_SETTINGS = Schema.decodeSync(GrokSettings)({});
 const DROID_SETTINGS = Schema.decodeSync(AcpRegistrySettings)({ agentId: "factory-droid" });
+// An agent id without a bespoke elicitation form parser, so question forms fall
+// through to the generic fallback.
+const GENERIC_SETTINGS = Schema.decodeSync(AcpRegistrySettings)({
+  agentId: "generic-choice-agent",
+});
 
 const layerHost = TestProviderHost.layer().pipe(
   Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
@@ -1928,6 +1933,203 @@ describe("AcpAdapterV2", () => {
       yield* runtime.respondToRuntimeRequest({
         requestId: item.turnItem.requestId,
         ...(preparedAnswers === undefined ? {} : { answers: preparedAnswers }),
+      });
+      const terminal = yield* runtime.events.pipe(
+        Stream.filter((event) => event.type === "turn.terminal"),
+        Stream.runHead,
+      );
+      assert.equal(Option.getOrThrow(terminal).status, "completed");
+    }).pipe(Effect.provide(layerTest), Effect.scoped),
+  );
+
+  // Agents without a bespoke form parser (e.g. Mistral Vibe's ask_user_question)
+  // describe choices as oneOf choice objects; the generic form fallback must
+  // surface them as choices instead of an empty list.
+  const genericChoice = {
+    type: "string",
+    title: "Direction",
+    description: "Which direction?",
+    oneOf: [
+      { const: "left", title: "Go left" },
+      { const: "right", title: "Go right" },
+    ],
+  };
+  const genericMultiChoice = {
+    type: "string",
+    title: "Extras",
+    description: "Which extra?",
+    oneOf: [
+      { const: "docs", title: "Docs" },
+      { const: "tests", title: "Tests" },
+    ],
+  };
+  const genericQuestions = [
+    {
+      id: "direction",
+      header: "Direction",
+      question: "Which direction?",
+      options: [
+        { label: "Go left", description: "Go left", value: "left" },
+        { label: "Go right", description: "Go right", value: "right" },
+      ],
+    },
+    {
+      id: "extras",
+      header: "Extras",
+      question: "Which extra?",
+      options: [
+        { label: "Docs", description: "Docs", value: "docs" },
+        { label: "Tests", description: "Tests", value: "tests" },
+      ],
+    },
+  ];
+  it.live("surfaces oneOf choices in generic form fallbacks", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-generic-form-" });
+      const statusPath = path.join(directory, "status.json");
+      const transcript = yield* decodeAcpReplayTranscript(
+        {
+          provider: ProviderDriverKind.make("acpRegistry"),
+          protocol: "acp.ndjson-jsonrpc",
+          version: "1",
+          scenario: "generic-form",
+          entries: [
+            {
+              type: "expect_outbound",
+              frame: { kind: "request", method: "initialize", params: "<any>" },
+            },
+            {
+              type: "emit_inbound",
+              frame: {
+                kind: "response",
+                method: "initialize",
+                result: { protocolVersion: 1, agentCapabilities: {}, authMethods: [] },
+              },
+            },
+            {
+              type: "expect_outbound",
+              frame: { kind: "request", method: "session/new", params: "<any>" },
+            },
+            {
+              type: "emit_inbound",
+              frame: {
+                kind: "response",
+                method: "session/new",
+                result: { sessionId: "generic-session" },
+              },
+            },
+            {
+              type: "expect_outbound",
+              frame: { kind: "request", method: "session/prompt", params: "<any>" },
+            },
+            {
+              type: "emit_inbound",
+              frame: {
+                kind: "request",
+                method: "elicitation/create",
+                params: {
+                  mode: "form",
+                  sessionId: "generic-session",
+                  message: "Your answer?",
+                  requestedSchema: {
+                    type: "object",
+                    properties: {
+                      direction: genericChoice,
+                      extras: genericMultiChoice,
+                    },
+                    required: ["direction", "extras"],
+                  },
+                },
+              },
+            },
+            {
+              type: "expect_outbound",
+              frame: {
+                kind: "response",
+                method: "elicitation/create",
+                result: {
+                  action: "accept",
+                  content: { direction: "left", extras: "docs" },
+                },
+              },
+            },
+            {
+              type: "emit_inbound",
+              frame: {
+                kind: "response",
+                method: "session/prompt",
+                result: { stopReason: "end_turn" },
+              },
+            },
+            { type: "runtime_exit", status: "success" },
+          ],
+        },
+        ProviderDriverKind.make("acpRegistry"),
+      );
+      const instanceId = ProviderInstanceId.make("generic-form-test");
+      const adapter = yield* makeAcpRegistryAdapterV2({
+        instanceId,
+        selfInvocation: yield* resolveSelfInvocation(),
+        settings: GENERIC_SETTINGS,
+        environment: {},
+        makeRuntime: makeAcpReplayRuntime({
+          transcript,
+          statusPath,
+          fileSystem,
+          scriptPath: yield* path.fromFileUrl(
+            new URL("../../../scripts/acp-replay-agent.ts", import.meta.url),
+          ),
+          childProcessSpawner: yield* ChildProcessSpawner.ChildProcessSpawner,
+        }),
+      }).pipe(
+        Effect.provide(
+          Layer.mock(AcpRegistryCatalog)({ resolve: () => Effect.die("runtime is injected") }),
+        ),
+      );
+      const threadId = ThreadId.make("generic-form-thread");
+      const modelSelection = { instanceId, model: "default" } as const;
+      const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        cwd: directory,
+      });
+      const runtime = yield* adapter.openSession({
+        threadId,
+        modelSelection,
+        runtimePolicy,
+        providerSessionId: ProviderSessionId.make("generic-form-session"),
+      });
+      const providerThread = yield* runtime.ensureThread({
+        threadId,
+        modelSelection,
+        runtimePolicy,
+      });
+      yield* runtime.startTurn(
+        makeTurnInput({
+          threadId,
+          providerThread,
+          instanceId,
+          runtimePolicy,
+          now: yield* DateTime.now,
+        }),
+      );
+      const item = Option.getOrThrow(
+        yield* runtime.events.pipe(
+          Stream.filter(
+            (event) =>
+              event.type === "turn_item.updated" && event.turnItem.type === "user_input_request",
+          ),
+          Stream.runHead,
+        ),
+      );
+      if (item.type !== "turn_item.updated" || item.turnItem.type !== "user_input_request")
+        return yield* Effect.die("Expected generic question");
+      assert.deepEqual(item.turnItem.questions, genericQuestions);
+      yield* runtime.respondToRuntimeRequest({
+        requestId: item.turnItem.requestId,
+        answers: { direction: "left", extras: "docs" },
       });
       const terminal = yield* runtime.events.pipe(
         Stream.filter((event) => event.type === "turn.terminal"),
