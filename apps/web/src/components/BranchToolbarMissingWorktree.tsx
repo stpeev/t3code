@@ -1,7 +1,7 @@
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { ChevronDownIcon, FolderIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
-import { memo, useCallback, useState } from "react";
+import { memo, useState } from "react";
 
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
@@ -43,7 +43,7 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
     reportFailure: false,
   });
 
-  const recreate = useCallback(async () => {
+  const recreate = async () => {
     if (!branch) return;
     setPending(true);
     // The server picks the folder, so the thread moves to wherever the new worktree lands.
@@ -66,19 +66,9 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
       );
     }
     setPending(false);
-  }, [
-    branch,
-    createWorktree,
-    environmentId,
-    hasSession,
-    projectCwd,
-    refreshStatus,
-    stopThreadSession,
-    threadId,
-    updateThreadMetadata,
-  ]);
+  };
 
-  const continueInProjectFolder = useCallback(async () => {
+  const continueInProjectFolder = async () => {
     setPending(true);
     // A live session is still bound to the deleted folder.
     if (hasSession) {
@@ -98,7 +88,7 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
       );
     }
     setPending(false);
-  }, [environmentId, hasSession, stopThreadSession, threadId, updateThreadMetadata]);
+  };
 
   return (
     <Menu>

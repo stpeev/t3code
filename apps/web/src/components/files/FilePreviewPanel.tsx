@@ -503,7 +503,7 @@ function useFileLineReveal(
       scrollTrackerRef.current?.dispose();
       scrollTrackerRef.current = null;
     },
-    [scrollKey],
+    [scrollKey], // oxlint-disable-line react/exhaustive-effect-dependencies -- scrollKey re-disposes the tracker on each open request.
   );
 
   // Returns whether a remembered position covers this reveal request, so the reveal is skipped.

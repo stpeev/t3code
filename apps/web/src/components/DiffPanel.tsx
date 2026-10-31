@@ -433,24 +433,6 @@ export default function DiffPanel({
         orderedTurnDiffSummaries[0]);
   const selectedCheckpointTurnCount = selectedTurn?.checkpointTurnCount;
   const latestTurn = orderedTurnDiffSummaries[0];
-  const selectedCommitLabel = selectedCommitSha
-    ? listedCommit
-      ? `${listedCommit.shortSha} · ${listedCommit.subject}`
-      : selectedCommitSha.slice(0, 7)
-    : null;
-  const gitScopeLabel =
-    selectedGitScope === "unstaged"
-      ? "Uncommitted"
-      : selectedGitScope === "commit"
-        ? (selectedCommitLabel ?? "Commit")
-        : "Changes";
-  const selectedScopeLabel = toolCallSelection
-    ? "Tool call"
-    : selectedRunId === null
-      ? gitScopeLabel
-      : selectedTurn?.runId === latestTurn?.runId
-        ? "Latest turn"
-        : `Turn ${selectedCheckpointTurnCount ?? "?"}`;
   const reviewSectionId = toolCallSelection
     ? `tool-call:${toolCallSelection.threadId}:${toolCallSelection.itemId}`
     : selectedTurn
@@ -545,19 +527,23 @@ export default function DiffPanel({
   const selectedCommitSubject =
     selectedCommitSha !== null && selectedGitSource?.headRef === selectedCommitSha
       ? selectedGitSource.commitSubject
-      : undefined;
+      : listedCommit?.subject;
+  const selectedCommitLabel =
+    selectedCommitSha !== null
+      ? listedCommit
+        ? `${listedCommit.shortSha} · ${listedCommit.subject}`
+        : (selectedCommitSubject ?? `Commit ${selectedCommitSha.slice(0, 7)}`)
+      : null;
   const selectedGitScopeLabel =
     selectedCommitSha !== null
-      ? (selectedCommitSubject ?? `Commit ${selectedCommitSha.slice(0, 7)}`)
+      ? (selectedCommitLabel ?? "Commit")
       : selectedGitScope === "unstaged"
         ? "Uncommitted"
         : "Changes";
   const selectedScopeLabel = toolCallSelection
     ? "Tool call"
     : selectedRunId === null
-      ? selectedCommitSha !== null
-        ? (selectedCommitSubject ?? "Commit")
-        : selectedGitScopeLabel
+      ? selectedGitScopeLabel
       : selectedTurn?.runId === latestTurn?.runId
         ? "Latest turn"
         : `Turn ${selectedCheckpointTurnCount ?? "?"}`;
@@ -863,7 +849,13 @@ export default function DiffPanel({
     if (revealDiffFile(selectedFilePath)) {
       externalRevealRef.current = key;
     }
-  }, [collapseScopeKey, selectedFilePath, selectedFileRevealRequestId, revealDiffFile]);
+  }, [
+    collapseScopeKey,
+    selectedFilePath,
+    selectedFileRevealRequestId,
+    revealDiffFile,
+    externalRevealRef,
+  ]);
 
   const selectTreeFile = (filePath: string) => {
     if (threadRef) {
@@ -986,16 +978,14 @@ export default function DiffPanel({
   const selectScopeValue = (value: string) => {
     if (value === "unstaged" || value === "branch") {
       selectGitScope(value);
-    } else if (value === selectedCommitValue) {
-      selectGitScope("branch");
     } else if (value.startsWith("commit:")) {
-      if (threadRef) {
-        useDiffPanelStore.getState().selectCommit(threadRef, value.slice("commit:".length));
+      if (value === selectedCommitValue) {
+        selectGitScope("branch");
+      } else {
+        selectCommit(value.slice("commit:".length));
       }
     } else if (value === "latest") {
       if (latestTurn) selectTurn(latestTurn.runId);
-    } else if (value.startsWith("commit:")) {
-      selectCommit(value.slice("commit:".length));
     } else {
       const turn = orderedTurnDiffSummaries.find((summary) => `turn:${summary.runId}` === value);
       if (turn) selectTurn(turn.runId);
