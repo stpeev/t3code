@@ -101,10 +101,8 @@ import { TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { useOpenPrLink } from "~/lib/openPullRequestLink";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
-import { useClientSettings } from "~/hooks/useSettings";
 import { cn } from "~/lib/utils";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
-import { useClientSettings } from "../../hooks/useSettings";
 import { type HandoffTimelineRun } from "./V2LifecycleRow";
 import { TimelineSystemDivider } from "./TimelineSystemDivider";
 
@@ -1785,11 +1783,9 @@ function ContextCompactionTimelineRow({
 }) {
   const gt = useGT();
   const label =
-    row.title && row.compacted
-      ? row.tokenCounts
-        ? gt("{title} {before} → {after} tokens", { title: row.title, ...row.tokenCounts })
-        : row.title
-      : row.label;
+    row.title && row.tokenCounts
+      ? gt("{title} {before} → {after} tokens", { title: row.title, ...row.tokenCounts })
+      : (row.title ?? row.label);
   const content = (
     <span className="flex min-w-0 items-center gap-1.5">
       {row.failed ? (

@@ -225,6 +225,7 @@ import { useOpenLinkedThread } from "./useOpenLinkedThread";
 import { useGlobalVoiceInput } from "../voice-input/VoiceInputProvider";
 import type { OrchestrationV2ProviderSession } from "@t3tools/contracts";
 import { voiceInputBlocksSubmission } from "@t3tools/client-runtime/voice-input";
+import { msg } from "gt-react-native";
 
 export interface ThreadDetailScreenProps {
   readonly draftMode?: {
@@ -1053,7 +1054,10 @@ function ThreadDetailBody(
   const { contextWindow } = props;
   const showContextUsage = () => {
     if (contextWindow === null) {
-      Dialog.alert("No context usage yet", "This thread hasn't reported context usage yet.");
+      Dialog.alert(
+        m(msg("No context usage yet")),
+        m(msg("This thread hasn't reported context usage yet.")),
+      );
       return false;
     }
     setUsageLimitsPanel(null);

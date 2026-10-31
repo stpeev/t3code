@@ -1,3 +1,5 @@
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 import { ChevronDownIcon, ChevronUpIcon, HistoryIcon, SearchIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
@@ -12,7 +14,7 @@ import {
 } from "./diffSearchHistory";
 
 function matchCountLabel(matchCount: number, activeIndex: number, truncated: boolean) {
-  if (matchCount === 0) return "No results";
+  if (matchCount === 0) return m(msg("No results"));
   const total = truncated ? `${MAX_DIFF_SEARCH_MATCHES}+` : `${matchCount}`;
   return activeIndex < 0 ? `${total} results` : `${activeIndex + 1} of ${total}`;
 }
@@ -91,7 +93,7 @@ export function DiffSearchBar({
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
-  }, [focusToken]);
+  }, [focusToken]); // oxlint-disable-line react/exhaustive-effect-dependencies -- focusToken re-selects the input on each open.
 
   return (
     <div className="flex w-80 items-center gap-0.5 rounded-lg border border-border bg-popover p-1 shadow-lg/5">
@@ -102,8 +104,8 @@ export function DiffSearchBar({
         <InputGroupInput
           ref={inputRef}
           size="sm"
-          aria-label="Find in diff"
-          placeholder="Find in diff"
+          aria-label={msg("Find in diff")}
+          placeholder={msg("Find in diff")}
           value={query}
           onChange={(event) => pickTerm(event.currentTarget.value)}
           onKeyDown={handleKeyDown}
@@ -125,7 +127,7 @@ export function DiffSearchBar({
             <Button
               size="icon-xs"
               variant="ghost"
-              aria-label="Recent searches"
+              aria-label={msg("Recent searches")}
               disabled={history.length === 0}
             />
           }
@@ -139,13 +141,15 @@ export function DiffSearchBar({
             </MenuItem>
           ))}
           <MenuSeparator />
-          <MenuItem onClick={onClearHistory}>Clear recent searches</MenuItem>
+          <MenuItem onClick={onClearHistory}>
+            <T>Clear recent searches</T>
+          </MenuItem>
         </MenuPopup>
       </Menu>
       <Button
         size="icon-xs"
         variant="ghost"
-        aria-label="Previous match"
+        aria-label={msg("Previous match")}
         disabled={matchCount === 0}
         onClick={() => stepMatch(onPrevious)}
       >
@@ -154,13 +158,13 @@ export function DiffSearchBar({
       <Button
         size="icon-xs"
         variant="ghost"
-        aria-label="Next match"
+        aria-label={msg("Next match")}
         disabled={matchCount === 0}
         onClick={() => stepMatch(onNext)}
       >
         <ChevronDownIcon />
       </Button>
-      <Button size="icon-xs" variant="ghost" aria-label="Close find" onClick={onClose}>
+      <Button size="icon-xs" variant="ghost" aria-label={msg("Close find")} onClick={onClose}>
         <XIcon />
       </Button>
     </div>

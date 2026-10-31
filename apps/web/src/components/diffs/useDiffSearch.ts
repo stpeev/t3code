@@ -3,10 +3,8 @@ import type { FileDiffMetadata, PostRenderPhase } from "@pierre/diffs";
 import type { CodeViewHandle } from "@pierre/diffs/react";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
-  useCallback,
   useDeferredValue,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -63,9 +61,9 @@ export function useDiffSearch<LAnnotation>({
   const [query, setQuery] = useState("");
   const [focusToken, setFocusToken] = useState(0);
   const searchedQuery = useDeferredValue(open ? query : "");
-  const result = useMemo(() => findDiffMatches(items, searchedQuery), [items, searchedQuery]);
-  const lines = useMemo(() => indexDiffMatchesByLine(result.matches), [result.matches]);
-  const fileOrder = useMemo(() => new Map(items.map((item, index) => [item.id, index])), [items]);
+  const result = findDiffMatches(items, searchedQuery);
+  const lines = indexDiffMatchesByLine(result.matches);
+  const fileOrder = new Map(items.map((item, index) => [item.id, index]));
   const [active, setActive] = useState({ query: "", index: -1 });
   const activeIndex =
     active.query === searchedQuery ? Math.min(active.index, result.matches.length - 1) : -1;
@@ -79,6 +77,7 @@ export function useDiffSearch<LAnnotation>({
       fileOrder,
       viewer ? firstVisibleFileId(viewer) : null,
     );
+    // oxlint-disable-next-line react/set-state-in-effect -- Derived active match for the new query; the compiler skips this hook until it is plain.
     setActive({ query: searchedQuery, index });
     pendingReveal.current = index < 0 ? null : { index, expand: false };
   }, [active.query, searchedQuery, result.matches, fileOrder, viewer]);
@@ -107,7 +106,7 @@ export function useDiffSearch<LAnnotation>({
       side: match.side,
       align: "center",
     });
-  }, [active, items, result.matches, viewer, expandFile]);
+  }, [active, items, result.matches, viewer, expandFile]); // oxlint-disable-line react/exhaustive-effect-dependencies -- `active` signals a new pending reveal to scroll to.
 
   const [highlighter] = useState(createDiffSearchHighlighter);
   const paintState = useRef({ lines, matches: result.matches, activeIndex });
@@ -122,30 +121,21 @@ export function useDiffSearch<LAnnotation>({
   useEffect(() => highlighter.clear, [highlighter]);
 
   // Stable so passing it to the viewer never invalidates its options.
-  const onPostRender = useCallback(
-    (
-      node: HTMLElement,
-      _instance: unknown,
-      phase: PostRenderPhase,
-      context?: { item: { id: string } },
-    ) => {
-      const fileId = context?.item.id;
-      if (!fileId) return;
-      if (phase === "unmount") {
-        highlighter.clearFile(fileId);
-        return;
-      }
-      const state = paintState.current;
-      highlighter.paintFile(
-        fileId,
-        node,
-        state.lines.get(fileId),
-        state.matches,
-        state.activeIndex,
-      );
-    },
-    [highlighter],
-  );
+  const onPostRender = (
+    node: HTMLElement,
+    _instance: unknown,
+    phase: PostRenderPhase,
+    context?: { item: { id: string } },
+  ) => {
+    const fileId = context?.item.id;
+    if (!fileId) return;
+    if (phase === "unmount") {
+      highlighter.clearFile(fileId);
+      return;
+    }
+    const state = paintState.current;
+    highlighter.paintFile(fileId, node, state.lines.get(fileId), state.matches, state.activeIndex);
+  };
 
   const [history, setHistory] = useLocalStorage(
     DIFF_SEARCH_HISTORY_KEY,
@@ -153,47 +143,41 @@ export function useDiffSearch<LAnnotation>({
     DiffSearchHistorySchema,
   );
   // A term counts as used once the reader steps through its matches or closes the bar on it.
-  const rememberQuery = useCallback(() => {
+  const rememberQuery = () => {
     if (rememberDiffSearchTerm(history, query) === history) return;
     setHistory((current) => rememberDiffSearchTerm(current, query));
-  }, [history, query, setHistory]);
-  const clearHistory = useCallback(() => setHistory(EMPTY_DIFF_SEARCH_HISTORY), [setHistory]);
+  };
+  const clearHistory = () => setHistory(EMPTY_DIFF_SEARCH_HISTORY);
 
-  const step = useCallback(
-    (delta: 1 | -1) => {
-      rememberQuery();
-      const count = result.matches.length;
-      if (count === 0) return;
-      const from = activeIndex < 0 ? (delta > 0 ? -1 : 0) : activeIndex;
-      const index = (from + delta + count) % count;
-      pendingReveal.current = { index, expand: true };
-      setActive({ query: searchedQuery, index });
-    },
-    [activeIndex, rememberQuery, result.matches.length, searchedQuery],
-  );
+  const step = (delta: 1 | -1) => {
+    rememberQuery();
+    const count = result.matches.length;
+    if (count === 0) return;
+    const from = activeIndex < 0 ? (delta > 0 ? -1 : 0) : activeIndex;
+    const index = (from + delta + count) % count;
+    pendingReveal.current = { index, expand: true };
+    setActive({ query: searchedQuery, index });
+  };
 
-  const openSearch = useCallback(() => {
+  const openSearch = () => {
     setOpen(true);
     setFocusToken((token) => token + 1);
-  }, []);
+  };
 
-  const close = useCallback(() => {
+  const close = () => {
     rememberQuery();
     setOpen(false);
     viewer?.getInstance()?.getContainerElement()?.focus({ preventScroll: true });
-  }, [rememberQuery, viewer]);
+  };
 
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   // Attach to the element wrapping the viewer and the bar; inside it, find searches the diff.
-  const onKeyDownCapture = useCallback(
-    (event: ReactKeyboardEvent) => {
-      if (!isDiffFindShortcut(event, keybindings, { context: { diffFocus: true } })) return;
-      event.preventDefault();
-      event.stopPropagation();
-      openSearch();
-    },
-    [keybindings, openSearch],
-  );
+  const onKeyDownCapture = (event: ReactKeyboardEvent) => {
+    if (!isDiffFindShortcut(event, keybindings, { context: { diffFocus: true } })) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openSearch();
+  };
 
   return {
     open,
@@ -205,8 +189,8 @@ export function useDiffSearch<LAnnotation>({
     matchCount: result.matches.length,
     truncated: result.truncated,
     activeIndex,
-    next: useCallback(() => step(1), [step]),
-    previous: useCallback(() => step(-1), [step]),
+    next: () => step(1),
+    previous: () => step(-1),
     openSearch,
     close,
     onKeyDownCapture,

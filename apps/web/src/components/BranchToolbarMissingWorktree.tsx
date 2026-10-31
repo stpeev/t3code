@@ -1,7 +1,7 @@
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { ChevronDownIcon, FolderIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
-import { memo, useCallback, useState } from "react";
+import { memo, useState } from "react";
 
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
@@ -10,6 +10,8 @@ import { ComposerControl } from "./chat/ComposerControl";
 import { useComposerMenuProps } from "./chat/composerEventScope";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { stackedThreadToast, toastManager } from "./ui/toast";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 interface BranchToolbarMissingWorktreeProps {
   environmentId: EnvironmentId;
@@ -22,7 +24,7 @@ interface BranchToolbarMissingWorktreeProps {
 
 function failureMessage(result: Parameters<typeof squashAtomCommandFailure>[0]): string {
   const error = squashAtomCommandFailure(result);
-  return error instanceof Error ? error.message : "An error occurred.";
+  return error instanceof Error ? error.message : m(msg("An error occurred."));
 }
 
 /** Stands in for the branch selector when the thread's worktree folder is gone. */
@@ -43,7 +45,7 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
     reportFailure: false,
   });
 
-  const recreate = useCallback(async () => {
+  const recreate = async () => {
     if (!branch) return;
     setPending(true);
     // The server picks the folder, so the thread moves to wherever the new worktree lands.
@@ -60,25 +62,15 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to recreate worktree",
+          title: m(msg("Failed to recreate worktree")),
           description: failureMessage(result),
         }),
       );
     }
     setPending(false);
-  }, [
-    branch,
-    createWorktree,
-    environmentId,
-    hasSession,
-    projectCwd,
-    refreshStatus,
-    stopThreadSession,
-    threadId,
-    updateThreadMetadata,
-  ]);
+  };
 
-  const continueInProjectFolder = useCallback(async () => {
+  const continueInProjectFolder = async () => {
     setPending(true);
     // A live session is still bound to the deleted folder.
     if (hasSession) {
@@ -92,13 +84,13 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to move thread to the project folder",
+          title: m(msg("Failed to move thread to the project folder")),
           description: failureMessage(result),
         }),
       );
     }
     setPending(false);
-  }, [environmentId, hasSession, stopThreadSession, threadId, updateThreadMetadata]);
+  };
 
   return (
     <Menu>
@@ -109,7 +101,9 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
         data-composer-context-control
       >
         <TriangleAlertIcon className="size-3 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 truncate">Worktree missing</span>
+        <span className="min-w-0 truncate">
+          <T>Worktree missing</T>
+        </span>
         <ChevronDownIcon className="size-3 shrink-0 opacity-50" />
       </MenuTrigger>
       <MenuPopup
@@ -119,17 +113,21 @@ export const BranchToolbarMissingWorktree = memo(function BranchToolbarMissingWo
         {...composerFloatingLayerProps}
       >
         <div className="px-2 py-1.5 text-muted-foreground text-xs">
-          <span className="break-all">{worktreePath}</span> no longer exists.
+          <span className="break-all">{worktreePath}</span> <T>no longer exists.</T>
         </div>
         <MenuItem disabled={!branch} onClick={() => void recreate()}>
           <RotateCcwIcon />
           <span className="min-w-0 truncate">
-            {branch ? `Recreate worktree on ${branch}` : "Recreate worktree"}
+            {branch
+              ? m(msg("Recreate worktree on {branch}", { branch: branch }))
+              : m(msg("Recreate worktree"))}
           </span>
         </MenuItem>
         <MenuItem onClick={() => void continueInProjectFolder()}>
           <FolderIcon />
-          <span className="min-w-0 truncate">Continue in project folder</span>
+          <span className="min-w-0 truncate">
+            <T>Continue in project folder</T>
+          </span>
         </MenuItem>
       </MenuPopup>
     </Menu>
