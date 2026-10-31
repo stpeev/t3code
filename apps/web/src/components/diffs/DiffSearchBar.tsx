@@ -91,7 +91,7 @@ export function DiffSearchBar({
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
-  }, [focusToken]);
+  }, [focusToken]); // oxlint-disable-line react/exhaustive-effect-dependencies -- focusToken re-selects the input on each open.
 
   return (
     <div className="flex w-80 items-center gap-0.5 rounded-lg border border-border bg-popover p-1 shadow-lg/5">
