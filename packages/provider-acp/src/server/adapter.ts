@@ -8519,7 +8519,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               if (form === undefined) return { action: "decline" } as const;
               const elicitationScopeId =
                 "sessionId" in params ? params.sessionId : `request:${params.requestId}`;
-
               const userInput = yield* requestUserInputWithAdmission(
                 handlerGeneration,
                 Effect.gen(function* () {
