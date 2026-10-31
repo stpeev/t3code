@@ -37,5 +37,5 @@ export function useFileTreeScrollWidth(model: FileTreeHostModel, resetKey: unkno
       observer.disconnect();
       scroller.style.removeProperty(FILE_TREE_CONTENT_WIDTH_PROPERTY);
     };
-  }, [model, resetKey]);
+  }, [model, resetKey]); // oxlint-disable-line react/exhaustive-effect-dependencies -- resetKey re-measures when the tree is reset.
 }

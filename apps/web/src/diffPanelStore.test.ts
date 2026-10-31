@@ -127,12 +127,12 @@ describe("diffPanelStore", () => {
 
     expect(
       selectThreadDiffPanelSelection(useDiffPanelStore.getState().byThreadKey, THREAD_REF),
-    ).toEqual({ kind: "commit", sha: "abc1234", filePath: "src/app.ts" });
+    ).toEqual({ kind: "commit", sha: "abc1234", baseRef: null, filePath: "src/app.ts" });
 
     store.selectCommit(THREAD_REF, "def5678");
     expect(
       selectThreadDiffPanelSelection(useDiffPanelStore.getState().byThreadKey, THREAD_REF),
-    ).toEqual({ kind: "commit", sha: "def5678" });
+    ).toEqual({ kind: "commit", sha: "def5678", baseRef: null });
   });
 
   it("keeps a turn's reveal request when recording its picked file", () => {
@@ -155,6 +155,7 @@ describe("diffPanelStore", () => {
     expect(selectThreadDiffPanelSelection(state.byThreadKey, THREAD_REF)).toEqual({
       kind: "commit",
       sha: "abc1234",
+      baseRef: "origin/release",
     });
     expect(selectThreadBranchBaseRef(state, THREAD_REF)).toBe("origin/release");
 
@@ -173,6 +174,7 @@ describe("diffPanelStore", () => {
     expect(selectThreadDiffPanelSelection(state.byThreadKey, THREAD_REF)).toEqual({
       kind: "commit",
       sha: "abc1234",
+      baseRef: "origin/main",
     });
     expect(selectThreadBranchBaseRef(state, THREAD_REF)).toBe("origin/main");
   });

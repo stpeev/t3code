@@ -319,14 +319,20 @@ function ComposerReviewCommentDetails({ comment }: { comment: ReviewCommentConte
     <div className="space-y-2 overflow-hidden rounded-lg border border-border/70 bg-background/70 p-3">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1 space-y-1">
-          <button
-            type="button"
-            className="block max-w-full truncate text-left text-xs font-medium text-foreground underline-offset-2 hover:underline"
-            title={`Open ${comment.filePath}`}
-            onClick={() => actions.openReviewComment(comment)}
-          >
-            {comment.filePath}
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className="block max-w-full truncate text-left text-xs font-medium text-foreground underline-offset-2 hover:underline"
+                  onClick={() => actions.openReviewComment(comment)}
+                >
+                  {comment.filePath}
+                </button>
+              }
+            />
+            <TooltipPopup side="top">Open {comment.filePath}</TooltipPopup>
+          </Tooltip>
           <div className="text-secondary-label text-2xs">
             {comment.sectionTitle} · {comment.rangeLabel}
           </div>

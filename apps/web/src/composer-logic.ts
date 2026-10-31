@@ -25,8 +25,7 @@ export type ComposerSlashCommand =
   | "side"
   | "btw"
   | "clear"
-  | "context-usage";
-export type ComposerSubmissionIntent = "foreground" | "background" | "alternate";
+  | "context-usage";export type ComposerSubmissionIntent = "foreground" | "background" | "alternate";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;

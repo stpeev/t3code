@@ -1093,7 +1093,7 @@ export default function ChatView(props: ChatViewProps) {
         useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
       }
     }
-  }, [activeThreadRef, diffSelected]);
+  }, [activeThreadRef, diffOpen, diffSelected]);
   const rightPanelState = useRightPanelStore((state) =>
     selectThreadRightPanelState(state.byThreadKey, activeThreadRef),
   );

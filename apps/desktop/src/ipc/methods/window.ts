@@ -378,6 +378,10 @@ export const readMedia = DesktopIpc.makeIpcMethod({
       },
       catch: (cause) => new MediaReadError({ message: "Could not read media.", cause }),
     }).pipe(Effect.orElseSucceed(() => null));
+  }),
+});
+
+
 // The renderer's `window.focus()` on its popout doesn't raise a native window, so the shell does it.
 export const focusRightPanelPopout = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.FOCUS_RIGHT_PANEL_POPOUT_CHANNEL,
@@ -385,13 +389,22 @@ export const focusRightPanelPopout = DesktopIpc.makeIpcMethod({
   result: Schema.Void,
   handler: Effect.fn("desktop.ipc.window.focusRightPanelPopout")(function* (_, event) {
     if (event === undefined) return;
-    const popout = Electron.BrowserWindow.getAllWindows().find((window) => {
-      const opener = window.webContents.opener;
-      return opener !== null && Electron.webContents.fromFrame(opener)?.id === event.sender.id;
+    yield* Effect.sync(() => {
+      const popout = Electron.BrowserWindow.getAllWindows().find((window) => {
+        const opener = window.webContents.opener;
+        return opener !== null && Electron.webContents.fromFrame(opener)?.id === event.sender.id;
+      });
+      if (!popout || popout.isDestroyed()) return;
+      if (popout.isMinimized()) popout.restore();
+      popout.focus();
     });
     if (!popout || popout.isDestroyed()) return;
     if (popout.isMinimized()) popout.restore();
     popout.focus();
+    });
+  }),
+});
+
   }),
 });
 

@@ -3957,53 +3957,6 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       );
       return { ...patch, files: stat.files };
     });
-    const hashDiff = (diff: string, files: ReadonlyArray<ReviewDiffFileStat>) =>
-      crypto.digest("SHA-256", new TextEncoder().encode(JSON.stringify([diff, files]))).pipe(
-        Effect.map(Hex.encode),
-        Effect.mapError(
-          (cause) =>
-            new GitCommandError({
-              operation: "GitVcsDriver.getReviewDiffPreview.hash",
-              command: "crypto.digest SHA-256",
-              cwd,
-              detail: "Failed to hash review diff.",
-              cause,
-            }),
-        ),
-      );
-
-    if (input.commit !== undefined) {
-      const [sha = "", shortSha = "", parents = "", subject = ""] = (yield* runGitStdout(
-        "GitVcsDriver.getReviewDiffPreview.commit",
-        cwd,
-        ["log", "-1", "--format=%H%x1f%h%x1f%P%x1f%s", `${input.commit}^{commit}`, "--"],
-      ))
-        .trim()
-        .split("\x1f");
-      // A root commit has no parent, so it is shown against the empty tree.
-      const parentSha = parents.split(" ").find((parent) => parent.length > 0) ?? null;
-      const commitBase = parentSha ?? (yield* readEmptyTreeHash(cwd));
-      const commitDiff = yield* readTrackedDiff([commitBase, sha]);
-      const source: ReviewDiffPreviewSource = {
-        id: `commit:${sha}`,
-        kind: "commit",
-        title: subject.length > 0 ? `${shortSha} ${subject}` : shortSha,
-        baseRef: commitBase,
-        headRef: sha,
-        diff: commitDiff.stdout,
-        files: commitDiff.files,
-        diffHash: yield* hashDiff(commitDiff.stdout, commitDiff.files),
-        truncated: commitDiff.stdoutTruncated,
-      };
-      return { cwd: input.cwd, generatedAt: yield* DateTime.now, sources: [source] };
-    }
-
-    // A per-file request only reads its own source.
-    const dirtyRef = input.file?.sourceKind === "branch-range" ? null : "HEAD";
-    const review =
-      input.file?.sourceKind === "working-tree"
-        ? { baseRef: input.baseRef ?? null, mergeBase: null }
-        : yield* resolveReviewMergeBase(cwd, repository.currentBranch, input.baseRef);
     const [dirtyTrackedResult, baseResult] = yield* Effect.gen(function* () {
       const untracked = input.trackedOnly
         ? { env: undefined }
@@ -4185,25 +4138,6 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
   const getReviewDiffFileContents = Effect.fn("getReviewDiffFileContents")(function* (
     input: ReviewDiffFileContentsInput,
   ) {
-    // A commit compares its parent (or the empty tree) with itself; nothing comes from disk.
-    if (input.sourceKind === "commit") {
-      const { baseRef, headRef } = input;
-      if (!baseRef || !headRef) {
-        return yield* reviewDiffFileError(input, "Commit file expansion requires both refs.");
-      }
-      const [oldContents, newContents] = yield* Effect.all(
-        [
-          input.changeType === "new"
-            ? Effect.succeed("")
-            : readReviewFileAtRevision(input, baseRef, input.oldPath),
-          input.changeType === "deleted"
-            ? Effect.succeed("")
-            : readReviewFileAtRevision(input, headRef, input.newPath),
-        ],
-        { concurrency: 2 },
-      );
-      return { oldContents, newContents };
-    }
     const repositoryRoot = yield* runGitStdout(
       "GitVcsDriver.getReviewDiffFileContents.repositoryRoot",
       input.cwd,
@@ -4938,8 +4872,17 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       : addWorktree.pipe(
           Effect.catchIf(
             (error) =>
-              error.reason === undefined || error.reason === "branch_checked_out_in_worktree",
-            () => pruneWorktrees({ cwd: input.cwd }).pipe(Effect.andThen(addWorktree)),
+              error.reason === undefined ||
+              error.reason === "path_already_exists" ||
+              error.reason === "branch_checked_out_in_worktree",
+            (error) =>
+              pruneWorktrees({ cwd: input.cwd }).pipe(
+                Effect.andThen(addWorktree),
+                Effect.catchIf(
+                  () => true,
+                  () => Effect.fail(error),
+                ),
+              ),
           ),
         );
     yield* (

@@ -110,10 +110,10 @@ export const useDiffPanelStore = create<DiffPanelStoreState>()(
           const previous = state.byThreadKey[threadKey];
           return {
             byThreadKey:
-              previous?.kind === "branch"
+              previous?.kind === "branch" || previous?.kind === "commit"
                 ? {
                     ...state.byThreadKey,
-                    [threadKey]: { kind: "branch", baseRef: normalizedBaseRef },
+                    [threadKey]: { ...previous, baseRef: normalizedBaseRef },
                   }
                 : state.byThreadKey,
             branchBaseRefByThreadKey: {

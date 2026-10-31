@@ -10,8 +10,10 @@ export const ReviewDiffPreviewSourceKind = Schema.Literals([
 ]);
 export type ReviewDiffPreviewSourceKind = typeof ReviewDiffPreviewSourceKind.Type;
 
-/** A full or abbreviated commit id; never a ref name, so it can't be read as a git option. */
-export const ReviewCommitSha = TrimmedNonEmptyString.check(Schema.isPattern(/^[0-9a-f]{7,64}$/i));
+/** A full commit id; never a ref name, so it can't be read as a git option. */
+export const ReviewCommitSha = TrimmedNonEmptyString.check(
+  Schema.isPattern(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i),
+);
 
 export const ReviewDiffPreviewInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,

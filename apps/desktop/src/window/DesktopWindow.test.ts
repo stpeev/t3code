@@ -548,7 +548,11 @@ describe("DesktopWindow", () => {
       DesktopWindow.isSameOriginRendererNavigation({
         applicationUrl: "data:text/html,app",
         navigationUrl: "data:text/html,other",
-      }),  it("opens the right-panel popout where it was, or centered when that display is gone", () => {
+      }),
+    );
+  });
+
+  it("opens the right-panel popout where it was, or centered when that display is gone", () => {
     const displays = [
       { x: 0, y: 0, width: 1920, height: 1080 },
       { x: 1920, y: 0, width: 2560, height: 1440 },
@@ -1403,9 +1407,10 @@ describe("DesktopWindow", () => {
           return yield* Effect.die("will-navigate listener was not registered");
         }
         for (const [url, expectedPrevented] of [
-          ["t3code-dev://app/threads?id=1#latest", false],
-          ["t3code-dev://other/", true],
-          ["t3code://app/", true],
+          // The fork serves the dev app under the plain t3code:// scheme.
+          ["t3code://app/threads?id=1#latest", false],
+          ["t3code://other/", true],
+          ["t3code-dev://app/", true],
         ] as const) {
           const preventDefault = vi.fn();
           willNavigate({ preventDefault }, url);
