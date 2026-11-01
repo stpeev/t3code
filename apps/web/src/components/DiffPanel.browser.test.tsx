@@ -209,7 +209,14 @@ it.each([
     using context = setup(failedBaseRef);
     await using screen = await render(
       <RegistryContext.Provider value={context.registry}>
-        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+        <DiffPanel
+          threadRef={context.threadRef}
+          projectId={null}
+          worktreePath={null}
+          composerDraftTarget={context.threadRef}
+          workspaceMutationId={null}
+          visible
+        />
       </RegistryContext.Provider>,
     );
     await expect.element(screen.getByText(errorMessage, { exact: true })).toBeVisible();
