@@ -35,7 +35,9 @@ import {
   unlockNotificationAudio,
 } from "../threadNotifications";
 import { resolveBackgroundThreadRequest } from "./backgroundThreadAnnouncement";
+import { PipelineStageChip } from "./pipelineStageChip";
 import { ProjectFavicon } from "./ProjectFavicon";
+import { readThreadPipelineStageLabels } from "./threadPipelineActions";
 import { resolveSidebarThreadStatus, type SidebarThreadStatus } from "./Sidebar.logic";
 import {
   createThreadNotificationGate,
@@ -145,6 +147,7 @@ export function startThreadNotifications(
       : undefined;
     const project = projectShell ? { ...projectShell, environmentId } : undefined;
     const body = project ? `${project.title} · ${thread.title}` : thread.title;
+    const stageLabels = readThreadPipelineStageLabels({ environmentId, id: thread.id });
     const {
       notificationMode: mode,
       inAppNotificationsEnabled,
@@ -190,16 +193,19 @@ export function startThreadNotifications(
         ...(inAppNotificationsPersistent || !mainWindowFocused ? { timeout: 0 } : {}),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
-        description: project ? (
+        description: (
           <>
-            <Badge variant="outline" className="me-1 align-text-bottom">
-              <ProjectFavicon project={project} className="size-3" />
-              {project.title}
-            </Badge>
+            {project ? (
+              <Badge variant="outline" className="me-1 align-text-bottom">
+                <ProjectFavicon project={project} className="size-3" />
+                {project.title}
+              </Badge>
+            ) : null}
             {thread.title}
+            {stageLabels === null ? null : (
+              <PipelineStageChip labels={stageLabels} compact className="ms-1 align-text-bottom" />
+            )}
           </>
-        ) : (
-          thread.title
         ),
         data: {
           ...(!inAppNotificationsPersistent && !mainWindowFocused

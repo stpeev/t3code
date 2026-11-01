@@ -58,8 +58,11 @@ export function PipelineStageChip(props: {
   /** Red tint when the thread's latest run failed in this stage. */
   readonly tone?: "default" | "error";
   readonly testId?: string;
+  /** Name + color only, no position or dots — for tight spots like toasts. */
+  readonly compact?: boolean;
+  readonly className?: string;
 }) {
-  const { labels, tone = "default", testId } = props;
+  const { labels, tone = "default", testId, compact = false, className } = props;
   const failed = tone === "error";
   const hue = pipelineHue(labels.pipelineId);
   // A stage's own CSS color becomes the chip background, passed through as-is;
@@ -83,21 +86,22 @@ export function PipelineStageChip(props: {
           color: `hsl(${hue} 65% 40%)`,
         };
   const count = labels.stageCount;
+  const extraClass = className === undefined ? "" : ` ${className}`;
   return (
     <span
       aria-hidden
       data-testid={testId}
-      className="inline-flex max-w-48 shrink-0 flex-wrap items-center gap-x-1 gap-y-0.5 rounded-sm border bg-sidebar px-1 font-medium text-2xs"
+      className={`inline-flex max-w-48 shrink-0 flex-wrap items-center gap-x-1 gap-y-0.5 rounded-sm border bg-sidebar px-1 font-medium text-2xs${extraClass}`}
       style={style}
     >
       <WorkflowIcon className="size-3 shrink-0 opacity-70" />
       <span className="truncate">{labels.stageName}</span>
-      {count > 0 ? (
+      {compact || count === 0 ? null : (
         <span className="shrink-0 tabular-nums opacity-70">
           {labels.position}/{count}
         </span>
-      ) : null}
-      {count > 0 ? (
+      )}
+      {compact || count === 0 ? null : (
         <span className={`flex ${DOTS_WRAP_WIDTH} flex-wrap items-center gap-0.5`}>
           {Array.from({ length: count }, (_, index) => (
             <span
@@ -108,7 +112,7 @@ export function PipelineStageChip(props: {
             />
           ))}
         </span>
-      ) : null}
+      )}
     </span>
   );
 }

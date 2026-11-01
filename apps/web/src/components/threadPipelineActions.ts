@@ -1,4 +1,6 @@
 import {
+  labelThreadPipelineStage,
+  type PipelineStageLabels,
   resolveThreadPipelineProgress,
   type ThreadPipelineProgress,
 } from "@t3tools/client-runtime/pipelines";
@@ -107,6 +109,16 @@ function readPipelinesSnapshot(environmentId: EnvironmentId): PipelinesSnapshot 
     appAtomRegistry.get(serverEnvironment.pipelinesLive({ environmentId, input: {} })),
     () => null,
   );
+}
+
+/** The thread's stage labels, read imperatively (toasts are not reactive). */
+export function readThreadPipelineStageLabels(
+  thread: Pick<EnvironmentThreadShell, "environmentId" | "id">,
+): PipelineStageLabels | null {
+  const snapshot = readPipelinesSnapshot(thread.environmentId);
+  if (snapshot === null) return null;
+  const progress = resolveThreadPipelineProgress(snapshot, thread.id);
+  return progress ? labelThreadPipelineStage(progress) : null;
 }
 
 export function readThreadPipelineMenuState(
