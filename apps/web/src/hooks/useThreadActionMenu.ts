@@ -26,6 +26,10 @@ import {
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { titleRegenerationToast } from "../components/threadTitleRegenerationToast";
+import {
+  readThreadPipelineMenuState,
+  runThreadPipelineMenuAction,
+} from "../components/threadPipelineActions";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { copyThreadReference } from "../lib/copyThreadReference";
 import { m } from "../i18n/messages";
@@ -157,6 +161,7 @@ export function useThreadActionMenu(input: {
         moveTargets: threadMoveTargets(projects, thread),
         canShareWithGuest,
         canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+        pipeline: readThreadPipelineMenuState(thread),
       });
       const clicked = await settlePromise(() => api.contextMenu.show(items, position));
       if (clicked._tag === "Failure" || clicked.value === null) return;
@@ -171,6 +176,18 @@ export function useThreadActionMenu(input: {
         );
         return;
       }
+      if (
+        await runThreadPipelineMenuAction(
+          thread,
+          action,
+          () =>
+            void router.navigate({
+              to: "/$environmentId/$threadId",
+              params: { environmentId: thread.environmentId, threadId: thread.id },
+            }),
+        )
+      )
+        return;
       if (action.startsWith("snooze:")) {
         const preset =
           action === "snooze:custom"

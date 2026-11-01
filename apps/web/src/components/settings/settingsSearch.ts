@@ -32,6 +32,7 @@ export type SettingsPath =
   | "/settings/browser"
   | "/settings/devices"
   | "/settings/scheduled-tasks"
+  | "/settings/pipelines"
   | "/settings/source-control"
   | "/settings/worktrees"
   | "/settings/connections"
@@ -107,7 +108,12 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/browser": msg("Browser"),
   "/settings/devices": msg("Devices"),
   "/settings/scheduled-tasks": msg("Scheduled tasks"),
+<<<<<<< HEAD
   "/settings/source-control": msg("Source control & issues"),
+=======
+  "/settings/pipelines": msg("Pipelines"),
+  "/settings/source-control": msg("Source control"),
+>>>>>>> 0f5346df34 (feat: thread pipelines — stages run in one thread, defined in pipelines.json)
   "/settings/worktrees": msg("Worktrees"),
   "/settings/connections": msg("Environments"),
   "/settings/access": msg("Sharing & access"),
@@ -155,6 +161,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
       "/settings/browser",
       "/settings/devices",
       "/settings/scheduled-tasks",
+      "/settings/pipelines",
     ],
   },
   {
@@ -1570,6 +1577,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     secretsFeatureOnly: true,
   },
   {
+    id: "pipelines",
+    title: "Pipelines",
+    to: "/settings/pipelines",
+    scope: "environment",
+    searchTerms: ["pipelines.json stages workflow prompts /pipeline define edit sync"],
+  },
+  {
     id: "archive",
     title: msg("Archived threads"),
     to: "/settings/archived",
@@ -1583,6 +1597,7 @@ const SEARCH_ITEMS_BY_ID = new Map(SETTINGS_SEARCH_ITEMS.map((item) => [item.id,
 
 const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScope | null>> = {
   "/settings/diagnostics": "environment",
+  "/settings/pipelines": "environment",
   "/settings/projects": "project",
   "/settings/general": null,
   "/settings/voice": null,

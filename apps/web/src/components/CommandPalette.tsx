@@ -258,6 +258,7 @@ import {
 } from "./CommandPaletteAddProject";
 import { useCommandPaletteThreadItems } from "./CommandPaletteThreadItems";
 import { useCommandPaletteThemeItems } from "./CommandPaletteThemeItems";
+import { useCommandPalettePipelineItems } from "./CommandPalettePipelineItems";
 import {
   PORT_FORWARD_GROUP_PREFIX,
   useCommandPalettePortForwardItem,
@@ -380,7 +381,6 @@ function CommandPaletteDialog(props: {
 }) {
   const gt = useGT();
   const composerHandleRef = useComposerHandleContext();
-
   return (
     <CommandDialogPopup
       aria-label={
@@ -522,6 +522,10 @@ function OpenCommandPaletteDialog(props: {
   const canShareActiveThreadWithGuest = useAtomValue(
     canShareWithGuestAtom(activeThread?.environmentId ?? ("" as EnvironmentId)),
   );
+  const pipelineItems = useCommandPalettePipelineItems({
+    activeThread,
+    primaryEnvironmentId,
+  });
   const activeThreadReferenceCopyTarget =
     referenceThreadRef === null || (pathname === "/pull-requests" && !openPanelPullRequestUrl)
       ? null
@@ -1551,6 +1555,8 @@ function OpenCommandPaletteDialog(props: {
       },
     });
   }
+
+  actionItems.push(...pipelineItems);
 
   if (activeThread !== null) {
     const thread = activeThread;
