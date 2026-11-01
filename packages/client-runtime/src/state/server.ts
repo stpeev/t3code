@@ -42,6 +42,7 @@ import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import * as Persistence from "../platform/persistence.ts";
 import { runCachePersistence } from "./cachePersistence.ts";
+import { createPipelinesAtoms } from "./serverPipelines.ts";
 import {
   currentSession,
   isRpcClientError,
@@ -1809,5 +1810,6 @@ export function createServerEnvironmentAtoms<R, E>(
         key: ({ environmentId }) => environmentId,
       },
     }),
+    ...createPipelinesAtoms(runtime, { configScheduler, configConcurrency }),
   };
 }

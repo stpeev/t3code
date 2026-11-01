@@ -176,6 +176,7 @@ import {
   threadActionRequiresOperate,
   threadMoveTargets,
 } from "./threadActionMenu.logic";
+import { readThreadPipelineMenuState, runThreadPipelineMenuAction } from "./threadPipelineActions";
 import {
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
@@ -2674,12 +2675,25 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               },
               snoozePresets,
               moveTargets: threadMoveTargets([...projectByKey.values()], thread),
+              pipeline: readThreadPipelineMenuState(thread),
             }),
             position,
           ),
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
         if (threadActionRequiresOperate(clicked.value) && !checkThreadOperations([thread])) return;
+        if (
+          await runThreadPipelineMenuAction(
+            thread,
+            clicked.value,
+            () =>
+              void router.navigate({
+                to: "/$environmentId/$threadId",
+                params: { environmentId: thread.environmentId, threadId: thread.id },
+              }),
+          )
+        )
+          return;
         const moveTargetId = moveTargetProjectId(clicked.value);
         const moveTarget = [...projectByKey.values()].find(
           (project) =>

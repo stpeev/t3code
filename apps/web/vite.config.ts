@@ -357,6 +357,11 @@ export default defineConfig(() => {
       port,
       strictPort: true,
       allowedHosts,
+      // Opt-in polling watcher for environments where FS events don't reach the dev server
+      // (e.g. git worktrees under .claude/worktrees): T3CODE_WATCH_POLLING=1 vp run dev
+      ...(process.env.T3CODE_WATCH_POLLING === "1"
+        ? { watch: { usePolling: true, interval: 150 } }
+        : {}),
       // Warm the module graph before first request to avoid serial import transforms over tailnet.
       // Bundled dev ignores this; warmBundledDevPlugin handles it there.
       warmup: {

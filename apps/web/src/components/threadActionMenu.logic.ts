@@ -1,6 +1,8 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
+import { pipelineMenuItems, type ThreadPipelineMenuState } from "./threadPipelineActions";
+
 export type ThreadActionMenuId =
   | "find"
   | "new-thread-on-branch"
@@ -23,6 +25,12 @@ export type ThreadActionMenuId =
   | "share-guest"
   | "move-to-project"
   | `move-to-project:${string}`
+  | "pipeline-next"
+  | "pipeline-stage"
+  | `pipeline-stage:${string}`
+  | "pipeline-start"
+  | `pipeline-start:${string}`
+  | "pipeline-leave"
   | "copy"
   | "copy-path"
   | "copy-branch"
@@ -99,6 +107,8 @@ export interface ThreadActionMenuState {
   readonly canShareWithGuest?: boolean;
   /** A No project thread with its own folder, on a server that can promote it. */
   readonly canTurnIntoProject?: boolean;
+  /** Absent until the thread's server reports its pipelines. */
+  readonly pipeline?: ThreadPipelineMenuState | undefined;
 }
 
 export function threadMoveTargets(
@@ -192,6 +202,7 @@ export function buildThreadActionMenuItems(
               },
         ]
       : []),
+    ...pipelineMenuItems(state.pipeline),
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration
       ? [

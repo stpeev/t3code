@@ -71,6 +71,10 @@
       "types": "./src/userMessage.ts",
       "default": "./src/userMessage.ts"
     },
+    "./pipelines": {
+      "types": "./src/pipelines.ts",
+      "default": "./src/pipelines.ts"
+    },
     "./prompt-links": {
       "types": "./src/promptLinks.ts",
       "default": "./src/promptLinks.ts"

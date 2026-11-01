@@ -123,6 +123,8 @@ import * as ThreadLaunchService from "./orchestration-v2/ThreadLaunchService.ts"
 import * as ThreadMessageIntake from "./orchestration-v2/ThreadMessageIntake.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
 import * as ScheduledTasks from "./scheduledTasks/ScheduledTaskService.ts";
+import * as PipelineDefinitions from "./pipelines/PipelineDefinitions.ts";
+import * as PipelineService from "./pipelines/PipelineService.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
 import * as GuestShareService from "./guest/GuestShareService.ts";
 import {
@@ -1464,6 +1466,8 @@ export const layerWsRpc = (
       const commandOutputHub = yield* CommandOutputHub.CommandOutputHub;
       const providerSessionManager = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const scheduledTasks = yield* ScheduledTasks.ScheduledTaskService;
+      const pipelineDefinitions = yield* PipelineDefinitions.PipelineDefinitions;
+      const pipelines = yield* PipelineService.PipelineService;
       const secretRequests = yield* SecretRequests.SecretRequests;
       const guestShares = yield* GuestShareService.GuestShareService;
       const pullRequests = yield* PullRequestService.PullRequestService;
@@ -2289,6 +2293,22 @@ export const layerWsRpc = (
         [WS_METHODS.scheduledTasksRotateWebhookToken]: (input) =>
           Effect.annotateCurrentSpan({ "scheduled_task.id": input.id }).pipe(
             Effect.andThen(scheduledTasks.rotateWebhookToken(input)),
+          ),
+        [WS_METHODS.pipelinesSubscribe]: (_input) => pipelines.subscribe,
+        [WS_METHODS.pipelinesEnsureConfigFile]: (_input) => pipelineDefinitions.ensureConfigFile,
+        [WS_METHODS.pipelinesGetConfigText]: (_input) => pipelineDefinitions.readConfigText,
+        [WS_METHODS.pipelinesSaveConfigText]: (input) => pipelineDefinitions.saveConfigText(input),
+        [WS_METHODS.pipelinesStartStage]: (input) =>
+          Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
+            Effect.andThen(pipelines.startStage(input)),
+          ),
+        [WS_METHODS.pipelinesRecordStage]: (input) =>
+          Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
+            Effect.andThen(pipelines.recordStage(input)),
+          ),
+        [WS_METHODS.pipelinesLeave]: (input) =>
+          Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
+            Effect.andThen(pipelines.leave(input)),
           ),
         [WS_METHODS.guestShareCreate]: (input) =>
           Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(

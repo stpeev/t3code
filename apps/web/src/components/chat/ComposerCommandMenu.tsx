@@ -7,6 +7,7 @@ import {
 import {
   type EnvironmentId,
   type EnvironmentMachineKind,
+  type PipelineId,
   type ProjectEntry,
   type ProviderDriverKind,
   type ProviderInstanceId,
@@ -22,6 +23,7 @@ import {
   PackageIcon,
   SettingsIcon,
   UserRoundIcon,
+  WorkflowIcon,
   type LucideIcon,
 } from "lucide-react";
 import { memo, useLayoutEffect, useRef } from "react";
@@ -66,6 +68,13 @@ export type ComposerCommandItem =
       type: "skill";
       provider: ProviderDriverKind;
       skill: ServerProviderSkill;
+      label: string;
+      description: string;
+    }
+  | {
+      id: string;
+      type: "pipeline";
+      pipelineId: PipelineId;
       label: string;
       description: string;
     }
@@ -227,6 +236,9 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
       ) : null}
       {props.item.type === "thread" ? (
         <MessagesSquareIcon aria-hidden="true" className="size-4 shrink-0 text-secondary-label" />
+      ) : null}
+      {props.item.type === "pipeline" ? (
+        <WorkflowIcon aria-hidden="true" className="size-4 shrink-0 text-secondary-label" />
       ) : null}
       {props.item.type === "environment" ? (
         <EnvironmentMachineIcon
