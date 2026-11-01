@@ -44,9 +44,9 @@ function foregroundFor([r, g, b]: [number, number, number]): string {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? "#18181b" : "#ffffff";
 }
 
-// The dots wrap to a second line inside the chip once they exceed this width,
+// The dots wrap inside the chip at 10 per line: 10 dots + 9 gaps = 68px = max-w-17,
 // so wide pipelines show every stage instead of a "+n" (stages cap at 20).
-const DOTS_WRAP_WIDTH = "max-w-24";
+const DOTS_WRAP_WIDTH = "max-w-17";
 
 /**
  * A thread's pipeline stage as a sidebar chip: pipeline hue, stage name, and

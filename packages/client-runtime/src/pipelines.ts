@@ -92,9 +92,13 @@ export interface PipelineStageLabels {
   readonly stageCount: number;
 }
 
-/** Red at the first stage, green at the last: hue 0 -> 120 across the pipeline. */
+/**
+ * Orange at the first stage, green halfway, blue at the last: hue 30 -> 120 -> 240,
+ * so the final stage reads as "done" rather than "ok".
+ */
 function progressColor(position: number, stageCount: number): string {
-  const hue = stageCount <= 1 ? 120 : ((position - 1) / (stageCount - 1)) * 120;
+  const t = stageCount <= 1 ? 1 : (position - 1) / (stageCount - 1);
+  const hue = t <= 0.5 ? 30 + t * 180 : 120 + (t - 0.5) * 240;
   return `hsl(${Math.round(hue)} 70% 45%)`;
 }
 
