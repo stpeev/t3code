@@ -22,6 +22,7 @@ import {
 } from "../ChatView.logic";
 import { isUsageLimitsCommand } from "@t3tools/shared/usageLimits";
 import { isContextUsageCommand } from "@t3tools/client-runtime/context-window";
+import { deriveThreadTitleSeed } from "@t3tools/client-runtime/operations";
 import {
   AuthOrchestrationOperateScope,
   DEFAULT_MODEL,
@@ -34,6 +35,7 @@ import {
   type ThreadId,
   ProviderInteractionMode,
   RuntimeMode,
+  renderPipelineStagePrompt,
 } from "@t3tools/contracts";
 import { wasBootstrapThreadDeleted } from "@t3tools/client-runtime/errors";
 import {
@@ -97,8 +99,11 @@ import {
   previewAnnotationContextReference,
   responseContextReference,
 } from "../../lib/composerContextRecords";
-import { environmentServerConfigsAtom } from "../../state/server";
+import { environmentServerConfigsAtom, serverEnvironment } from "../../state/server";
+import { useEnvironmentQuery } from "../../state/query";
 import { threadEnvironment } from "../../state/threads";
+import { recordThreadPipelineStage } from "../threadPipelineActions";
+import { resolveComposerPipeline } from "./composerPipelineSend";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { useClientSettingsHydrated } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -390,6 +395,10 @@ export function useComposerSend(input: ComposerSendInput) {
   const handleNewThread = useNewThreadHandler();
   const navigate = useNavigate();
   const clientSettingsHydrated = useClientSettingsHydrated();
+  const planModeEnabled = useEnvironmentSettings(environmentId, selectPlanModeEnabled);
+  const pipelinesSnapshot = useEnvironmentQuery(
+    serverEnvironment.pipelinesLive({ environmentId, input: {} }),
+  ).data;
   const startThreadTurn = useOrchestrationCommand(threadEnvironment.startTurn, {
     reportFailure: false,
   });
@@ -810,6 +819,20 @@ export function useComposerSend(input: ComposerSendInput) {
       );
       return;
     }
+    // The `/pipeline` block lives in composerPipelineSend.ts; this file only carries the call.
+    const pipelineResolution = await resolveComposerPipeline({
+      skip: Boolean(directAnnotation) || queuedRunEdit.isEditing,
+      snapshot: pipelinesSnapshot,
+      isServerThread,
+      activeThread,
+      hasMultipleModelSelections: multipleModelSelections !== null,
+      draftTarget: composerDraftTarget,
+      hasNonPromptDraftContent: draftHasNonPromptContent(composerDraftTarget),
+      promptRef,
+      setDraftPrompt: setComposerDraftPrompt,
+    });
+    if (pipelineResolution.type === "handled") return;
+    const pipelineStart = pipelineResolution.type === "outgoing" ? pipelineResolution.start : null;
     const {
       images: sendContextImages,
       files: composerFiles,
@@ -1118,12 +1141,16 @@ export function useComposerSend(input: ComposerSendInput) {
     );
     const messageIdForSend = newMessageId();
     const messageCreatedAt = new Date().toISOString();
+    // A failed send restores the `/pipeline` prompt as typed, so only the outgoing text changes.
     const outgoingMessageText = formatOutgoingPrompt({
       provider: ctxSelectedProvider,
       model: ctxSelectedModel,
       models: ctxSelectedProviderModels,
       effort: ctxSelectedPromptEffort,
-      text: messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+      text:
+        pipelineStart !== null
+          ? renderPipelineStagePrompt(pipelineStart.stage.prompt, pipelineStart.task)
+          : messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
     });
     if (
       isCurrentRouteThread() &&
@@ -1490,7 +1517,12 @@ export function useComposerSend(input: ComposerSendInput) {
       composerRef.current?.resetCursorState();
     }
 
-    const title = deriveComposerSendTitle(sendSnapshot);
+    const title = deriveThreadTitleSeed({
+      text: pipelineStart?.task ?? messageTextForSend,
+      attachments: composerAttachmentsSnapshot,
+      fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
+    });
+
     const threadCreateModelSelection = createModelSelection(
       ctxSelectedModelSelection.instanceId,
       ctxSelectedModel || activeProjectDefaultModelSelection?.model || DEFAULT_MODEL,
@@ -1650,6 +1682,12 @@ export function useComposerSend(input: ComposerSendInput) {
           linkCheckoutPullRequest(
             scopeThreadRef(environmentId, threadIdForSend),
             checkoutPullRequestUrl,
+        if (pipelineStart !== null) {
+          void recordThreadPipelineStage(
+            { environmentId, id: threadIdForSend },
+            pipelineStart.pipeline.id,
+            pipelineStart.stage,
+            pipelineStart.task,
           );
         }
         setKeepFullHistory(routeThreadKey, false);

@@ -15,6 +15,7 @@ import {
 } from "./auth.ts";
 import { PeerLinkLinkPairingInput } from "./peerLink.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
+import { PIPELINE_CLIENT_GUARDED_RPC_SCOPES } from "./pipeline.ts";
 import { WS_METHODS } from "./rpc.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
@@ -105,6 +106,7 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.peerLinksPairLink]: AuthAccessWriteScope,
   // Send stores and sends a report from a thread's turn: the bar of running that thread.
   [WS_METHODS.agentFeedbackAnswerRequest]: AuthOrchestrationOperateScope,
+  ...PIPELINE_CLIENT_GUARDED_RPC_SCOPES,
 } as const;
 export type ClientGuardedRpcTag = keyof typeof CLIENT_GUARDED_RPC_SCOPES;
 

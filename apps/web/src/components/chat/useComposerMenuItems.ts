@@ -44,6 +44,7 @@ import {
   type EnvironmentQueryTarget,
 } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
+import { serverEnvironment } from "~/state/server";
 import { useComposerPathSearch, useDebouncedValue, useThreadSearch } from "~/state/queries";
 import {
   matchesPullRequestQuery,
@@ -144,6 +145,7 @@ export function useComposerMenuItems({
     ...identity,
     machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
   }));
+<<<<<<< HEAD
   const workspaceEntries = useComposerPathSearch(
     {
       environmentId,
@@ -152,6 +154,18 @@ export function useComposerMenuItems({
     },
     messages,
   );
+=======
+  const workspaceEntries = useComposerPathSearch({
+    environmentId,
+    cwd: isPathTrigger ? gitCwd : null,
+    query: isPathTrigger ? pathTriggerQuery : null,
+  });
+  const pipelines = useEnvironmentQuery(
+    composerTriggerKind === "slash-command"
+      ? serverEnvironment.pipelinesLive({ environmentId, input: {} })
+      : null,
+  ).data?.pipelines;
+>>>>>>> 0f5346df34 (feat: thread pipelines — stages run in one thread, defined in pipelines.json)
 
   const pullRequestListTargets =
     composerTriggerKind !== "pull-request" ||
@@ -339,8 +353,20 @@ export function useComposerMenuItems({
           (item.command.name !== "compact" || compactSlashCommandAvailable) &&
           (item.command.name !== "clear" || !freshSessionAvailable),
       );
+      const pipelineItems = (pipelines ?? []).map((pipeline) => ({
+        id: `pipeline:${pipeline.id}`,
+        type: "pipeline" as const,
+        pipelineId: pipeline.id,
+        label: `/pipeline ${pipeline.id}`,
+        description: `${pipeline.name}: ${pipeline.stages.map((stage) => stage.name).join(" → ")}`,
+      }));
       const slashCommandItems = slashCommandItemsForPromptPosition(
-        [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],
+        [
+          ...builtInSlashCommandItems,
+          ...pipelineItems,
+          ...visibleProviderSlashCommandItems,
+          ...skillItems,
+        ],
         composerTrigger.rangeStart === 0,
       );
       return searchSlashCommandItems(slashCommandItems, query);

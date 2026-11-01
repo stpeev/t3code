@@ -100,9 +100,11 @@ describe("selectedDiffChangesRowId", () => {
 
   it("matches an abbreviated sha and falls back to the pinned row for unlisted commits", () => {
     const commits = list();
-    expect(selectedDiffChangesRowId({ kind: "commit", sha: "bbbbbbb" }, commits)).toBe(
-      `commit:${branchFirst.sha}`,
-    );
-    expect(selectedDiffChangesRowId({ kind: "commit", sha: "eeeeeee" }, commits)).toBe("pinned");
+    expect(
+      selectedDiffChangesRowId({ kind: "commit", sha: "bbbbbbb", baseRef: null }, commits),
+    ).toBe(`commit:${branchFirst.sha}`);
+    expect(
+      selectedDiffChangesRowId({ kind: "commit", sha: "eeeeeee", baseRef: null }, commits),
+    ).toBe("pinned");
   });
 });

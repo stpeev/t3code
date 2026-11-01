@@ -267,6 +267,7 @@ import {
 } from "./CommandPaletteThreadItems";
 import { useCommandPaletteSettingsItems } from "./CommandPaletteSettingsItems";
 import { useCommandPaletteThemeItems } from "./CommandPaletteThemeItems";
+import { useCommandPalettePipelineItems } from "./CommandPalettePipelineItems";
 import {
   PORT_FORWARD_GROUP_PREFIX,
   useCommandPalettePortForwardItem,
@@ -393,7 +394,6 @@ function CommandPaletteDialog(props: {
 }) {
   const gt = useGT();
   const composerHandleRef = useComposerHandleContext();
-
   return (
     <CommandDialogPopup
       aria-label={
@@ -536,6 +536,10 @@ function OpenCommandPaletteDialog(props: {
   const canShareActiveThreadWithGuest = useAtomValue(
     canShareWithGuestAtom(activeThread?.environmentId ?? ("" as EnvironmentId)),
   );
+  const pipelineItems = useCommandPalettePipelineItems({
+    activeThread,
+    primaryEnvironmentId,
+  });
   const activeThreadReferenceCopyTarget =
     referenceThreadRef === null || (pathname === "/pull-requests" && !openPanelPullRequestUrl)
       ? null
@@ -1589,6 +1593,8 @@ function OpenCommandPaletteDialog(props: {
     });
   }
 
+  actionItems.push(...pipelineItems);
+
   if (activeThread !== null) {
     const thread = activeThread;
     actionItems.push({
@@ -1725,7 +1731,7 @@ function OpenCommandPaletteDialog(props: {
           kind: "action",
           value: "action:right-panel-dock",
           searchTerms: ["dock", "panel", "window", "right panel", "main window", "attach"],
-          title: "Dock panel in main window",
+          title: m(msg("Dock panel in main window")),
           icon: <SquareArrowDownLeftIcon className={ITEM_ICON_CLASS} />,
           run: async () => {
             useRightPanelPopoutStore.getState().dock();
@@ -1743,7 +1749,7 @@ function OpenCommandPaletteDialog(props: {
             "detach",
             "separate",
           ],
-          title: "Open panel in separate window",
+          title: m(msg("Open panel in separate window")),
           icon: <SquareArrowOutUpRightIcon className={ITEM_ICON_CLASS} />,
           run: async () => {
             useRightPanelPopoutStore.getState().popOut();

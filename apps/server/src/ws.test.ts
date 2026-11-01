@@ -139,6 +139,8 @@ import * as ReviewService from "./review/ReviewService.ts";
 import * as ScheduledTasks from "./scheduledTasks/ScheduledTaskService.ts";
 import * as Workflows from "./workflows/Workflows.ts";
 import * as WorkflowRuntime from "./workflows/WorkflowRuntime.ts";
+import * as PipelineDefinitions from "./pipelines/PipelineDefinitions.ts";
+import * as PipelineService from "./pipelines/PipelineService.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
 import * as FeedbackStore from "./feedback/FeedbackStore.ts";
 import * as GuestShareService from "./guest/GuestShareService.ts";
@@ -895,6 +897,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ScheduledTasks.ScheduledTaskService)({}),
   Workflows.layerDisabled,
   Layer.mock(WorkflowRuntime.WorkflowDefinitions)({}),
+  Layer.mock(PipelineDefinitions.PipelineDefinitions)({ configPath: "/unused/pipelines.json" }),
+  Layer.mock(PipelineService.PipelineService)({}),
   Layer.mock(SecretRequests.SecretRequests)({}),
   Layer.mock(FeedbackStore.FeedbackStore)({}),
   Layer.mock(SecretResolver.SecretResolver)({}),

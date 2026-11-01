@@ -16,6 +16,7 @@ import { writeLocalStorageValue } from "../../hooks/useLocalStorage";
 import type { MessageResolver } from "../../i18n/messages";
 import { commandLabel } from "./KeybindingsSettings.logic";
 import type { ResolvedSettingsScope } from "./settingsScope";
+import { m } from "~/i18n/messages";
 
 export type SettingsPath =
   | "/settings/projects"
@@ -32,6 +33,7 @@ export type SettingsPath =
   | "/settings/browser"
   | "/settings/devices"
   | "/settings/scheduled-tasks"
+  | "/settings/pipelines"
   | "/settings/source-control"
   | "/settings/worktrees"
   | "/settings/connections"
@@ -110,6 +112,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/browser": msg("Browser"),
   "/settings/devices": msg("Devices"),
   "/settings/scheduled-tasks": msg("Scheduled tasks"),
+  "/settings/pipelines": msg("Pipelines"),
   "/settings/source-control": msg("Source control & issues"),
   "/settings/worktrees": msg("Worktrees"),
   "/settings/connections": msg("Environments"),
@@ -160,6 +163,7 @@ const ALL_SETTINGS_NAV_GROUPS: ReadonlyArray<SettingsNavGroup> = [
       "/settings/browser",
       "/settings/devices",
       "/settings/scheduled-tasks",
+      "/settings/pipelines",
     ],
   },
   {
@@ -340,42 +344,42 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "subagent-model-implementation",
-    title: "Implementation subagent model",
+    title: m(msg("Implementation subagent model")),
     to: "/settings/threads",
     scope: "project-defaults",
     searchTerms: ["delegate delegated task child agent role provider code changes"],
   },
   {
     id: "subagent-model-research",
-    title: "Research subagent model",
+    title: m(msg("Research subagent model")),
     to: "/settings/threads",
     scope: "project-defaults",
     searchTerms: ["delegate delegated task child agent role provider investigate"],
   },
   {
     id: "subagent-model-review",
-    title: "Review subagent model",
+    title: m(msg("Review subagent model")),
     to: "/settings/threads",
     scope: "project-defaults",
     searchTerms: ["delegate delegated task child agent role provider code review"],
   },
   {
     id: "subagent-model-design",
-    title: "Design subagent model",
+    title: m(msg("Design subagent model")),
     to: "/settings/threads",
     scope: "project-defaults",
     searchTerms: ["delegate delegated task child agent role provider plan architecture"],
   },
   {
     id: "subagent-model-test",
-    title: "Test subagent model",
+    title: m(msg("Test subagent model")),
     to: "/settings/threads",
     scope: "project-defaults",
     searchTerms: ["delegate delegated task child agent role provider unit e2e tests"],
   },
   {
     id: "subagent-model-general",
-    title: "General subagent model",
+    title: m(msg("General subagent model")),
     to: "/settings/threads",
     scope: "project-defaults",
     searchTerms: ["delegate delegated task child agent role provider default"],
@@ -418,7 +422,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "attention-highlight",
-    title: "Attention highlight",
+    title: m(msg("Attention highlight")),
     to: "/settings/appearance",
     searchTerms: [
       "unseen unread done finished completed input failed sidebar bold title blink slide shimmer animation",
@@ -827,29 +831,31 @@ export const SETTINGS_SEARCH_ITEMS = [
         "locale translation english deutsch german español spanish français french português portuguese brasil brazilian chinese 中文 japanese 日本語 korean 한국어 russian русский swedish svenska sprache idioma langue 语言 言語 언어 язык",
       ),
     ],
+  },
+  {
     id: "keep-in-app-notifications",
-    title: "Keep until dismissed",
+    title: m(msg("Keep until dismissed")),
     to: "/settings/general",
     targetId: "in-app-notifications",
     searchTerms: ["notification toast popup persistent sticky dismiss timeout hide"],
   },
   {
     id: "in-app-notifications-in-background",
-    title: "Show while in background",
+    title: m(msg("Show while in background")),
     to: "/settings/general",
     targetId: "in-app-notifications",
     searchTerms: ["notification toast popup background unfocused desktop both alongside"],
   },
   {
     id: "in-app-notifications-active-thread",
-    title: "Include the open thread",
+    title: m(msg("Include the open thread")),
     to: "/settings/general",
     targetId: "in-app-notifications",
     searchTerms: ["notification toast popup active current open thread"],
   },
   {
     id: "toast-position",
-    title: "Notification position",
+    title: m(msg("Notification position")),
     to: "/settings/general",
     targetId: "in-app-notifications",
     searchTerms: ["notification toast popup position corner top bottom left right placement"],
@@ -869,7 +875,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "fold-completed-turns",
-    title: "Fold finished turns",
+    title: m(msg("Fold finished turns")),
     to: "/settings/general",
     searchTerms: ["worked for collapse hide tool calls work commands timeline expand"],
   },
@@ -893,7 +899,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "collapse-removed-lines",
-    title: "Collapse removed lines",
+    title: m(msg("Collapse removed lines")),
     to: "/settings/general",
     searchTerms: ["deleted deletions hide fold stacked diff new code context"],
   },
@@ -1390,7 +1396,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   ...sourceControlHostSearchItems(sourceControlClients.definitions),
   {
     id: "infer-parent-branch",
-    title: "Guess the parent branch",
+    title: m(msg("Guess the parent branch")),
     to: "/settings/source-control",
     searchTerms: ["base branch merge base stacked fork closest compare diff commits"],
     environmentOnly: true,
@@ -1616,6 +1622,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     secretProvidersOnly: true,
   },
   {
+    id: "pipelines",
+    title: m(msg("Pipelines")),
+    to: "/settings/pipelines",
+    scope: "environment",
+    searchTerms: ["pipelines.json stages workflow prompts /pipeline define edit sync"],
+  },
+  {
     id: "archive",
     title: msg("Archived threads"),
     to: "/settings/archived",
@@ -1629,6 +1642,7 @@ const SEARCH_ITEMS_BY_ID = new Map(SETTINGS_SEARCH_ITEMS.map((item) => [item.id,
 
 const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScope | null>> = {
   "/settings/diagnostics": "environment",
+  "/settings/pipelines": "environment",
   "/settings/projects": "project",
   "/settings/general": null,
   "/settings/voice": null,
@@ -1752,7 +1766,7 @@ export function isSettingsSearchScopeAvailable(
   }
 }
 
-function searchableSetting(id: SettingsSearchItemId): {
+export function searchableSetting(id: SettingsSearchItemId): {
   readonly id: string;
   readonly title: string;
 } {

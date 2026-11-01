@@ -23,12 +23,15 @@ import {
   buildThreadActionMenuItems,
   isThreadTriageAction,
   moveTargetProjectId,
-
   threadActionRequiresOperate,
   threadMoveTargets,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { titleRegenerationToast } from "../components/threadTitleRegenerationToast";
+import {
+  readThreadPipelineMenuState,
+  runThreadPipelineMenuAction,
+} from "../components/threadPipelineActions";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { copyThreadReference } from "../lib/copyThreadReference";
 import { m } from "../i18n/messages";
@@ -98,6 +101,9 @@ export function useThreadActionMenu(input: {
     markThreadUnread,
     turnThreadIntoProject,
   } = useThreadActions();
+  const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
+    reportFailure: false,
+  });
   const regenerateThreadTitle = useOrchestrationCommand(threadEnvironment.regenerateTitle, {
     reportFailure: false,
   });
@@ -154,12 +160,13 @@ export function useThreadActionMenu(input: {
       supports,
       snoozePresets,
       moveTargets: threadMoveTargets(projects, thread),
+      pipeline: readThreadPipelineMenuState(thread),
       canShareWithGuest,
       canTurnIntoProject: canTurnThreadIntoProject(threadRef),
     });
     const run = async (action: ThreadActionMenuId) => {
-  
-> 0b5c2827a0 (feat: threads can move to another project)
+      const api = readLocalApi();
+      if (!api) return;
       if (
         threadActionRequiresOperate(action) &&
         !(isThreadTriageAction(action)
@@ -172,6 +179,18 @@ export function useThreadActionMenu(input: {
         );
         return;
       }
+      if (
+        await runThreadPipelineMenuAction(
+          thread,
+          action,
+          () =>
+            void router.navigate({
+              to: "/$environmentId/$threadId",
+              params: { environmentId: thread.environmentId, threadId: thread.id },
+            }),
+        )
+      )
+        return;
       if (action.startsWith("snooze:")) {
         const preset =
           action === "snooze:custom"
@@ -204,7 +223,7 @@ export function useThreadActionMenu(input: {
           project.id === moveTargetProjectId(action),
       );
       if (moveTarget) {
-        await reportFailure("Failed to move thread", () =>
+        await reportFailure(m(msg("Failed to move thread")), () =>
           updateThreadMetadata({
             environmentId: threadRef.environmentId,
             input: { threadId: threadRef.threadId, projectId: moveTarget.id },

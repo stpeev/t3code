@@ -4153,6 +4153,7 @@ describe("OrchestratorMcpService provider resolution", () => {
         const dispatched = yield* Ref.make<ReadonlyArray<{ readonly modelSelection: unknown }>>([]);
         const layerDependencies = Layer.mergeAll(
           NodeServices.layer,
+          NodeCrypto.layer,
           Layer.mock(ThreadManagementService.ThreadManagementService)({
             hasReceipt: () => Effect.succeed(false),
             isProviderInstanceEnabledForProject: ({ instanceId }) =>
@@ -4182,6 +4183,7 @@ describe("OrchestratorMcpService provider resolution", () => {
           adapterRegistryLayer([codexInstanceId, claudeInstanceId]),
           Layer.mock(ProjectService.ProjectService)({}),
           Layer.mock(SecretRequests.SecretRequests)({}),
+          Layer.mock(RemoteDelegation.RemoteDelegation)({}),
           Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
         );
         return yield* Effect.gen(function* () {
