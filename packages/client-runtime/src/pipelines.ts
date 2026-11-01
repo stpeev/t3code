@@ -81,23 +81,34 @@ export interface PipelineStageLabels {
   /** Drives the chip's hue, so one pipeline's rows share a color. */
   readonly pipelineId: PipelineId;
   readonly stageName: string;
-  /** The stage's own `color` from pipelines.json, null to fall back to the pipeline hue. */
+  /**
+   * The stage's own `color` from pipelines.json, else a red-to-green gradient by
+   * position; null only when the stage left pipelines.json (chip falls back to
+   * the pipeline hue).
+   */
   readonly color: string | null;
   /** 1-based; 0 once the stage left pipelines.json. */
   readonly position: number;
   readonly stageCount: number;
 }
 
+/** Red at the first stage, green at the last: hue 0 -> 120 across the pipeline. */
+function progressColor(position: number, stageCount: number): string {
+  const hue = stageCount <= 1 ? 120 : ((position - 1) / (stageCount - 1)) * 120;
+  return `hsl(${Math.round(hue)} 70% 45%)`;
+}
+
 /** A stage pipelines.json no longer lists keeps its saved id and loses its place. */
 export function labelThreadPipelineStage(progress: ThreadPipelineProgress): PipelineStageLabels {
   const { pipeline, stage, state } = progress;
   const pipelineName = pipeline?.name ?? state.pipelineId;
+  const count = pipeline?.stages.length ?? 0;
   const base = {
     pipelineId: state.pipelineId,
     stageName: stage?.name ?? state.stageId,
-    color: stage?.color ?? null,
+    color: stage === null ? null : (stage.color ?? progressColor(progress.position, count)),
     position: progress.position,
-    stageCount: pipeline?.stages.length ?? 0,
+    stageCount: count,
   };
   if (pipeline === null || stage === null) {
     return {
@@ -106,7 +117,6 @@ export function labelThreadPipelineStage(progress: ThreadPipelineProgress): Pipe
       spoken: `pipeline ${pipelineName}, stage ${state.stageId}, no longer in pipelines.json`,
     };
   }
-  const count = pipeline.stages.length;
   return {
     ...base,
     short: `${stage.name} ${progress.position}/${count}`,
