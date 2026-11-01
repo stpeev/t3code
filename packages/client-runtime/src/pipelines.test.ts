@@ -52,6 +52,12 @@ describe("resolveThreadPipelineProgress", () => {
       position: 2,
       stageCount: 3,
     });
+    // No explicit color: red at the first stage, green at the last.
+    expect(
+      labelThreadPipelineStage(resolveThreadPipelineProgress(savedAt("ticket", "plan"), threadId)!)
+        .color,
+    ).toBe("hsl(0 70% 45%)");
+    expect(labelThreadPipelineStage(review!).color).toBe("hsl(120 70% 45%)");
     expect(resolveThreadPipelineProgress(savedAt("ticket", "plan"), ThreadId.make("other"))).toBe(
       null,
     );
