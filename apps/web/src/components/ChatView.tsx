@@ -388,6 +388,7 @@ import {
   type EnvironmentUnavailableState,
   useSystemComposerBanners,
 } from "./chat/useSystemComposerBanners";
+import { useComposerPipelineBanner } from "./chat/useComposerPipelineBanner";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
@@ -1361,6 +1362,7 @@ export default function ChatView(props: ChatViewProps) {
     automaticEnvironment,
     autoUpdateEnvironments,
   });
+  const pipelineBannerItem = useComposerPipelineBanner(activeThreadShell);
   const providerInstanceEntries = providerInstanceEntriesFor(
     providerStatuses,
     settings,
@@ -2759,6 +2761,7 @@ export default function ChatView(props: ChatViewProps) {
       freshSessionAvailable && freshSessionArmed && activePendingApproval === null
         ? [freshSessionBannerItem(() => disarmFreshSession(routeThreadKey))]
         : [];
+    const pipelineItems = pipelineBannerItem === null ? [] : [pipelineBannerItem];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {
       return [
         ...feedbackBannerItems,
@@ -2769,6 +2772,7 @@ export default function ChatView(props: ChatViewProps) {
         ...projectCloneItems,
         ...freshSessionItems,
         ...systemComposerBannerItems,
+        ...pipelineItems,
       ];
     }
     return [
@@ -2791,6 +2795,7 @@ export default function ChatView(props: ChatViewProps) {
           setBranchMismatchDismissTick((tick) => tick + 1);
         },
       }),
+      ...pipelineItems,
     ];
   })() as ComposerBannerStackItem[];
 

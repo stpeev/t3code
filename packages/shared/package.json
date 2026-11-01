@@ -519,6 +519,10 @@
       "types": "./src/mcpApp.ts",
       "import": "./src/mcpApp.ts"
     },
+    "./pipelines": {
+      "types": "./src/pipelines.ts",
+      "import": "./src/pipelines.ts"
+    },
     "./atomicWrite": {
       "types": "./src/atomicWrite.ts",
       "import": "./src/atomicWrite.ts"

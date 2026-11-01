@@ -315,7 +315,8 @@ export default function DiffPanel({
   const environmentId = threadRef?.environmentId ?? null;
   // Subscribing to a draft's id gets a 404 that parks the shared thread state as deleted,
   // which then outlives the draft's promotion to a server thread.
-  const isServerThread = useQuietThreadShell(threadRef) != null;
+  const activeThread = useQuietThreadShell(threadRef);
+  const isServerThread = activeThread != null;
   const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
   const activeProject = useProject(
@@ -806,7 +807,7 @@ export default function DiffPanel({
     selectedRunId !== null
       ? selectedScopeLabel
       : selectedCommitSha && !listedCommit
-        ? selectedCommitLabel
+        ? (selectedCommitSubject ?? `Commit ${selectedCommitSha.slice(0, 7)}`)
         : null;
   const changesRows = buildDiffChangesRows({
     workingTree: workingTreeStat,

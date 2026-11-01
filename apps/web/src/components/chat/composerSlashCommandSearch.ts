@@ -9,10 +9,10 @@ import { scoreProviderSkill } from "../../providerSkillSearch";
 
 type SlashSearchItem = Extract<
   ComposerCommandItem,
-  { type: "slash-command" | "provider-slash-command" | "skill" }
+  { type: "slash-command" | "provider-slash-command" | "skill" | "pipeline" }
 >;
 
-/** Provider commands, `/side`, `/btw` and `/clear` work only at the message start. */
+/** Provider commands, `/side`, `/btw`, `/clear` and `/pipeline` work only at the message start. */
 export function slashCommandItemsForPromptPosition(
   items: ReadonlyArray<SlashSearchItem>,
   isAtPromptStart: boolean,
@@ -22,11 +22,13 @@ export function slashCommandItemsForPromptPosition(
   }
   return items.filter(
     (item) =>
-      item.type === "skill" ||
-      (item.type === "slash-command" &&
-        item.command !== "side" &&
-        item.command !== "btw" &&
-        item.command !== "clear"),
+      item.type !== "provider-slash-command" &&
+      item.type !== "pipeline" &&
+      (item.type === "skill" ||
+        (item.type === "slash-command" &&
+          item.command !== "side" &&
+          item.command !== "btw" &&
+          item.command !== "clear")),
   );
 }
 
@@ -44,7 +46,11 @@ function scoreSlashCommandItem(item: SlashSearchItem, query: string): number | n
   }
 
   const primaryValue =
-    item.type === "slash-command" ? item.command.toLowerCase() : item.command.name.toLowerCase();
+    item.type === "slash-command"
+      ? item.command.toLowerCase()
+      : item.type === "pipeline"
+        ? `pipeline ${item.pipelineId}`
+        : item.command.name.toLowerCase();
   const description = item.description.toLowerCase();
 
   const scores = [
@@ -104,9 +110,11 @@ export function searchSlashCommandItems(
         tieBreaker:
           item.type === "slash-command"
             ? `0\u0000${item.command}`
-            : item.type === "provider-slash-command"
-              ? `1\u0000${item.command.name}\u0000${item.provider}`
-              : `2\u0000${item.skill.name}\u0000${item.provider}`,
+            : item.type === "pipeline"
+              ? `0\u0000pipeline ${item.pipelineId}`
+              : item.type === "provider-slash-command"
+                ? `1\u0000${item.command.name}\u0000${item.provider}`
+                : `2\u0000${item.skill.name}\u0000${item.provider}`,
       },
       Number.POSITIVE_INFINITY,
     );

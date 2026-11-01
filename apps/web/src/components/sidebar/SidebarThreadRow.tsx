@@ -67,6 +67,8 @@ import { useNowMinute } from "../../hooks/useNowMinute";
 import { useClientSettings } from "../../hooks/useSettings";
 import { useNowSecond } from "../../hooks/useNowSecond";
 import { vcsEnvironment } from "../../state/vcs";
+import { useThreadPipelineStageLabels } from "../../state/pipelines";
+import { PipelineStageChip } from "../pipelineStageChip";
 import { useEnvironmentQuery } from "../../state/query";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { formatRelativeTimeLabel, parseTimestampDate } from "../../timestampFormat";
@@ -658,6 +660,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const threadRef = scopeThreadRef(thread.environmentId, thread.id);
   const threadKey = scopedThreadKey(threadRef);
   const canOperateThread = useEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope);
+  const pipelineStage = useThreadPipelineStageLabels(threadRef);
   const { leaseLiveStatus, rowRef: leaseRowRef } = useSidebarRowSubscriptionLease(props.isActive);
   const { revealRef } = props;
   const rowRef = (row: HTMLElement | null) => {
@@ -1010,6 +1013,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const accessibility = resolveSidebarRowAccessibility({
     title: thread.title,
     statusLabel: topStatus?.label ?? null,
+    pipelineStage: pipelineStage?.spoken ?? null,
     projectDisplayName: props.projectDisplayName,
     isActive: props.isActive,
   });
@@ -1149,6 +1153,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     prBadge === null &&
     diff === null &&
     runningTerminalIds.length === 0;
+  // On the row's first line, so the stage is seen without reading the branch line.
+  const pipelineChip =
+    pipelineStage === null ? null : (
+      <PipelineStageChip
+        labels={pipelineStage}
+        tone={status === "failed" ? "error" : "default"}
+        testId={`sidebar-pipeline-stage-${thread.id}`}
+      />
+    );
   const metaLine = metaLineEmpty ? null : (
     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
       {thread.branch ? (
@@ -1260,6 +1273,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               {draftIndicator}
               {title}
+              {multiline ? pipelineChip : null}
               {multiline ? titleLineIcons : null}
               {pinIndicator}
               {multiline ? null : terminalStatusIcon}
@@ -1455,6 +1469,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               ) : (
                 <span className="flex-1" />
               )}
+              {pipelineChip}
               {sortable?.isDragging ? (
                 dragDestination
               ) : (

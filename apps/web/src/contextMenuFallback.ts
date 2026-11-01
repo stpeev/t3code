@@ -166,6 +166,11 @@ const ICON_PATHS: Record<string, ReadonlyArray<{ tag: string; attrs: Record<stri
     { tag: "line", attrs: { x1: "10", x2: "10", y1: "11", y2: "17" } },
     { tag: "line", attrs: { x1: "14", x2: "14", y1: "11", y2: "17" } },
   ],
+  workflow: [
+    { tag: "rect", attrs: { width: "8", height: "8", x: "3", y: "3", rx: "2" } },
+    { tag: "path", attrs: { d: "M7 11v4a2 2 0 0 0 2 2h4" } },
+    { tag: "rect", attrs: { width: "8", height: "8", x: "13", y: "13", rx: "2" } },
+  ],
 };
 
 function createIconElement(name: string, tone: "neutral" | "destructive"): SVGSVGElement | null {

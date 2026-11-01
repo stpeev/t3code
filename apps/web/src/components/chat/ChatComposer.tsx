@@ -1995,6 +1995,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       }
       return;
     }
+    if (item.type === "pipeline") {
+      const replacement = `/pipeline ${item.pipelineId} `;
+      const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
+        snapshot.value,
+        trigger.rangeEnd,
+        replacement,
+      );
+      const applied = applyPromptReplacement(trigger.rangeStart, replacementRangeEnd, replacement, {
+        expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd),
+      });
+      if (applied) {
+        setComposerHighlightedItemId(null);
+      }
+      return;
+    }
     if (item.type === "provider-slash-command") {
       if (item.command.name === USAGE_LIMITS_COMMAND.name && onUsageLimitsCommand) {
         const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
