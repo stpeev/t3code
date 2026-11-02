@@ -98,11 +98,6 @@ export function PipelineStageChip(props: {
       <WorkflowIcon className="size-3 shrink-0 opacity-70" />
       <span className="truncate">{labels.stageName}</span>
       {compact || count === 0 ? null : (
-        <span className="shrink-0 tabular-nums opacity-70">
-          {labels.position}/{count}
-        </span>
-      )}
-      {compact || count === 0 ? null : (
         <span className={`flex ${DOTS_WRAP_WIDTH} flex-wrap items-center gap-0.5`}>
           {Array.from({ length: count }, (_, index) => (
             <span
