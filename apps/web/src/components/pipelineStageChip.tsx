@@ -50,8 +50,9 @@ const DOTS_WRAP_WIDTH = "max-w-17";
 
 /**
  * A thread's pipeline stage as a sidebar chip: pipeline hue, stage name, and
- * one dot per stage (filled up to the current one). The solid background keeps
- * it readable on the selected row, where a border-only chip disappears.
+ * one dot per stage (filled only for stages the thread entered, so a skipped
+ * stage stays empty). The solid background keeps it readable on the selected
+ * row, where a border-only chip disappears.
  */
 export function PipelineStageChip(props: {
   readonly labels: PipelineStageLabels;
@@ -107,7 +108,7 @@ export function PipelineStageChip(props: {
             <span
               key={index}
               className={`size-[5px] shrink-0 rounded-full ${
-                index < labels.position ? "bg-current" : "border border-current opacity-40"
+                labels.entered[index] === true ? "bg-current" : "border border-current opacity-40"
               }`}
             />
           ))}

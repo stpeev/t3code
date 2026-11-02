@@ -121,13 +121,22 @@ const make = Effect.gen(function* () {
     );
 
   const save = Effect.fn("PipelineService.save")(function* (
-    fields: Omit<ThreadPipelineState, "updatedAt">,
+    fields: Omit<ThreadPipelineState, "updatedAt" | "enteredStages">,
   ) {
+    const states = yield* SubscriptionRef.get(statesRef);
+    const previous = states.get(fields.threadId);
+    // Switching pipelines starts a fresh set; staying in one accumulates, so a
+    // skipped stage stays unentered.
+    const entered =
+      previous !== undefined && previous.pipelineId === fields.pipelineId
+        ? new Set([...previous.enteredStages, fields.stageId])
+        : new Set([fields.stageId]);
     const state: ThreadPipelineState = {
       ...fields,
+      enteredStages: [...entered],
       updatedAt: DateTime.formatIso(yield* DateTime.now),
     };
-    yield* persist(new Map(yield* SubscriptionRef.get(statesRef)).set(state.threadId, state));
+    yield* persist(new Map(states).set(state.threadId, state));
     return state;
   });
 
