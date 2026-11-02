@@ -18,7 +18,6 @@ import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import { acpPermissionDisposition } from "@t3tools/provider-acp/server/clientPolicy";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 
@@ -79,42 +78,43 @@ const providerInstanceFor = (instanceId: ProviderInstanceId) =>
     },
   }) as ProviderInstance;
 
-const layerWithPolicy = (policy?: ManagedPolicySummary) =>
-  RuntimePolicy.layerFromProjectStore.pipe(
-    Layer.provide(ServerSettings.layerTest({}, policy)),
-    Layer.provide(
-      Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
-        getInstance: (instanceId) => Effect.succeed(providerInstanceFor(instanceId)),
-        listInstances: Effect.succeed([]),
-        listUnavailable: Effect.succeed([]),
-        streamChanges: Stream.empty,
-        subscribeChanges: Effect.never,
-      }),
-    ),
-    Layer.provide(
-      Layer.mock(ProjectStore.ProjectStoreV2)({
-        get: () =>
-          Effect.succeedSome({
-            projectId,
-            title: "Project",
-            workspaceRoot: "/project-root",
-            defaultModelSelection: null,
-            defaultThreadEnvMode: null,
-            autoPull: false,
-            faviconPath: null,
-            projectIcon: null,
-            scripts: [],
-            pinnedAt: null,
-            archivedAt: null,
-            createdAt: "2026-06-21T00:00:00.000Z",
-            updatedAt: "2026-06-21T00:00:00.000Z",
-            deletedAt: null,
-          }),
-      }),
-    ),
-  );
+const layerBase = RuntimePolicy.layerFromProjectStore.pipe(
+  Layer.provide(
+    Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
+      getInstance: (instanceId) => Effect.succeed(providerInstanceFor(instanceId)),
+      listInstances: Effect.succeed([]),
+      listUnavailable: Effect.succeed([]),
+      streamChanges: Stream.empty,
+      subscribeChanges: Effect.never,
+    }),
+  ),
+  Layer.provide(
+    Layer.mock(ProjectStore.ProjectStoreV2)({
+      get: () =>
+        Effect.succeedSome({
+          projectId,
+          title: "Project",
+          workspaceRoot: "/project-root",
+          defaultModelSelection: null,
+          defaultThreadEnvMode: null,
+          autoPull: false,
+          faviconPath: null,
+          projectIcon: null,
+          scripts: [],
+          pinnedAt: null,
+          archivedAt: null,
+          createdAt: "2026-06-21T00:00:00.000Z",
+          updatedAt: "2026-06-21T00:00:00.000Z",
+          deletedAt: null,
+        }),
+    }),
+  ),
+);
 
-const layerTest = layerWithPolicy();
+const layerWithPolicy = (policy?: ManagedPolicySummary) =>
+  layerBase.pipe(Layer.provide(ServerSettings.layerTest({}, policy)));
+
+const layerTest = layerBase.pipe(Layer.provide(ServerSettings.layerTest()));
 
 it.layer(layerTest)("RuntimePolicyV2", (it) => {
   it.effect("asks for Antigravity command approval when a stored Auto thread falls back", () =>
@@ -215,7 +215,7 @@ it.effect("blocks native subagents while a subagent role model applies to the pr
           modelSelection,
         });
         return resolved.nativeSubagents;
-      }).pipe(Effect.provide(layerTest.pipe(Layer.provide(ServerSettings.layerTest(settings)))));
+      }).pipe(Effect.provide(layerBase.pipe(Layer.provide(ServerSettings.layerTest(settings)))));
 
     assert.equal(yield* nativeSubagentsFor({}), "allowed");
     assert.equal(yield* nativeSubagentsFor({ testSubagentModelSelection: sonnet }), "blocked");

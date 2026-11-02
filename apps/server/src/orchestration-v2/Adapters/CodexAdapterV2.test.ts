@@ -259,6 +259,7 @@ describe("CodexAdapterV2 runtime policy", () => {
   it("turns off Codex multi-agent per thread only while native subagents are blocked", () => {
     const configFor = (nativeSubagents?: "allowed" | "blocked") =>
       CodexAdapterV2.codexThreadRuntimeParams({
+        threadId: null,
         mcpSession: undefined,
         runtimePolicy: {
           runtimeMode: "full-access",

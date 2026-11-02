@@ -671,18 +671,6 @@ export function attentionHighlightClass(
   return shape === "text" ? "status-sheen font-semibold" : "motion-safe:animate-status-pulse";
 }
 
-const THREAD_STATUS_PRIORITY: Record<ThreadStatusPill["label"], number> = {
-  "Pending Approval": 5,
-  "Awaiting Input": 4,
-  "Guest Request": 3.75,
-  Failed: 3.5,
-  Working: 3,
-  Connecting: 3,
-  Waiting: 2.5,
-  "Plan Ready": 2,
-  Completed: 1,
-};
-
 type ThreadStatusInput = Pick<
   SidebarThreadSummary,
   | "hasActionableProposedPlan"
