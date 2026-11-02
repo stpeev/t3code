@@ -26,6 +26,7 @@ const threadId = ThreadId.make("thread-1");
 const ticket = PipelineId.make("ticket");
 const plan = PipelineStageId.make("plan");
 const develop = PipelineStageId.make("develop");
+const review = PipelineStageId.make("review");
 const definitions: PipelineDefinitions.PipelineDefinitionsState = {
   pipelines: [
     {
@@ -34,6 +35,7 @@ const definitions: PipelineDefinitions.PipelineDefinitionsState = {
       stages: [
         { id: plan, name: "Plan", prompt: "Plan {input}." },
         { id: develop, name: "Develop", prompt: "Build {input}." },
+        { id: review, name: "Review", prompt: "Review {input}." },
       ],
     },
   ],
@@ -154,7 +156,13 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
           ],
         );
         assert.deepEqual(yield* savedStages(service), [
-          { threadId, pipelineId: ticket, stageId: plan, input: "Ship the signup flow" },
+          {
+            threadId,
+            pipelineId: ticket,
+            stageId: plan,
+            input: "Ship the signup flow",
+            enteredStages: [plan, develop],
+          },
         ]);
       }),
     ).pipe(Effect.provide(layerConfig()));
@@ -254,11 +262,36 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
       const afterLeaving = yield* withService(makeThread(), savedStages);
 
       assert.deepEqual(afterRestart, [
-        { threadId, pipelineId: ticket, stageId: plan, input: "Fix the login bug" },
-        other,
+        {
+          threadId,
+          pipelineId: ticket,
+          stageId: plan,
+          input: "Fix the login bug",
+          enteredStages: [plan],
+        },
+        { ...other, enteredStages: [develop] },
       ]);
-      assert.deepEqual(afterLeaving, [other]);
+      assert.deepEqual(afterLeaving, [{ ...other, enteredStages: [develop] }]);
     }).pipe(Effect.provide(layerConfig())),
+  );
+
+  it.effect("records a stage jumped to as entered while the skipped one stays unentered", () =>
+    withService(makeThread(), (service) =>
+      Effect.gen(function* () {
+        yield* service.startStage(startInput(plan, null));
+        yield* service.startStage(startInput(review, at(plan)));
+
+        assert.deepEqual(yield* savedStages(service), [
+          {
+            threadId,
+            pipelineId: ticket,
+            stageId: review,
+            input: "Fix the login bug",
+            enteredStages: [plan, review],
+          },
+        ]);
+      }),
+    ).pipe(Effect.provide(layerConfig())),
   );
 
   it.effect("sets aside a state file it can't read instead of failing or overwriting it", () =>
