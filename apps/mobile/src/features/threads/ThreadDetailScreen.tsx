@@ -1783,7 +1783,8 @@ function ThreadDetailBody(
                       <ComposerFeedback
                         key={submission.id}
                         submission={submission}
-                        onDismiss={() => props.onDismissFeedback(submission.id)}                      />
+                        onDismiss={() => props.onDismissFeedback(submission.id)}
+                      />
                     ))}
                     {freshSessionAvailable ? (
                       <FreshSessionNotice threadKey={selectedThreadKey} />
@@ -1831,28 +1832,28 @@ function ThreadDetailBody(
                       </Animated.View>
                     ) : null}
                     {contextUsageThreadKey === selectedThreadKey &&
-                  props.contextWindow !== null &&
-                  activeUserInputRequestId === null ? (
-                    <Animated.View
-                      className="shrink-0 px-4 pb-3"
-                      entering={FadeInDown.duration(220)}
-                      exiting={FadeOut.duration(140)}
-                    >
-                      <ComposerContextUsage
-                        snapshot={props.contextWindow}
-                        lastTurn={props.contextWindowLastTurn}
-                        driver={
-                          props.serverConfig?.providers.find(
-                            (provider) =>
-                              provider.instanceId ===
-                              props.selectedThread.modelSelection.instanceId,
-                          )?.driver ?? null
-                        }
-                        onClose={dismissContextUsage}
-                      />
-                    </Animated.View>
-                  ) : null}
-                  {props.creationState?.kind === "failed" ? (
+                    props.contextWindow !== null &&
+                    activeUserInputRequestId === null ? (
+                      <Animated.View
+                        className="shrink-0 px-4 pb-3"
+                        entering={FadeInDown.duration(220)}
+                        exiting={FadeOut.duration(140)}
+                      >
+                        <ComposerContextUsage
+                          snapshot={props.contextWindow}
+                          lastTurn={props.contextWindowLastTurn}
+                          driver={
+                            props.serverConfig?.providers.find(
+                              (provider) =>
+                                provider.instanceId ===
+                                props.selectedThread.modelSelection.instanceId,
+                            )?.driver ?? null
+                          }
+                          onClose={dismissContextUsage}
+                        />
+                      </Animated.View>
+                    ) : null}
+                    {props.creationState?.kind === "failed" ? (
                       <Animated.View
                         className="shrink-0 px-4"
                         style={{ paddingBottom: composerBottomInset }}

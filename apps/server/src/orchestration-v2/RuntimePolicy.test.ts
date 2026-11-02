@@ -19,7 +19,6 @@ import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import { acpPermissionDisposition } from "@t3tools/provider-acp/server/clientPolicy";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 import * as WorkspaceFolders from "../workspace/WorkspaceFolders.ts";
@@ -97,12 +96,12 @@ const layerWorkspaceFoldersTest = Layer.mock(WorkspaceFolders.WorkspaceFolders)(
     Effect.succeed(input.worktreePath === null ? trackedWorkspace : noWorkspace),
 });
 
-const layerWithPolicy = (
-  policy?: ManagedPolicySummary,
+// The merged RuntimePolicy requires WorkspaceFolders as well as settings, instances and the
+// project store, so every base layer here provides a workspace folders layer.
+const layerBaseWith = (
   layerWorkspaceFolders: Layer.Layer<WorkspaceFolders.WorkspaceFolders> = layerWorkspaceFoldersTest,
 ) =>
   RuntimePolicy.layerFromProjectStore.pipe(
-    Layer.provide(ServerSettings.layerTest({}, policy)),
     Layer.provide(layerWorkspaceFolders),
     Layer.provide(
       Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
@@ -137,6 +136,13 @@ const layerWithPolicy = (
       }),
     ),
   );
+
+const layerBase = layerBaseWith();
+
+const layerWithPolicy = (
+  policy?: ManagedPolicySummary,
+  layerWorkspaceFolders: Layer.Layer<WorkspaceFolders.WorkspaceFolders> = layerWorkspaceFoldersTest,
+) => layerBaseWith(layerWorkspaceFolders).pipe(Layer.provide(ServerSettings.layerTest({}, policy)));
 
 const layerTest = layerWithPolicy();
 
@@ -312,7 +318,7 @@ it.effect("blocks native subagents while a subagent role model applies to the pr
           modelSelection,
         });
         return resolved.nativeSubagents;
-      }).pipe(Effect.provide(layerTest.pipe(Layer.provide(ServerSettings.layerTest(settings)))));
+      }).pipe(Effect.provide(layerBase.pipe(Layer.provide(ServerSettings.layerTest(settings)))));
 
     assert.equal(yield* nativeSubagentsFor({}), "allowed");
     assert.equal(yield* nativeSubagentsFor({ testSubagentModelSelection: sonnet }), "blocked");
