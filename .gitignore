@@ -34,6 +34,7 @@ dist-electron/
 apps/mobile/.showcase/
 apps/mobile/.generated/
 apps/mobile/.android-cache/
+apps/mobile/modules/t3-markdown-text/android/.gradle/
 /.generated/
 artifacts/app-store/screenshots/
 artifacts/mobile-e2e/
