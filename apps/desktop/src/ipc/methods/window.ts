@@ -381,7 +381,6 @@ export const readMedia = DesktopIpc.makeIpcMethod({
   }),
 });
 
-
 // The renderer's `window.focus()` on its popout doesn't raise a native window, so the shell does it.
 export const focusRightPanelPopout = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.FOCUS_RIGHT_PANEL_POPOUT_CHANNEL,
@@ -398,13 +397,6 @@ export const focusRightPanelPopout = DesktopIpc.makeIpcMethod({
       if (popout.isMinimized()) popout.restore();
       popout.focus();
     });
-    if (!popout || popout.isDestroyed()) return;
-    if (popout.isMinimized()) popout.restore();
-    popout.focus();
-    });
-  }),
-});
-
   }),
 });
 
