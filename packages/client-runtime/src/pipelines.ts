@@ -90,6 +90,12 @@ export interface PipelineStageLabels {
   /** 1-based; 0 once the stage left pipelines.json. */
   readonly position: number;
   readonly stageCount: number;
+  /**
+   * One flag per stage in pipeline order: true when the thread was at that
+   * stage, so a stage skipped by jumping ahead keeps an empty dot. The current
+   * stage always counts as entered.
+   */
+  readonly entered: ReadonlyArray<boolean>;
 }
 
 /**
@@ -107,12 +113,14 @@ export function labelThreadPipelineStage(progress: ThreadPipelineProgress): Pipe
   const { pipeline, stage, state } = progress;
   const pipelineName = pipeline?.name ?? state.pipelineId;
   const count = pipeline?.stages.length ?? 0;
+  const enteredIds = new Set([...state.enteredStages, state.stageId]);
   const base = {
     pipelineId: state.pipelineId,
     stageName: stage?.name ?? state.stageId,
     color: stage === null ? null : (stage.color ?? progressColor(progress.position, count)),
     position: progress.position,
     stageCount: count,
+    entered: (pipeline?.stages ?? []).map((entry) => enteredIds.has(entry.id)),
   };
   if (pipeline === null || stage === null) {
     return {

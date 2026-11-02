@@ -23,7 +23,7 @@ const ticket = {
     stage("review", "Review"),
   ],
 };
-const savedAt = (pipelineId: string, stageId: string) => ({
+const savedAt = (pipelineId: string, stageId: string, entered: ReadonlyArray<string> = []) => ({
   pipelines: [ticket],
   threads: [
     {
@@ -31,6 +31,7 @@ const savedAt = (pipelineId: string, stageId: string) => ({
       pipelineId: PipelineId.make(pipelineId),
       stageId: PipelineStageId.make(stageId),
       input: "Fix the login bug",
+      enteredStages: entered.map((id) => PipelineStageId.make(id)),
       updatedAt: "2026-10-29T00:00:00.000Z",
     },
   ],
@@ -51,6 +52,8 @@ describe("resolveThreadPipelineProgress", () => {
       color: "#0ea5e9",
       position: 2,
       stageCount: 3,
+      // The current stage counts as entered even when enteredStages is empty.
+      entered: [false, true, false],
     });
     // No explicit color: orange first, green halfway, blue last.
     expect(
@@ -61,6 +64,18 @@ describe("resolveThreadPipelineProgress", () => {
     expect(resolveThreadPipelineProgress(savedAt("ticket", "plan"), ThreadId.make("other"))).toBe(
       null,
     );
+  });
+
+  it("marks only the stages the thread entered, so a skipped stage stays empty", () => {
+    const jumped = labelThreadPipelineStage(
+      resolveThreadPipelineProgress(savedAt("ticket", "review", ["review"]), threadId)!,
+    );
+    expect(jumped.entered).toEqual([false, false, true]);
+
+    const revisited = labelThreadPipelineStage(
+      resolveThreadPipelineProgress(savedAt("ticket", "review", ["plan", "review"]), threadId)!,
+    );
+    expect(revisited.entered).toEqual([true, false, true]);
   });
 
   it("keeps a thread whose stage or pipeline left pipelines.json, with no place or next stage", () => {
