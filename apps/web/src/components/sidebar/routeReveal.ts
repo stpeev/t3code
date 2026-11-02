@@ -60,6 +60,14 @@ export function useActiveRowReveal(reveal: SidebarRouteReveal, routeKey: string 
   return revealRow;
 }
 
+// Selecting a row owes a reveal even with the pointer on it: a row at the
+// list's scroll edge can be clicked while only partly visible, and the route
+// reveal above skips hovered rows. The click itself scrolls, minimally.
+export function revealClickedRow(event: { readonly currentTarget: EventTarget | null }): void {
+  const row = event.currentTarget;
+  if (row instanceof HTMLElement) row.scrollIntoView({ block: "nearest" });
+}
+
 type RevealableThread = Parameters<typeof filterSidebarV2VisibleThreads>[0][number];
 
 // Render records the route before deciding, so the first render of a new route

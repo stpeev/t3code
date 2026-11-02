@@ -231,6 +231,7 @@ import { ProjectFavicon } from "./ProjectFavicon";
 import { deriveProviderEntriesByEnvironment } from "../providerInstances";
 import { useStableCallback } from "../hooks/useStableCallback";
 import {
+  revealClickedRow,
   resolveSidebarRouteReveal,
   type SidebarRouteReveal,
   useActiveRowReveal,
@@ -1572,6 +1573,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   const handleThreadClick = (event: ReactMouseEvent, threadRef: ScopedThreadRef) => {
     if (isSidebarNestedLinkClick(event.target)) return;
+    // The route reveal skips a hovered row, so the click itself reveals a
+    // row that was only partly visible at the scroll edge.
+    revealClickedRow(event);
     const isMac = isMacPlatform(navigator.platform);
     const isModClick = isMac ? event.metaKey : event.ctrlKey;
     const threadKey = scopedThreadKey(threadRef);

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
-import { render } from "../../../test/render";
+import { act, render } from "../../../test/render";
 import { Sidebar, SidebarProvider, SidebarTrigger, useSidebar } from "../ui/sidebar";
-import { type SidebarRouteReveal, useActiveRowReveal } from "./routeReveal";
+import { revealClickedRow, type SidebarRouteReveal, useActiveRowReveal } from "./routeReveal";
 
 const ROW_HEIGHT_PX = 24;
 
@@ -189,5 +189,60 @@ describe("useActiveRowReveal", () => {
     await userEvent.click(screen.getByRole("button", { name: "Toggle Sidebar" }));
 
     await expect.element(page.getByText("thread-40", { exact: true })).toBeInViewport();
+  });
+});
+
+function ClickRevealList(props: { readonly rowKeys: ReadonlyArray<string> }) {
+  return (
+    <ul
+      aria-label="Clickable threads"
+      style={{ height: ROW_HEIGHT_PX * 4, overflowY: "auto", margin: 0 }}
+    >
+      {props.rowKeys.map((key) => (
+        <li
+          key={key}
+          style={{ height: ROW_HEIGHT_PX }}
+          onClick={(event) => revealClickedRow(event)}
+        >
+          {key}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+describe("revealClickedRow", () => {
+  it("scrolls a row clicked while cut off at the scroll edge fully into view", async () => {
+    await using screen = await render(<ClickRevealList rowKeys={rowKeys(50)} />, {
+      router: false,
+    });
+    const list = screen.getByRole("list", { name: "Clickable threads" }).element();
+    // Cut the top 10px of the third row off above the viewport.
+    list.scrollTop = ROW_HEIGHT_PX * 2 + 10;
+    const target = screen.getByText("thread-2", { exact: true });
+    expect(list.scrollTop).toBe(ROW_HEIGHT_PX * 2 + 10);
+
+    // A raw click: userEvent.click would scroll the row into view itself.
+    await act(() => {
+      target.element().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(list.scrollTop).toBe(ROW_HEIGHT_PX * 2);
+    await expect.element(target).toBeInViewport();
+  });
+
+  it("leaves the scroll alone when the clicked row is already fully visible", async () => {
+    await using screen = await render(<ClickRevealList rowKeys={rowKeys(50)} />, {
+      router: false,
+    });
+    const list = screen.getByRole("list", { name: "Clickable threads" }).element();
+    list.scrollTop = ROW_HEIGHT_PX * 2;
+    const target = screen.getByText("thread-3", { exact: true });
+
+    await act(() => {
+      target.element().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(list.scrollTop).toBe(ROW_HEIGHT_PX * 2);
   });
 });
