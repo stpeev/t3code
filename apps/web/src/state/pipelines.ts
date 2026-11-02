@@ -34,7 +34,11 @@ const threadPipelineStageLabelsAtom = Atom.family((threadRef: ScopedThreadRef) =
     return progress ? labelThreadPipelineStage(progress) : null;
   }).pipe(
     Atom.withEquality<PipelineStageLabels | null>(
-      (a, b) => a?.short === b?.short && a?.pipelineId === b?.pipelineId && a?.color === b?.color,
+      (a, b) =>
+        a?.short === b?.short &&
+        a?.pipelineId === b?.pipelineId &&
+        a?.color === b?.color &&
+        String(a?.entered) === String(b?.entered),
     ),
     Atom.withLabel(`web-thread-pipeline-stage:${threadRef.environmentId}:${threadRef.threadId}`),
   ),

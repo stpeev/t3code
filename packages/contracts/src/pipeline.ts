@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import * as Rpc from "effect/rpc/Rpc";
 import * as Schema from "effect/Schema";
 
@@ -66,6 +67,14 @@ export const ThreadPipelineState = Schema.Struct({
   threadId: ThreadId,
   /** What `{input}` becomes in each of the pipeline's stages. */
   input: Schema.String,
+  /**
+   * Every stage the thread has been at, so a stage skipped by jumping ahead
+   * keeps an empty dot. Defaults to empty for state files written before this
+   * field existed; the current stage always counts as entered.
+   */
+  enteredStages: Schema.Array(PipelineStageId)
+    .check(Schema.isMaxLength(MAX_PIPELINE_STAGES))
+    .pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
   updatedAt: IsoDateTime,
 });
 export type ThreadPipelineState = typeof ThreadPipelineState.Type;
