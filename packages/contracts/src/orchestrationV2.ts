@@ -2080,6 +2080,20 @@ export const OrchestrationV2LatestVisibleMessageSummary = Schema.Struct({
 export type OrchestrationV2LatestVisibleMessageSummary =
   typeof OrchestrationV2LatestVisibleMessageSummary.Type;
 
+/**
+ * Longest text a thread shell's `latestVisibleMessage` carries. The bound keeps shell rows and
+ * their stream updates independent of transcript size.
+ */
+export const ORCHESTRATION_V2_LATEST_VISIBLE_MESSAGE_SNIPPET_MAX_CHARS = 200;
+
+/** Cuts a `latestVisibleMessage` text to the shell's snippet bound, marking a cut with an ellipsis. */
+export function truncateLatestVisibleMessageText(text: string): string {
+  const chars = Array.from(text);
+  return chars.length <= ORCHESTRATION_V2_LATEST_VISIBLE_MESSAGE_SNIPPET_MAX_CHARS
+    ? text
+    : `${chars.slice(0, ORCHESTRATION_V2_LATEST_VISIBLE_MESSAGE_SNIPPET_MAX_CHARS).join("")}…`;
+}
+
 export const OrchestrationV2ThreadShell = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,

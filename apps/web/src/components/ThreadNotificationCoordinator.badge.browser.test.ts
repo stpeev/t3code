@@ -108,6 +108,7 @@ const thread = {
   hasPendingUserInput: false,
   session: null as { status: string } | null,
   latestTurn: { turnId: "turn", state: "running", completedAt: null as string | null },
+  latestMessage: null as string | null,
 };
 let focused = false;
 let visibility = "visible";
@@ -148,7 +149,15 @@ function toV2ThreadShell(input: typeof thread) {
       : input.hasPendingApprovals
         ? { id: "request-1", kind: "command", createdAt: SHELL_NOW }
         : null,
-    latestVisibleMessage: null,
+    latestVisibleMessage:
+      input.latestMessage === null
+        ? null
+        : {
+            id: "message-latest",
+            role: "assistant",
+            text: input.latestMessage,
+            updatedAt: SHELL_NOW,
+          },
     latestUserMessageAt: null,
     hasActionableProposedPlan: false,
     itemCount: 0,
@@ -178,6 +187,16 @@ function shell(overrides: Partial<typeof thread> = {}, ...others: Partial<typeof
       ),
     }),
   };
+}
+
+/** Flattens a rendered React node tree to its text, without mounting it. */
+function reactNodeText(node: unknown): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(reactNodeText).join("");
+  if (node !== null && typeof node === "object" && "props" in node) {
+    return reactNodeText((node as { props: { children?: unknown } }).props?.children);
+  }
+  return "";
 }
 // The mocked modules read `state` and the focus flags, so every test resets them before
 // starting the service.
@@ -254,6 +273,24 @@ it("presents completion notifications and sound as soon as the shell completes",
   );
   expect(TestNotification.sent.map((sent) => sent.title)).toEqual(["Thread completed"]);
   expect(state.sound).toHaveBeenCalledWith("completion", expect.any(Function));
+});
+
+it("carries the latest visible message snippet as the toast's third line", async () => {
+  await using app = setup();
+  state.mode = "off";
+  state.inApp = true;
+  focused = true;
+  app.start();
+  state.shells.set(
+    "one",
+    shell({
+      latestTurn: { turnId: "turn", state: "completed", completedAt: "2026-09-13T07:00:01.000Z" },
+      latestMessage: "All tests pass. Ship it.",
+    }),
+  );
+  expect(state.toast).toHaveBeenCalledTimes(1);
+  const toast = state.toast.mock.calls[0]![0] as { description: unknown };
+  expect(reactNodeText(toast.description)).toContain("All tests pass. Ship it.");
 });
 
 it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
