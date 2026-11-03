@@ -25,6 +25,7 @@ import type {
   OrchestrationV2ExecutionNode,
   OrchestrationV2PlanArtifact,
   OrchestrationV2PendingRuntimeRequestSummary,
+  OrchestrationV2LatestVisibleMessageSummary,
   PlanId,
   OrchestrationV2ConversationMessage,
   OrchestrationV2ContextTransfer,
@@ -50,6 +51,9 @@ import type {
 import {
   IDLE_COMPACTION_TEXT,
   idleCompactionOf,
+  ORCHESTRATION_V2_LATEST_VISIBLE_MESSAGE_SNIPPET_MAX_CHARS,
+  OrchestrationV2LatestVisibleMessageSummaryJson as OrchestrationV2LatestVisibleMessageSummaryJsonSchema,
+  truncateLatestVisibleMessageText,
   OrchestrationV2AppThreadJson as OrchestrationV2AppThreadJsonSchema,
   OrchestrationV2CheckpointJson as OrchestrationV2CheckpointJsonSchema,
   OrchestrationV2CheckpointScopeJson as OrchestrationV2CheckpointScopeJsonSchema,
@@ -1095,6 +1099,7 @@ type ShellThreadRow = {
   readonly pending_link_request_payload_json: string | null;
   readonly latest_user_message_at: string | null;
   readonly latest_user_authored_message_at: string | null;
+  readonly latest_visible_message_json: string | null;
   readonly has_actionable_proposed_plan: number;
 };
 
@@ -1290,6 +1295,9 @@ const decodeContextHandoffPayload = Schema.decodeUnknownEffect(
 );
 const decodeContextTransferPayload = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationV2ContextTransferJsonSchema),
+);
+const decodeLatestVisibleMessagePayload = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(OrchestrationV2LatestVisibleMessageSummaryJsonSchema),
 );
 
 const isProjectionStoreThreadNotFoundError = Schema.is(ProjectionStoreThreadNotFoundError);
@@ -1628,6 +1636,37 @@ const linkCardStillAsks = (
   latestUserAuthoredMessageAt === null ||
   !DateTime.isGreaterThan(latestUserAuthoredMessageAt, item.startedAt ?? item.updatedAt);
 
+/**
+ * The newest message the thread's timeline could show, cut to the shell's snippet bound. Mirrors
+ * the `latest_visible_message_json` subquery: compaction prompts, workflow scripts, and messages
+ * of rolled-back runs stay out, so the shell never presents what the timeline hides.
+ */
+function latestVisibleMessageSummaryOf(
+  projection: OrchestrationV2ThreadProjection,
+): OrchestrationV2LatestVisibleMessageSummary | null {
+  const runStatusById = new Map(projection.runs.map((run) => [run.id, run.status]));
+  const message = projection.messages
+    .filter(
+      (message) =>
+        message.workflowScript !== true &&
+        idleCompactionOf(message) === undefined &&
+        (message.runId === null || runStatusById.get(message.runId) !== "rolled_back"),
+    )
+    .toSorted(
+      (left, right) =>
+        DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt) ||
+        (right.id > left.id ? 1 : -1),
+    )[0];
+  return message === undefined
+    ? null
+    : {
+        id: message.id,
+        role: message.role,
+        text: truncateLatestVisibleMessageText(message.text),
+        updatedAt: message.updatedAt,
+      };
+}
+
 export function threadShellFromProjection(
   projection: OrchestrationV2ThreadProjection,
 ): OrchestrationV2ThreadShell {
@@ -1760,9 +1799,8 @@ export function threadShellFromProjection(
     ),
     pendingRuntimeRequest,
     pendingGuestMessageCount: pendingGuestMessageCount(projection.thread.guestShare),
-    // Thread detail owns message bodies. Keeping them out of shell rows makes
-    // initial hydration and streaming updates independent of transcript size.
-    latestVisibleMessage: null,
+    // Thread detail owns message bodies; the shell carries only this bounded snippet.
+    latestVisibleMessage: latestVisibleMessageSummaryOf(projection),
     latestUserMessageAt: latestUserMessage?.updatedAt ?? null,
     latestUserAuthoredMessageAt,
     hasActionableProposedPlan: projection.plans.some(
@@ -1896,6 +1934,7 @@ type ShellThreadState = {
   readonly pendingRuntimeRequest: OrchestrationV2PendingRuntimeRequestSummary | null;
   readonly latestUserMessageAt: DateTime.Utc | null;
   readonly latestUserAuthoredMessageAt: DateTime.Utc | null;
+  readonly latestVisibleMessage: OrchestrationV2LatestVisibleMessageSummary | null;
   readonly hasActionableProposedPlan: boolean;
   readonly pendingBackgroundTasks: OrchestrationV2ThreadShell["pendingBackgroundTasks"];
   readonly providerInstanceHistory: OrchestrationV2ThreadShell["providerInstanceHistory"];
@@ -2066,7 +2105,7 @@ function shellFromState(input: {
     usageLimitResetAt: input.state.usageLimitResetAt,
     pendingRuntimeRequest: input.state.pendingRuntimeRequest,
     pendingGuestMessageCount: pendingGuestMessageCount(input.state.thread.guestShare),
-    latestVisibleMessage: null,
+    latestVisibleMessage: input.state.latestVisibleMessage,
     latestUserMessageAt: input.state.latestUserMessageAt,
     latestUserAuthoredMessageAt: input.state.latestUserAuthoredMessageAt,
     hasActionableProposedPlan: input.state.hasActionableProposedPlan,
@@ -7622,6 +7661,33 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 ORDER BY message.updated_at DESC, message.message_id DESC
                 LIMIT 1
               ) AS latest_user_authored_message_at,
+              (
+                -- Mirrors latestVisibleMessageSummaryOf: the newest message the timeline could
+                -- show, bounded so shell rows stay independent of transcript size.
+                SELECT json_object(
+                  'id', message.message_id,
+                  'role', message.role,
+                  'text', substr(
+                    json_extract(message.payload_json, '$.text'), 1,
+                    ${ORCHESTRATION_V2_LATEST_VISIBLE_MESSAGE_SNIPPET_MAX_CHARS + 1}
+                  ),
+                  'updatedAt', message.updated_at
+                )
+                FROM orchestration_v2_projection_messages message
+                WHERE message.thread_id = t.thread_id
+                  AND json_extract(message.payload_json, '$.workflowScript') IS NOT 1
+                  AND NOT ${isIdleCompactionMessage("message")}
+                  AND (
+                    message.run_id IS NULL
+                    OR (
+                      SELECT run.status
+                      FROM orchestration_v2_projection_runs run
+                      WHERE run.run_id = message.run_id
+                    ) IS NOT 'rolled_back'
+                  )
+                ORDER BY message.updated_at DESC, message.message_id DESC
+                LIMIT 1
+              ) AS latest_visible_message_json,
               EXISTS (
                 SELECT 1
                 FROM orchestration_v2_projection_plans plan
@@ -8130,6 +8196,17 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           row.terminal_failure_payload_json === null
             ? null
             : yield* decodeTurnItemPayload(row.terminal_failure_payload_json);
+        // The SQL side already cuts the text to the snippet bound plus one char, so the
+        // ellipsis lands here while no full message body ever reaches this row.
+        const latestVisibleMessage =
+          row.latest_visible_message_json === null
+            ? null
+            : yield* decodeLatestVisibleMessagePayload(row.latest_visible_message_json).pipe(
+                Effect.map((message) => ({
+                  ...message,
+                  text: truncateLatestVisibleMessageText(message.text),
+                })),
+              );
         let latestRunId = row.latest_run_id === null ? null : RunId.make(row.latest_run_id);
         let latestRunStatus = shellStatusFromStoredRunStatus(row.latest_run_status);
         let latestRunRequestedAt =
@@ -8230,6 +8307,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               ? null
               : DateTime.makeUnsafe(row.latest_user_message_at),
           latestUserAuthoredMessageAt,
+          latestVisibleMessage,
           hasActionableProposedPlan: row.has_actionable_proposed_plan === 1,
           pendingBackgroundTasks,
           providerInstanceHistory: providerInstanceHistoryForShell({

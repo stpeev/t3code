@@ -146,6 +146,8 @@ export function startThreadNotifications(
     const project = projectShell ? { ...projectShell, environmentId } : undefined;
     const body = project ? `${project.title} · ${thread.title}` : thread.title;
     const stageLabels = readThreadPipelineStageLabels({ environmentId, id: thread.id });
+    // The shell carries only a bounded snippet of the thread's last visible message.
+    const latestMessageSnippet = state.raw.latestVisibleMessage?.text.trim() ?? null;
     const {
       notificationMode: mode,
       inAppNotificationsEnabled,
@@ -202,6 +204,11 @@ export function startThreadNotifications(
             {thread.title}
             {stageLabels === null ? null : (
               <PipelineStageChip labels={stageLabels} compact className="ms-1 align-text-bottom" />
+            )}
+            {latestMessageSnippet === null || latestMessageSnippet === "" ? null : (
+              <span className="mt-0.5 block truncate whitespace-nowrap">
+                {latestMessageSnippet}
+              </span>
             )}
           </>
         ),

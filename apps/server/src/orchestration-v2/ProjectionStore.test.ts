@@ -9503,6 +9503,102 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
+  it.effect("carries a bounded snippet of the latest visible message in shell rows", () =>
+    Effect.gen(function* () {
+      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+      const now = yield* DateTime.now;
+      const later = DateTime.add(now, { seconds: 1 });
+      const threadId = ThreadId.make("thread:projection-shell-latest-visible");
+      const projectId = ProjectId.make("project:projection-shell-latest-visible");
+      const userMessageId = MessageId.make("message:projection-shell-latest-visible:user");
+      const assistantMessageId = MessageId.make(
+        "message:projection-shell-latest-visible:assistant",
+      );
+
+      yield* projectionStore.apply({
+        id: EventId.make("event:projection-shell-latest-visible:thread-created"),
+        type: "thread.created",
+        threadId,
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: threadId,
+          projectId,
+          title: "Shell latest visible message",
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: {
+            parentThreadId: null,
+            relationshipToParent: null,
+            rootThreadId: threadId,
+          },
+          forkedFrom: null,
+          createdAt: now,
+          updatedAt: now,
+          archivedAt: null,
+          settledOverride: null,
+          settledAt: null,
+          lastVisitedAt: null,
+          deletedAt: null,
+        },
+      });
+      yield* projectionStore.apply({
+        id: EventId.make("event:projection-shell-latest-visible:user-message"),
+        type: "message.updated",
+        threadId,
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: userMessageId,
+          threadId,
+          runId: null,
+          nodeId: null,
+          role: "user",
+          text: "please summarize",
+          attachments: [],
+          streaming: false,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+      yield* projectionStore.apply({
+        id: EventId.make("event:projection-shell-latest-visible:assistant-message"),
+        type: "message.updated",
+        threadId,
+        occurredAt: later,
+        payload: {
+          createdBy: "agent",
+          creationSource: "provider",
+          id: assistantMessageId,
+          threadId,
+          runId: null,
+          nodeId: null,
+          role: "assistant",
+          text: `${"y".repeat(300)} end`,
+          attachments: [],
+          streaming: false,
+          createdAt: now,
+          updatedAt: later,
+        },
+      });
+
+      const shell = yield* projectionStore.getShellSnapshot();
+      const shellThread = shell.threads.find((thread) => thread.id === threadId);
+
+      assert.isDefined(shellThread);
+      assert.equal(shellThread?.latestVisibleMessage?.id, assistantMessageId);
+      assert.equal(shellThread?.latestVisibleMessage?.role, "assistant");
+      assert.equal(shellThread?.latestVisibleMessage?.text, `${"y".repeat(200)}…`);
+    }),
+  );
+
   it.effect("keeps fork visible items stable after a source run is rolled back", () =>
     Effect.gen(function* () {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
