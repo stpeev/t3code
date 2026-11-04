@@ -1666,7 +1666,6 @@ export default function DiffPanel({
                     onRevealSearchMatch={unfoldDiffFile}
                     {...(onSendComposer && canSendComposer ? { onSendComposer } : {})}
                     renderHeaderPrefix={(fileDiff, fileKey, collapsed) => {
-                      const unavailable = fileDiff.cacheKey?.endsWith(":pending") === true;
                       return (
                         <DiffFileCollapseToggle
                           filePath={resolveFileDiffPath(fileDiff)}
