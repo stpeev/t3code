@@ -82,7 +82,8 @@ export interface PipelineStageLabels {
   readonly pipelineId: PipelineId;
   readonly stageName: string;
   /**
-   * The stage's own `color` from pipelines.json, else a red-to-green gradient by
+   * The stage's own `color` from pipelines.json, else the position gradient:
+   * amber early, cool blues later;
    * position; null only when the stage left pipelines.json (chip falls back to
    * the pipeline hue).
    */
@@ -99,12 +100,14 @@ export interface PipelineStageLabels {
 }
 
 /**
- * Orange at the first stage, green halfway, blue at the last: hue 30 -> 120 -> 240,
- * so the final stage reads as "done" rather than "ok".
+ * Amber over the first quarter of the pipeline (planning reads warm), then a
+ * gradual cyan -> blue -> violet drift over the rest — never green, which
+ * reads as done before the pipeline is. The hue moves at every position, so
+ * adjacent stages never share a color.
  */
 function progressColor(position: number, stageCount: number): string {
   const t = stageCount <= 1 ? 1 : (position - 1) / (stageCount - 1);
-  const hue = t <= 0.5 ? 30 + t * 180 : 120 + (t - 0.5) * 240;
+  const hue = t < 0.25 ? 35 + t * 100 : 185 + ((t - 0.25) / 0.75) * 105;
   return `hsl(${Math.round(hue)} 70% 45%)`;
 }
 

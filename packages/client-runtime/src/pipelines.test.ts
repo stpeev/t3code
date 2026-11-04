@@ -55,12 +55,12 @@ describe("resolveThreadPipelineProgress", () => {
       // The current stage counts as entered even when enteredStages is empty.
       entered: [false, true, false],
     });
-    // No explicit color: orange first, green halfway, blue last.
+    // No explicit color: amber first, then the cyan-blue-violet drift.
     expect(
       labelThreadPipelineStage(resolveThreadPipelineProgress(savedAt("ticket", "plan"), threadId)!)
         .color,
-    ).toBe("hsl(30 70% 45%)");
-    expect(labelThreadPipelineStage(review!).color).toBe("hsl(240 70% 45%)");
+    ).toBe("hsl(35 70% 45%)");
+    expect(labelThreadPipelineStage(review!).color).toBe("hsl(290 70% 45%)");
     expect(resolveThreadPipelineProgress(savedAt("ticket", "plan"), ThreadId.make("other"))).toBe(
       null,
     );
