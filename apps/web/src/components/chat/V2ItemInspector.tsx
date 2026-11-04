@@ -72,16 +72,6 @@ function SyntaxTokens({
 const monoClassName =
   "font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text";
 
-function isJsonText(text: string): boolean {
-  if (!text) return false;
-  try {
-    JSON.parse(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** A citation source, so selected text can be cited into the answer like an assistant reply. */
 function UserInputRequestBody({
   itemId,
