@@ -299,10 +299,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       : undefined;
   const groupView = use(WorkGroupViewCtx);
   // An unanswered question opens by default so its options and previews are readable and quotable.
+  const isPendingQuestion =
+    workEntry.itemType === "user_input_request" && !workEntry.questionAnswer;
   const [expanded, setExpanded] = useState(
-    () =>
-      (groupView?.state.expandedEntries.has(workEntry.id) ?? false) ||
-      (workEntry.itemType === "user_input_request" && !workEntry.questionAnswer),
+    () => (groupView?.state.expandedEntries.has(workEntry.id) ?? false) || isPendingQuestion,
   );
   const noticeMessage =
     workEntry.structuredPayload?.type === "system_notice"
@@ -322,6 +322,9 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     if (groupView) groupView.onContentReady?.(workEntry.id);
     else props.onContentReady?.();
   };
+  // A pending question's body (options and previews) stays visible in the chat until answered,
+  // so drafted content attached to the question is never hidden behind a collapsed row.
+  const showDetails = expanded || isPendingQuestion;
   const toggleExpanded = () => {
     const next = !expanded;
     if (groupView) {
@@ -685,7 +688,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
         </>
       }
     >
-      {expanded && viewedImage && threadRef ? (
+      {showDetails && viewedImage && threadRef ? (
         <WorkLogDetails kind="media">
           <ChatMarkdownAssetImage
             environmentId={threadRef.environmentId}
@@ -698,11 +701,11 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
           />
         </WorkLogDetails>
       ) : null}
-      {expanded && workEntry.questionAnswer ? (
+      {showDetails && workEntry.questionAnswer ? (
         <QuestionAnswerHistory answer={workEntry.questionAnswer} />
       ) : null}
-      {expanded && isReasoning ? <ReasoningTraceContent entries={[workEntry]} /> : null}
-      {expanded &&
+      {showDetails && isReasoning ? <ReasoningTraceContent entries={[workEntry]} /> : null}
+      {showDetails &&
       !isReasoning &&
       !workEntry.questionAnswer &&
       canExpandProjectedItem &&
