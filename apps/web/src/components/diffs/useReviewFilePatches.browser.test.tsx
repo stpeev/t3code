@@ -51,6 +51,7 @@ function Probe({ source }: { source: ReviewDiffPreviewSource }) {
     source,
     baseRef: "HEAD",
     ignoreWhitespace: false,
+    contextLines: undefined,
     theme: "dark",
     previewInput: { cwd: "/project", metadataOnly: true },
     preview: null,

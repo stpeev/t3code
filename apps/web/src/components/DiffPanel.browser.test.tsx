@@ -10,6 +10,7 @@ import {
   type ReviewDiffPreviewResult,
   type ReviewDiffPreviewSource,
   type ScopedThreadRef,
+  type VcsListCommitsResult,
   type VcsListRefsResult,
   type VcsStatusResult,
 } from "@t3tools/contracts";
@@ -35,11 +36,16 @@ const state = vi.hoisted(() => ({
   localRefs: null as unknown as ResultAtom<VcsListRefsResult>,
   remoteRefs: null as unknown as ResultAtom<VcsListRefsResult>,
   commits: null as unknown as ResultAtom<ReviewBranchCommitsResult>,
+  listCommits: null as unknown as ResultAtom<VcsListCommitsResult>,
 }));
 
-vi.mock("~/state/server", () => ({
-  serverEnvironment: { configValueAtom: () => state.config },
-}));
+vi.mock("~/state/server", async () => {
+  const { DEFAULT_RESOLVED_KEYBINDINGS } = await import("@t3tools/shared/keybindings");
+  return {
+    serverEnvironment: { configValueAtom: () => state.config },
+    primaryServerKeybindingsAtom: Atom.make(DEFAULT_RESOLVED_KEYBINDINGS),
+  };
+});
 vi.mock("~/state/review", () => ({
   reviewEnvironment: {
     diffPreview: ({ input }: { input: { baseRef?: string } }) =>
@@ -54,6 +60,7 @@ vi.mock("~/state/vcs", () => ({
     status: () => state.status,
     listRefs: ({ input }: { input: { refKind: "local" | "remote" } }) =>
       input.refKind === "local" ? state.localRefs : state.remoteRefs,
+    listCommits: () => state.listCommits,
   },
 }));
 vi.mock("~/state/entities", () => ({
@@ -65,7 +72,10 @@ vi.mock("~/state/entities", () => ({
 vi.mock("~/state/filesystem", () => ({
   useFilesystemReadAccess: () => ({ canReadFiles: true, isPending: false, error: null }),
 }));
-vi.mock("~/hooks/useThreadRouteTarget", () => ({ useThreadRouteRef: () => state.threadRef }));
+vi.mock("~/hooks/useThreadRouteTarget", () => ({
+  useThreadRouteTarget: () =>
+    state.threadRef ? { kind: "server" as const, threadRef: state.threadRef } : null,
+}));
 vi.mock("~/hooks/useSettings", () => ({
   useClientSettings: (select: (settings: ClientSettings) => unknown) =>
     select({ ...DEFAULT_CLIENT_SETTINGS, diffFilesCollapsed: state.diffFilesCollapsed }),
@@ -177,6 +187,17 @@ function setup(failedBaseRef: string | null) {
   state.localRefs = Atom.make(AsyncResult.success(refs(["dev", "main"], false)));
   state.remoteRefs = Atom.make(AsyncResult.success(refs(["origin/orphan"], true)));
   state.commits = Atom.make(AsyncResult.success({ commits: [], truncated: false }));
+  state.listCommits = Atom.make(
+    AsyncResult.success({
+      baseRef: null,
+      mergeBase: null,
+      hasRemote: true,
+      branchCommits: [],
+      branchCommitsTruncated: false,
+      contextCommits: [],
+      hasMoreContext: false,
+    }),
+  );
   useDiffPanelStore.getState().selectBranchBaseRef(state.threadRef, failedBaseRef);
   const registry = AtomRegistry.make();
   return {
@@ -222,7 +243,9 @@ it.each([
     await expect.element(screen.getByText(errorMessage, { exact: true })).toBeVisible();
     const selector = screen.getByRole("combobox", { name: /Change comparison target/ });
     await vi.waitFor(() => expect(selector.query()).not.toBeNull());
-    await userEvent.click(selector);
+    // The narrow test viewport crowds the header, so open the combobox by keyboard.
+    selector.query()!.focus();
+    await userEvent.keyboard("{Enter}");
     await expect.element(page.getByRole("option", { name: "main", exact: true })).toBeVisible();
     await userEvent.click(page.getByRole("option", { name: recovery, exact: true }));
     await expect.element(screen.getByText("No net changes in this selection.")).toBeVisible();
@@ -251,7 +274,14 @@ it.each([false, true])(
     await using screen = await render(
       <RegistryContext.Provider value={context.registry}>
         <div style={{ height: 600, display: "flex", flexDirection: "column" }}>
-          <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+          <DiffPanel
+            threadRef={context.threadRef}
+            projectId={null}
+            worktreePath={null}
+            composerDraftTarget={context.threadRef}
+            workspaceMutationId={null}
+            visible
+          />
         </div>
       </RegistryContext.Provider>,
     );

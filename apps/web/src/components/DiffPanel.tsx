@@ -527,6 +527,12 @@ export default function DiffPanel({
           ? "commit"
           : "branch-range"),
   );
+  // After a failed preview there is no source, but the base selector must stay available so the
+  // user can recover by picking another base.
+  const canSelectBranchBase = canReadFiles && canRefreshGitDiff && selectedGitScope === "branch";
+  const branchRefsCwd = branchDiffPreview.data?.cwd ?? activeCwd;
+  const comparisonHeadRef = selectedGitSource?.headRef ?? gitStatus?.refName ?? "HEAD";
+  const comparisonBaseRef = selectedGitSource?.baseRef ?? selectedBaseRef ?? "Automatic";
   const selectedCommitSubject =
     selectedCommitSha !== null && selectedGitSource?.headRef === selectedCommitSha
       ? selectedGitSource.commitSubject
@@ -657,10 +663,12 @@ export default function DiffPanel({
     loadDiffFilesOrToast(currentLoadDiffFiles, fileDiff),
   );
   const {
+    scope: filePatchScope,
     isPending: areFilePatchesPending,
     fileStates,
     retry,
     requestFile,
+    readyFilePaths,
     renderableFiles,
     remainingFileCount,
     loadNextFiles,
@@ -1200,10 +1208,10 @@ export default function DiffPanel({
             </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
-        {isGitSelection && selectedGitScope === "branch" && selectedGitSource?.baseRef && (
+        {isGitSelection && canSelectBranchBase && (
           <div
             className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-xs text-muted-foreground"
-            aria-label={`Comparing ${selectedGitSource.headRef ?? "HEAD"} against ${selectedGitSource.baseRef}`}
+            aria-label={`Comparing ${comparisonHeadRef} against ${comparisonBaseRef}`}
           >
             <Tooltip>
               <TooltipTrigger
@@ -1213,13 +1221,11 @@ export default function DiffPanel({
                   <span className="flex min-w-[min(3rem,calc(100%-2.75rem))] items-center gap-2 overflow-hidden @max-[20rem]/diff-refs:hidden" />
                 }
               >
-                <span className="min-w-0 max-w-48 truncate">
-                  {selectedGitSource.headRef ?? "HEAD"}
-                </span>
+                <span className="min-w-0 max-w-48 truncate">{comparisonHeadRef}</span>
                 <ArrowRightIcon className="size-3.5 shrink-0 opacity-70" />
               </TooltipTrigger>
               <TooltipPopup side="top">
-                {`${selectedGitSource.headRef ?? "HEAD"} → ${selectedGitSource.baseRef}`}
+                {`${comparisonHeadRef} → ${comparisonBaseRef}`}
               </TooltipPopup>
             </Tooltip>
             <Tooltip>
@@ -1229,16 +1235,16 @@ export default function DiffPanel({
                 vs
               </TooltipTrigger>
               <TooltipPopup side="top">
-                {`${selectedGitSource.headRef ?? "HEAD"} → ${selectedGitSource.baseRef}`}
+                {`${comparisonHeadRef} → ${comparisonBaseRef}`}
               </TooltipPopup>
             </Tooltip>
-            {environmentId && branchDiffPreview.data?.cwd ? (
+            {environmentId && branchRefsCwd ? (
               <BaseRefCombobox
                 environmentId={environmentId}
-                cwd={branchDiffPreview.data.cwd}
-                headRef={selectedGitSource.headRef}
+                cwd={branchRefsCwd}
+                headRef={selectedGitSource?.headRef ?? gitStatus?.refName ?? null}
                 value={selectedBaseRef}
-                displayRef={selectedGitSource.baseRef}
+                displayRef={comparisonBaseRef}
                 onChange={selectBranchBaseRef}
               />
             ) : null}

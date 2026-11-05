@@ -155,11 +155,16 @@ export function useReviewFilePatches({
       ] as const;
     }),
   );
+  // Requested files render collapsed with a load-on-expand toggle even before their patch settles;
+  // files beyond the loaded batch stay out of the code view until requested.
+  const readyFilePaths = new Set(paths);
   return {
+    scope,
     fileStates,
     isPending: [...patches.values()].some((patch) => patch._tag === "Initial" || patch.waiting),
     retry,
     requestFile,
+    readyFilePaths,
     renderableFiles,
     remainingFileCount: source ? files.length - settledFileCount : 0,
     loadNextFiles,
