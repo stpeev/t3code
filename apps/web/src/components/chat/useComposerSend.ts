@@ -1384,6 +1384,8 @@ export function useComposerSend(input: ComposerSendInput) {
           linkCheckoutPullRequest(
             scopeThreadRef(environmentId, threadIdForSend),
             checkoutPullRequestUrl,
+          );
+        }
         if (pipelineStart !== null) {
           void recordThreadPipelineStage(
             { environmentId, id: threadIdForSend },

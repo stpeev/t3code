@@ -1549,6 +1549,10 @@ export function deriveMessagesTimelineRows(input: {
       input.pendingApprovalRequestIds?.has(item.requestId) === true
     );
   };
+  // An unanswered question renders standalone (never folded into a collapsed work group) so its
+  // options and previews stay readable in the chat itself.
+  const isPendingUserInputQuestion = (entry: WorkLogEntry) =>
+    entry.itemType === "user_input_request" && entry.questionAnswer === undefined;
   const turnDiffSummaryByAssistantMessageId = new Map<MessageId, TurnDiffSummary>();
   for (const summary of input.turnDiffSummaries) {
     if (summary.assistantMessageId) {
@@ -1652,6 +1656,7 @@ export function deriveMessagesTimelineRows(input: {
         entry.entry.itemType === "notification" ||
         entry.entry.itemType === "todo_list" ||
         entry.entry.questionAnswer !== undefined ||
+        isPendingUserInputQuestion(entry.entry) ||
         isPendingApproval(entry.entry) ||
         !runIdIsActiveResponse(entry.entry.runId) ||
         entry.entry.sourceActivityKind === "context-compaction" ||
@@ -1958,7 +1963,8 @@ export function deriveMessagesTimelineRows(input: {
         timelineEntry.entry.itemType === "system_notice" ||
         timelineEntry.entry.itemType === "notification" ||
         timelineEntry.entry.itemType === "todo_list" ||
-        timelineEntry.entry.questionAnswer !== undefined
+        timelineEntry.entry.questionAnswer !== undefined ||
+        isPendingUserInputQuestion(timelineEntry.entry)
       ) {
         nextRows.push({
           kind: "work",
@@ -1985,6 +1991,7 @@ export function deriveMessagesTimelineRows(input: {
           nextEntry.entry.itemType === "notification" ||
           nextEntry.entry.itemType === "todo_list" ||
           nextEntry.entry.questionAnswer !== undefined ||
+          isPendingUserInputQuestion(nextEntry.entry) ||
           isPendingApproval(nextEntry.entry) ||
           activeWorkEntryIds.has(nextEntry.id) ||
           collapsedEntryIds.has(nextEntry.id) ||

@@ -301,7 +301,7 @@ describe("deriveMessagesTimelineRows", () => {
   });
 
   it.each(["waiting", "completed"] as const)(
-    "groups approval and user-input requests with commands without expanding them when %s",
+    "groups approval requests with commands but keeps pending user-input requests standalone when %s",
     (status) => {
       const fixture = makeStreamingTimelineFixture();
       const source = fixture.visibleTurnItems[0]!;
@@ -373,7 +373,17 @@ describe("deriveMessagesTimelineRows", () => {
       const expanded = expandedRows.find((row) => row.kind === "work" && row.isExpandedToolGroup);
       expect(
         expanded?.kind === "work" && expanded.groupedEntries.map((entry) => entry.itemType),
-      ).toEqual(["command_execution", "approval_request", "user_input_request"]);
+      ).toEqual(["command_execution", "approval_request"]);
+      // An unanswered question renders as its own row, never folded into a collapsed group,
+      // so its options and previews stay visible in the chat.
+      expect(
+        rows.some(
+          (row) =>
+            row.kind === "work" &&
+            !row.isExpandedToolGroup &&
+            row.groupedEntries.some((entry) => entry.itemType === "user_input_request"),
+        ),
+      ).toBe(true);
       expect(rows.some((row) => row.kind === "event")).toBe(false);
       expect(workRows[0]).not.toMatchObject({ expanded: true });
       expect(workRows[0]).not.toMatchObject({ isExpandedToolGroup: true });

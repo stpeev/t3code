@@ -372,6 +372,42 @@ describe("MessagesTimeline work rows", () => {
       />,
     );
     await vi.waitFor(() => expect(distanceFromEnd()).toBeLessThan(2));
+  it("keeps a pending question's options and previews visible in the chat when its row is collapsed", async () => {
+    setup();
+    await using screen = await renderTimeline([
+      work("question-1", {
+        label: "Input requested",
+        itemType: "user_input_request",
+        projectedItem: v2Item("user_input_request", {
+          id: "question-1",
+          requestId: "request-1",
+          requestKind: "user_input",
+          status: "waiting",
+          questions: [
+            {
+              id: "q1",
+              header: "Post review",
+              question: "Post this as an APPROVE review on PR #2282?",
+              options: [
+                {
+                  label: "Post as drafted",
+                  description: "Submit APPROVE exactly as shown.",
+                  preview: "LGTM — drafted review body",
+                },
+                { label: "Don't post", description: "Post nothing to GitHub." },
+              ],
+              multiSelect: false,
+            },
+          ],
+        }),
+      }),
+    ]);
+    expect(screen.text()).toContain("Post this as an APPROVE review on PR #2282?");
+    expect(screen.text()).toContain("LGTM — drafted review body");
+    await click(screen.button(/Input requested/));
+    // A pending question stays expanded in the chat, so the draft never hides behind a collapsed row.
+    expect(screen.text()).toContain("Post this as an APPROVE review on PR #2282?");
+    expect(screen.text()).toContain("LGTM — drafted review body");
   });
 
   it.each(["delegated", "legacy", "missing"] as const)(
