@@ -1471,7 +1471,7 @@ function timelineRowEntries(
 }
 
 function deriveTimelineTurnFolds(input: TimelineTurnFoldsInput) {
-  const timelineEntries = timelineRowEntries(input.timelineEntries);
+  const timelineEntries = timelineRowEntries(input);
   const unsettledRunId = deriveUnsettledRunId(input.latestRun ?? null, input.runningRunId ?? null);
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
   const activeVisualResponseRunIds = deriveActiveVisualResponseRunIds({
@@ -1562,16 +1562,19 @@ export function deriveMessagesTimelineRows(input: {
     isWorking: input.isWorking,
   });
   const runlessWorkActive = input.isWorking && input.runlessWorkActive === true;
-  const foldsByAnchorEntryId = deriveTurnFolds({
-    enabled: input.foldCompletedTurns !== false,
-    timelineEntries: timelineEntries,
-    terminalAssistantMessageIds,
-    latestRun: input.latestRun ?? null,
-    unfoldedRunIds: new Set([...activeVisualResponseRunIds, ...failedRunIds]),
-    runlessWorkActive,
-    liveSubagentEntryIds,
-    completeSupersededReplyEntryIds: completeSupersededReplyIds,
-  });
+  const foldsByAnchorEntryId =
+    input.toolCallVisibility === "zen"
+      ? new Map<string, TurnFold>()
+      : deriveTurnFolds({
+          enabled: input.foldCompletedTurns !== false,
+          timelineEntries: timelineEntries,
+          terminalAssistantMessageIds,
+          latestRun: input.latestRun ?? null,
+          unfoldedRunIds: new Set([...activeVisualResponseRunIds, ...failedRunIds]),
+          runlessWorkActive,
+          liveSubagentEntryIds,
+          completeSupersededReplyEntryIds: completeSupersededReplyIds,
+        });
   const timelineEntryById = new Map(timelineEntries.map((entry) => [entry.id, entry]));
   const collapsedEntryIds = new Set<string>();
   const collapsedFoldMemberIds = new Set<string>();
@@ -2363,6 +2366,8 @@ type TimelineTurnFoldsInput = Pick<
   | "runlessWorkActive"
   | "runningRunId"
   | "foldCompletedTurns"
+  | "toolCallVisibility"
+  | "revealedMessageId"
 >;
 
 interface MessagesTimelineRowsProjection {
