@@ -1493,7 +1493,7 @@ function timelineRowEntries(
 }
 
 function deriveTimelineTurnFolds(input: TimelineTurnFoldsInput) {
-  const timelineEntries = timelineRowEntries(input.timelineEntries);
+  const timelineEntries = timelineRowEntries(input);
   const unsettledRunId = deriveUnsettledRunId(input.latestRun ?? null, input.runningRunId ?? null);
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
   const activeVisualResponseRunIds = deriveActiveVisualResponseRunIds({
@@ -2409,6 +2409,8 @@ type TimelineTurnFoldsInput = Pick<
   | "runlessWorkActive"
   | "runningRunId"
   | "foldCompletedTurns"
+  | "toolCallVisibility"
+  | "revealedMessageId"
 >;
 
 interface MessagesTimelineRowsProjection {

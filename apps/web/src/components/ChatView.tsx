@@ -351,6 +351,7 @@ import {
   deriveLatestContextWindowSnapshot,
   hasDismissedResumeCompaction,
   latestProviderTurnTokenUsage,
+  shouldOfferResumeCompaction,
 } from "@t3tools/client-runtime/context-window";
 import {
   MOBILE_COMPOSER_VIEW_TRANSITION_NAME,
@@ -3997,13 +3998,11 @@ export default function ChatView(props: ChatViewProps) {
                       </div>
                       {isDraftHeroState && composerBannerItems.length > 0 ? (
                         // Out of flow, like the headline, so a notice never moves the centered composer.
-                        // Short windows pin the composer to the bottom, where an out-of-flow notice
-                        // would fall off-screen, so there it takes space and lifts the composer.
-                        <div className="absolute inset-x-0 top-full flex flex-col gap-1 pt-4 [@media(max-height:34rem)]:static">
+                        <div className="absolute inset-x-0 top-full flex flex-col gap-1 pt-4">
                           <ComposerBannerStack items={composerBannerItems} detached />
                         </div>
                       ) : null}
-                    </div>
+                    </ComposerSurface.Shell>
                     <div
                       aria-hidden
                       className="h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]"
@@ -4090,7 +4089,9 @@ export default function ChatView(props: ChatViewProps) {
                     ? { onCheckoutPullRequestRequest: openPullRequestDialogStable }
                     : {})}
                   onComposerFocusRequest={scheduleComposerFocusStable}
-                  {...(isGitRepo ? { onOpenChanges: openChangesFromThreadPanelStable } : {})}
+                  {...(isServerThread && isGitRepo
+                    ? { onOpenChanges: openChangesFromThreadPanelStable }
+                    : {})}
                   onRunProjectScript={runProjectScriptStable}
                   onAddProjectScript={saveProjectScriptStable}
                   onUpdateProjectScript={updateProjectScriptStable}
@@ -4102,6 +4103,7 @@ export default function ChatView(props: ChatViewProps) {
                     contextWindow: activeContextWindow,
                   }}
                 />
+
                 <PullRequestThreadDialogHost
                   threadKey={activeThreadKey}
                   environmentId={activeThread.environmentId}
