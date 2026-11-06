@@ -2094,7 +2094,6 @@ it.effect("keeps a snooze when a live question is cancelled or an approval is an
   }).pipe(Effect.provide(layerTest)),
 );
 
-
 it.effect(
   "moves a thread to another project, clearing its worktree and detaching its session",
   () =>

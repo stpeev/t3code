@@ -318,3 +318,5 @@ export function summarizeContextUsage(
     notes,
   };
 }
+
+export { hasDismissedResumeCompaction } from "./state/contextWindow.ts";
