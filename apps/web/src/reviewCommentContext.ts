@@ -83,6 +83,38 @@ export function buildFileReviewComment(input: {
   };
 }
 
+/**
+ * A comment on a marked section of a rendered diagram (node, edge, subgraph or
+ * the whole diagram). It anchors to the source line the section was found on,
+ * so it reuses the file-comment section and reveals that line in the editor.
+ */
+export function buildDiagramReviewComment(input: {
+  id: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  /** What was marked, e.g. `node "Login"`; becomes the section title. */
+  sectionLabel: string;
+  text: string;
+  contents: string;
+}): ReviewCommentContext {
+  const startLine = Math.max(1, Math.min(input.startLine, input.endLine));
+  const endLine = Math.max(startLine, Math.max(input.startLine, input.endLine));
+  const selectedLines = input.contents.split("\n").slice(startLine - 1, endLine);
+  return {
+    id: input.id,
+    sectionId: `file:${input.filePath}`,
+    sectionTitle: `Diagram ${input.sectionLabel}`,
+    filePath: input.filePath,
+    startIndex: startLine - 1,
+    endIndex: endLine - 1,
+    rangeLabel: startLine === endLine ? `L${startLine}` : `L${startLine} to L${endLine}`,
+    text: input.text.trim(),
+    diff: selectedLines.join("\n"),
+    fenceLanguage: "mermaid",
+  };
+}
+
 function isFileReviewComment(comment: ReviewCommentContext): boolean {
   return comment.sectionId === `file:${comment.filePath}`;
 }

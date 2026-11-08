@@ -1,9 +1,13 @@
 import { useState } from "react";
 
-import { MermaidDiagram } from "../chat/MermaidDiagram";
+import { MermaidDiagram, type DiagramSection } from "../chat/MermaidDiagram";
 import { ExpandedImageDialog } from "../chat/ExpandedImageDialog";
 
-export default function MermaidViewer(props: { readonly text: string }) {
+export default function MermaidViewer(props: {
+  readonly text: string;
+  /** Enables marking diagram sections and commenting on them (sent via this callback). */
+  readonly onCommentSection?: ((section: DiagramSection, text: string) => void) | undefined;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
   // Mermaid lays out DOM before sanitizing its SVG. Refuse resource and config
   // syntax before that pass so standalone files cannot initiate requests. Node
@@ -21,7 +25,11 @@ export default function MermaidViewer(props: { readonly text: string }) {
     );
   return (
     <div className="scrollbar-gutter-both min-h-0 flex-1 overflow-auto p-6 [&_*]:animate-none!">
-      <MermaidDiagram source={props.text} onExpand={setExpanded} />
+      <MermaidDiagram
+        source={props.text}
+        onExpand={setExpanded}
+        onCommentSection={props.onCommentSection}
+      />
       {expanded ? (
         <ExpandedImageDialog
           preview={{ images: [{ src: expanded, name: "Mermaid diagram" }], index: 0 }}

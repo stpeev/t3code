@@ -21,6 +21,7 @@ import {
   threadContextsOutsideEnvironment,
   threadLinkContextReferences,
   toComposerContextId,
+  unresolvableContextReferences,
   toKindScopedComposerContextId,
 } from "./composerContextReferences.ts";
 
@@ -619,5 +620,42 @@ describe("threadLinkContextReferences", () => {
       () => undefined,
     );
     expect(pasted).toEqual({ text, records: [] });
+  });
+});
+
+describe("unresolvableContextReferences", () => {
+  const terminal: ComposerContextRecord = {
+    version: 1,
+    contextId: ctx("ctx_t"),
+    kind: "terminal",
+    label: "Terminal 1 lines 3-4",
+    terminalId: "term-1",
+    terminalLabel: "Terminal 1",
+    lineStart: 3,
+    lineEnd: 4,
+    text: "boom",
+  };
+
+  it("flags references whose record is missing", () => {
+    const text =
+      "fix [log](t3-context://v1/terminal/ctx_missing) and [ok](t3-context://v1/terminal/ctx_t)";
+    expect(
+      unresolvableContextReferences({ text, records: [terminal] }).map((r) => r.contextId),
+    ).toEqual([ctx("ctx_missing")]);
+  });
+
+  it("flags references duplicated in the records", () => {
+    const text = "[dup](t3-context://v1/terminal/ctx_t)";
+    expect(unresolvableContextReferences({ text, records: [terminal, terminal] })).toHaveLength(1);
+    expect(unresolvableContextReferences({ text, records: [terminal] })).toHaveLength(0);
+  });
+
+  it("returns nothing when every reference resolves", () => {
+    expect(
+      unresolvableContextReferences({
+        text: "no refs here",
+        records: [terminal],
+      }),
+    ).toEqual([]);
   });
 });

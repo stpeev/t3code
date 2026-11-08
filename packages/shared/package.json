@@ -327,6 +327,10 @@
       "types": "./src/filePreview.ts",
       "import": "./src/filePreview.ts"
     },
+    "./mermaidBlocks": {
+      "types": "./src/mermaidBlocks.ts",
+      "import": "./src/mermaidBlocks.ts"
+    },
     "./imageDimensions": {
       "types": "./src/imageDimensions.ts",
       "import": "./src/imageDimensions.ts"

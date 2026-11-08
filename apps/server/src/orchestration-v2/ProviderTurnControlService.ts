@@ -1,4 +1,7 @@
-import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
+import {
+  projectComposerContextForProvider,
+  unresolvableContextReferences,
+} from "@t3tools/shared/composerContextReferences";
 import {
   MessageId,
   type ModelSelection,
@@ -401,6 +404,25 @@ export const layer: Layer.Layer<
               cause: "The persisted steering message or target run is missing.",
             });
           }
+          const contextRecords = message.context?.records ?? [];
+          // References without a usable record project to `unavailable` envelopes: the
+          // provider sees the inline label (location) but never the payload (comment text).
+          const unresolvable = unresolvableContextReferences({
+            text: message.text,
+            records: contextRecords,
+          });
+          if (unresolvable.length > 0) {
+            yield* Effect.logWarning(
+              "Composer context references without a usable record; provider sees the label only",
+              {
+                references: unresolvable.map((occurrence) => ({
+                  kind: occurrence.kind,
+                  contextId: occurrence.contextId,
+                  label: occurrence.label,
+                })),
+              },
+            );
+          }
           yield* loaded.session.value
             .steerTurn({
               threadId: input.threadId,
@@ -414,7 +436,7 @@ export const layer: Layer.Layer<
                 messageId: message.id,
                 text: projectComposerContextForProvider({
                   text: message.text,
-                  records: message.context?.records ?? [],
+                  records: contextRecords,
                 }),
                 attachments: message.attachments,
                 createdBy: message.createdBy,

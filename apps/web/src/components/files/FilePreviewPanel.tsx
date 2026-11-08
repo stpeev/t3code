@@ -19,6 +19,12 @@ import {
   officePreviewKind,
   binaryPreviewKind,
 } from "@t3tools/shared/filePreview";
+import {
+  extractMermaidCodeBlocks,
+  findDiagramSectionLines,
+  mermaidSourcesMatch,
+  type MermaidCodeBlock,
+} from "@t3tools/shared/mermaidBlocks";
 import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import {
@@ -77,7 +83,12 @@ import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
-import { buildFileReviewComment, type ReviewCommentContext } from "~/reviewCommentContext";
+import {
+  buildDiagramReviewComment,
+  buildFileReviewComment,
+  type ReviewCommentContext,
+} from "~/reviewCommentContext";
+import { diagramSectionLabel, type DiagramSection } from "../chat/MermaidDiagram";
 import { assetEnvironment } from "~/state/assets";
 import { usePreviewAvailable } from "~/browser/previewRuntime";
 import { useEnvironmentHttpBaseUrl, usePrimaryEnvironmentId } from "~/state/environments";
@@ -98,6 +109,7 @@ import { FileExplorerPane } from "./FileExplorerPane";
 import { FileBreadcrumbs } from "./FileBreadcrumbs";
 import { breadcrumbPathOf, retainedBreadcrumbTrail, trailChildOf } from "./filePath";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
+import { MarkdownViewCommentToolbar } from "./MarkdownViewCommentToolbar";
 import {
   type FileCommentAnnotationEntry,
   type FileCommentAnnotationGroup,
@@ -167,10 +179,15 @@ const MermaidFilePreview = lazy(() =>
   import("./MermaidFilePreview").then((module) => ({ default: module.MermaidFilePreview })),
 );
 
+const MermaidBlocksPreview = lazy(() =>
+  import("./MermaidBlocksPreview").then((module) => ({ default: module.MermaidBlocksPreview })),
+);
+
 const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
 const RENDER_BROWSER_FILE_STORAGE_KEY = "t3code.renderBrowserFile";
 const RENDER_TABLE_STORAGE_KEY = "t3code.renderTable";
+const RENDER_DIAGRAMS_STORAGE_KEY = "t3code.renderDiagrams";
 type FilePostRender = <LAnnotation>(
   fileContainer: HTMLElement,
   instance: FileInstance<LAnnotation, undefined>,
@@ -1064,6 +1081,8 @@ function RenderedMarkdownSurface({
   workspaceMutationId,
   readOnly,
   onPendingChange,
+  onDiagramComment,
+  composerDraftTarget,
 }: Omit<
   EditableFileSurfaceProps,
   | "resolvedTheme"
@@ -1077,43 +1096,76 @@ function RenderedMarkdownSurface({
   threadRef: ScopedThreadRef;
   readOnly: boolean;
   workspaceMutationId: string | null;
+  onDiagramComment?:
+    | ((diagramSource: string, section: DiagramSection | null, text: string) => void)
+    | undefined;
 }) {
   const saveTarget = { environmentId, cwd, relativePath };
   useFileSaveSession(saveTarget, onPendingChange);
+  const addReviewComment = useComposerDraftStore((store) => store.addReviewComment);
+  const [markdownViewport, setMarkdownViewport] = useState<HTMLDivElement | null>(null);
 
   return (
-    <ScrollArea className="min-h-0 flex-1" onKeyDown={selectRenderedContentOnSelectAll}>
-      <FileMarkdownPreview
-        text={contents}
-        cwd={cwd}
-        relativePath={relativePath}
-        threadRef={threadRef}
-        workspaceMutationId={workspaceMutationId}
-        onTaskListChange={
-          readOnly
-            ? undefined
-            : ({ markerOffset, checked }) => {
-                const currentContents =
-                  getOptimisticProjectFileQueryData(environmentId, cwd, relativePath)?.contents ??
-                  contents;
-                const nextContents = setMarkdownTaskChecked(currentContents, markerOffset, checked);
-                if (nextContents === currentContents) return;
-                setProjectFileQueryData(environmentId, cwd, relativePath, nextContents);
-                changeFileSaveSession(saveTarget, nextContents);
-              }
-        }
-      />
-    </ScrollArea>
+    <div ref={setMarkdownViewport} className="relative min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1" onKeyDown={selectRenderedContentOnSelectAll}>
+        <FileMarkdownPreview
+          text={contents}
+          cwd={cwd}
+          relativePath={relativePath}
+          threadRef={threadRef}
+          workspaceMutationId={workspaceMutationId}
+          onDiagramComment={onDiagramComment}
+          onTaskListChange={
+            readOnly
+              ? undefined
+              : ({ markerOffset, checked }) => {
+                  const currentContents =
+                    getOptimisticProjectFileQueryData(environmentId, cwd, relativePath)?.contents ??
+                    contents;
+                  const nextContents = setMarkdownTaskChecked(
+                    currentContents,
+                    markerOffset,
+                    checked,
+                  );
+                  if (nextContents === currentContents) return;
+                  setProjectFileQueryData(environmentId, cwd, relativePath, nextContents);
+                  changeFileSaveSession(saveTarget, nextContents);
+                }
+          }
+        />
+      </ScrollArea>
+      {markdownViewport ? (
+        <MarkdownViewCommentToolbar
+          viewport={markdownViewport}
+          contents={contents}
+          onComment={({ startLine, endLine, text }) =>
+            addReviewComment(
+              composerDraftTarget,
+              buildFileReviewComment({
+                id: nextFileCommentId(),
+                filePath: relativePath,
+                startLine,
+                endLine,
+                text,
+                contents,
+              }),
+            )
+          }
+        />
+      ) : null}
+    </div>
   );
 }
 
 function renderedToggleLabel(
-  mode: "markdown" | "mermaid" | "html" | "table",
+  mode: "markdown" | "mermaid" | "html" | "table" | "diagrams",
   rendered: boolean,
+  diagramCount = 0,
 ): string {
   if (mode === "mermaid") return rendered ? "Show Mermaid source" : "Show rendered diagram";
   if (mode === "markdown") return rendered ? "Show markdown source" : "Show rendered markdown";
   if (mode === "table") return rendered ? "Show source" : "Show table";
+  if (mode === "diagrams") return rendered ? "Show source" : `Show diagrams (${diagramCount})`;
   return rendered ? "Show HTML source" : "Show rendered page";
 }
 
@@ -1150,6 +1202,37 @@ export default function FilePreviewPanel({
   const relativePath =
     attachment === undefined ? resolveFilePreviewPath(requestedPath, cwd) : requestedPath;
   const draft = typeof composerDraftTarget === "string";
+  const addReviewComment = useComposerDraftStore((store) => store.addReviewComment);
+  // Sends a comment on a marked diagram section to the chat composer as a review
+  // comment anchored to the section's line in the source file.
+  const handleDiagramComment = (
+    path: string,
+    contents: string,
+    block: { readonly startLine: number; readonly endLine: number },
+    section: DiagramSection | null,
+    text: string,
+  ) => {
+    const lines = section
+      ? findDiagramSectionLines({
+          contents,
+          sectionId: section.id,
+          blockStartLine: block.startLine,
+          blockEndLine: block.endLine,
+        })
+      : { startLine: block.startLine, endLine: block.endLine };
+    addReviewComment(
+      composerDraftTarget,
+      buildDiagramReviewComment({
+        id: nextFileCommentId(),
+        filePath: path,
+        startLine: lines.startLine,
+        endLine: lines.endLine,
+        sectionLabel: diagramSectionLabel(section),
+        text,
+        contents,
+      }),
+    );
+  };
   const { resolvedTheme } = useTheme();
   const defaultWordWrap = useClientSettings((settings) => settings.wordWrap);
   const [wordWrapOverride, setWordWrapOverride] = useState<boolean | null>(null);
@@ -1246,6 +1329,23 @@ export default function FilePreviewPanel({
   );
   const tableDelimiter =
     previewPath && attachment === undefined ? filePreviewDelimiter({ name: previewPath }) : null;
+  const [renderDiagramsPreferred, setRenderDiagramsPreferred] = useLocalStorage(
+    RENDER_DIAGRAMS_STORAGE_KEY,
+    true,
+    Schema.Boolean,
+  );
+  // Mermaid blocks embedded in a source file (e.g. fenced blocks in JS/TS doc
+  // comments). Markdown and mermaid files already render their diagrams inline.
+  const mermaidBlocks: MermaidCodeBlock[] =
+    file.data !== null &&
+    !isMermaid &&
+    !isMarkdown &&
+    tableDelimiter === null &&
+    !isHtml &&
+    !isDocument &&
+    !isMedia
+      ? extractMermaidCodeBlocks(file.data.contents)
+      : [];
   const revealHandled =
     revealLine === null ||
     (handledReveal?.path === relativePath && handledReveal.requestId === revealRequestId);
@@ -1253,6 +1353,7 @@ export default function FilePreviewPanel({
   const renderMermaid = isMermaid && renderMermaidPreferred && revealHandled;
   const renderBrowserFile = isPdf || (isHtml && renderBrowserFilePreferred && revealHandled);
   const renderTable = tableDelimiter !== null && renderTablePreferred && revealHandled;
+  const renderDiagrams = mermaidBlocks.length > 0 && renderDiagramsPreferred && revealHandled;
   const renderedMode = isMermaid
     ? ("mermaid" as const)
     : isMarkdown
@@ -1261,7 +1362,9 @@ export default function FilePreviewPanel({
         ? ("table" as const)
         : isHtml
           ? ("html" as const)
-          : null;
+          : mermaidBlocks.length > 0
+            ? ("diagrams" as const)
+            : null;
   const canToggleRendered =
     previewPath !== null && attachment === undefined && renderedMode !== null;
   const showsRawText =
@@ -1271,6 +1374,7 @@ export default function FilePreviewPanel({
     !renderMermaid &&
     !(tableDelimiter && renderTable) &&
     !renderBrowserFile &&
+    !renderDiagrams &&
     !isDocument;
   const mayOpenEditor =
     previewPath !== null &&
@@ -1327,14 +1431,18 @@ export default function FilePreviewPanel({
       ? renderMarkdown
       : tableDelimiter
         ? renderTable
-        : renderBrowserFile;
+        : isHtml
+          ? renderBrowserFile
+          : renderDiagrams;
   const setRenderedPreferred = isMermaid
     ? setRenderMermaidPreferred
     : isMarkdown
       ? setRenderMarkdownPreferred
       : tableDelimiter
         ? setRenderTablePreferred
-        : setRenderBrowserFilePreferred;
+        : isHtml
+          ? setRenderBrowserFilePreferred
+          : setRenderDiagramsPreferred;
   const canOpenInBrowser =
     canOperatePreview &&
     previewPath !== null &&
@@ -1485,7 +1593,7 @@ export default function FilePreviewPanel({
           ) : null}
           {canToggleRendered && renderedMode ? (
             <FileSurfaceAction
-              label={renderedToggleLabel(renderedMode, rendered)}
+              label={renderedToggleLabel(renderedMode, rendered, mermaidBlocks.length)}
               pressed={rendered}
               onPress={() => {
                 const pressed = !rendered;
@@ -1541,7 +1649,7 @@ export default function FilePreviewPanel({
       !isMedia &&
       !renderBrowserFile &&
       file.data?.truncated &&
-      (draft || isMarkdown || isMermaid || isHtml) ? (
+      (draft || isMarkdown || isMermaid || isHtml || renderDiagrams) ? (
         <div className="shrink-0 border-b border-warning/20 bg-warning-surface px-3 py-1.5 text-2xs text-warning-foreground">
           Preview limited to the first 1 MB of a {file.data.byteLength.toLocaleString()} byte file.
         </div>
@@ -1625,7 +1733,8 @@ export default function FilePreviewPanel({
             !draft &&
             !isMarkdown &&
             !isMermaid &&
-            !isHtml ? (
+            !isHtml &&
+            !renderDiagrams ? (
             <WorkspaceLargeTextPreview
               key={`${absolutePath}:${renderTable}:${fileRefreshRevision}`}
               environmentId={environmentId}
@@ -1695,7 +1804,19 @@ export default function FilePreviewPanel({
           ) : relativePath && file.data ? (
             renderMermaid ? (
               <Suspense fallback={<FileSurfaceLoading />}>
-                <MermaidFilePreview text={file.data.contents} />
+                <MermaidFilePreview
+                  text={file.data.contents}
+                  onCommentSection={(section, text) => {
+                    const contents = file.data?.contents ?? "";
+                    handleDiagramComment(
+                      relativePath,
+                      contents,
+                      { startLine: 1, endLine: contents.split("\n").length },
+                      section,
+                      text,
+                    );
+                  }}
+                />
               </Suspense>
             ) : isMarkdown && renderMarkdown ? (
               <RenderedMarkdownSurface
@@ -1708,6 +1829,19 @@ export default function FilePreviewPanel({
                 workspaceMutationId={workspaceMutationId}
                 readOnly={file.data.truncated || isHostFile || !canWriteFiles}
                 onPendingChange={onPendingChange}
+                composerDraftTarget={composerDraftTarget}
+                onDiagramComment={(diagramSource, section, text) => {
+                  const markdownContents = file.data?.contents ?? "";
+                  // Anchor the comment to the fenced block in the file that matches the diagram.
+                  const block = extractMermaidCodeBlocks(markdownContents).find((candidate) =>
+                    mermaidSourcesMatch(candidate.source, diagramSource),
+                  ) ?? {
+                    source: diagramSource,
+                    startLine: 1,
+                    endLine: markdownContents.split("\n").length,
+                  };
+                  handleDiagramComment(relativePath, markdownContents, block, section, text);
+                }}
               />
             ) : tableDelimiter && renderTable ? (
               <DelimitedTablePreview
@@ -1716,6 +1850,23 @@ export default function FilePreviewPanel({
                 text={file.data.contents}
                 delimiter={tableDelimiter}
               />
+            ) : renderDiagrams ? (
+              <Suspense fallback={<FileSurfaceLoading />}>
+                <MermaidBlocksPreview
+                  key={relativePath}
+                  filePath={relativePath}
+                  blocks={mermaidBlocks}
+                  onCommentSection={(block, section, text) =>
+                    handleDiagramComment(
+                      relativePath,
+                      file.data?.contents ?? "",
+                      block,
+                      section,
+                      text,
+                    )
+                  }
+                />
+              </Suspense>
             ) : file.data.truncated || isHostFile || !canWriteFiles ? (
               <SourceFilePreview
                 name={relativePath}

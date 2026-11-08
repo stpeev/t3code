@@ -3,10 +3,11 @@ import { EnvironmentId, ThreadId, type ProjectReadFileResult } from "@t3tools/co
 import { AsyncResult } from "effect/reactivity";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { act, fakeTimers, render } from "../../../test/render";
 import appCss from "~/index.css?inline";
 import { isMacPlatform } from "~/lib/utils";
+import { useComposerDraftStore } from "~/composerDraftStore";
 import {
   createWorkspaceFocusController,
   startWorkspaceFocus,
@@ -302,5 +303,238 @@ describe("rendered Markdown select all", () => {
     // A toggled checkbox keeps focus on an input inside the preview.
     await userEvent.click(screen.getByRole("checkbox"));
     await expectFileOnlySelection();
+function diagramSetup() {
+  const keys = [
+    "t3code.fileExplorerOpen",
+    "t3code.renderMermaid",
+    "t3code.renderDiagrams",
+    "t3code.renderMarkdown",
+  ];
+  const previous = keys.map((key) => localStorage.getItem(key));
+  localStorage.setItem(keys[0]!, "false");
+  localStorage.setItem(keys[1]!, "true");
+  localStorage.setItem(keys[2]!, "true");
+  localStorage.setItem(keys[3]!, "true");
+  state.optimistic = null;
+  return {
+    [Symbol.dispose]() {
+      for (const [index, key] of keys.entries()) {
+        const value = previous[index];
+        if (value == null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      }
+    },
+  };
+}
+
+function diagramPanel(relativePath: string, contents: string, draftRef = threadRef) {
+  state.file = {
+    relativePath,
+    contents,
+    byteLength: contents.length,
+    truncated: false,
+  };
+  return (
+    <FilePreviewPanel
+      environmentId={environmentId}
+      cwd="/workspace"
+      projectName="Project"
+      relativePath={relativePath}
+      threadRef={draftRef}
+      composerDraftTarget={draftRef}
+      keybindings={[]}
+      availableEditors={[]}
+      openInShortcutEnabled={false}
+      revealLine={null}
+      revealRequestId={0}
+      onOpenFile={vi.fn()}
+      onNavigateFolder={vi.fn()}
+      folderTrail={undefined}
+      onPendingChange={vi.fn()}
+      selectedFilePending={false}
+      workspaceMutationId={null}
+    />
+  );
+}
+
+async function clickElement(element: Element): Promise<void> {
+  await act(() => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+}
+
+describe("mermaid file preview", () => {
+  it("renders .mmd files as diagrams with a source toggle", async () => {
+    using _settings = diagramSetup();
+    await using screen = await render(
+      diagramPanel("diagram.mmd", "graph TD\n  A[Login] --> B[Home]\n"),
+    );
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector("g.pele-node[data-id='A']")).not.toBeNull(),
+    );
+    expect(
+      screen.container.querySelector('button[aria-label="Show Mermaid source"]'),
+    ).not.toBeNull();
+  });
+
+  it("renders mermaid blocks embedded in a JS file as diagrams", async () => {
+    using _settings = diagramSetup();
+    const contents = [
+      "/**",
+      " * ```mermaid",
+      " * graph TD",
+      " *   A[Login] --> B[Home]",
+      " * ```",
+      " */",
+      "export const flow = 1;",
+    ].join("\n");
+    await using screen = await render(diagramPanel("src/flow.ts", contents));
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector("g.pele-node[data-id='A']")).not.toBeNull(),
+    );
+    expect(screen.container.textContent).toContain("Diagram 1 of 1");
+    expect(screen.container.textContent).toContain("L3 to L4");
+    expect(screen.container.querySelector('button[aria-label="Show source"]')).not.toBeNull();
+  });
+
+  it("sends a comment on a marked diagram section to the chat composer", async () => {
+    using _settings = diagramSetup();
+    const draftRef = {
+      environmentId: EnvironmentId.make("mermaid-comment-test"),
+      threadId: ThreadId.make("thread-mermaid-comment"),
+    };
+    await using screen = await render(
+      diagramPanel("diagram.mmd", "graph TD\n  A[Login] --> B[Home]\n", draftRef),
+    );
+
+    let node: Element | null = null;
+    await vi.waitFor(() => {
+      node = screen.container.querySelector("g.pele-node[data-id='A']");
+      expect(node).not.toBeNull();
+    });
+    await clickElement(node!);
+
+    await vi.waitFor(() =>
+      expect(
+        screen.container.querySelector("g.pele-node[data-id='A'].t3-mermaid-marked"),
+      ).not.toBeNull(),
+    );
+    const commentBox = page.getByRole("textbox", { name: /Comment on lines/ });
+    await userEvent.type(commentBox, "Should this handle SSO?");
+    await userEvent.click(page.getByRole("button", { name: "Send to chat" }));
+
+    const comments =
+      useComposerDraftStore.getState().getComposerDraft(draftRef)?.reviewComments ?? [];
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatchObject({
+      sectionId: "file:diagram.mmd",
+      sectionTitle: 'Diagram node "Login"',
+      filePath: "diagram.mmd",
+      startIndex: 1,
+      endIndex: 1,
+      rangeLabel: "L2",
+      text: "Should this handle SSO?",
+      diff: "  A[Login] --> B[Home]",
+      fenceLanguage: "mermaid",
+    });
+    useComposerDraftStore.getState().setReviewComments(draftRef, []);
+  });
+  it("sends a comment on a diagram section in a Markdown file to the chat composer", async () => {
+    using _settings = diagramSetup();
+    const draftRef = {
+      environmentId: EnvironmentId.make("mermaid-md-comment-test"),
+      threadId: ThreadId.make("thread-mermaid-md-comment"),
+    };
+    const contents = [
+      "# Plan",
+      "",
+      "```mermaid",
+      "graph TD",
+      "  A[Login] --> B[Home]",
+      "```",
+      "",
+      "Some text.",
+    ].join("\n");
+    await using screen = await render(diagramPanel("docs/plan.md", contents, draftRef));
+
+    let node: Element | null = null;
+    await vi.waitFor(() => {
+      node = screen.container.querySelector("g.pele-node[data-id='A']");
+      expect(node).not.toBeNull();
+    });
+    await clickElement(node!);
+
+    await vi.waitFor(() =>
+      expect(
+        screen.container.querySelector("g.pele-node[data-id='A'].t3-mermaid-marked"),
+      ).not.toBeNull(),
+    );
+    const commentBox = page.getByRole("textbox", { name: /Comment on lines/ });
+    await userEvent.type(commentBox, "Rename this node?");
+    await userEvent.click(page.getByRole("button", { name: "Send to chat" }));
+
+    const comments =
+      useComposerDraftStore.getState().getComposerDraft(draftRef)?.reviewComments ?? [];
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatchObject({
+      sectionId: "file:docs/plan.md",
+      sectionTitle: 'Diagram node "Login"',
+      filePath: "docs/plan.md",
+      startIndex: 4,
+      endIndex: 4,
+      rangeLabel: "L5",
+      text: "Rename this node?",
+      diff: "  A[Login] --> B[Home]",
+      fenceLanguage: "mermaid",
+    });
+    useComposerDraftStore.getState().setReviewComments(draftRef, []);
+  });
+  it("sends a text selection in a rendered Markdown file to the chat composer", async () => {
+    using _settings = diagramSetup();
+    const draftRef = {
+      environmentId: EnvironmentId.make("md-selection-test"),
+      threadId: ThreadId.make("thread-md-selection"),
+    };
+    const contents = ["# Plan", "", "Some text here.", "", "More words."].join("\n");
+    await using screen = await render(diagramPanel("docs/notes.md", contents, draftRef));
+
+    // Select the rendered paragraph text and let the selection observer settle.
+    const paragraph = screen.container.querySelector("p");
+    expect(paragraph?.textContent).toContain("Some text here.");
+    await act(() => {
+      const range = document.createRange();
+      range.selectNodeContents(paragraph!);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
+
+    const commentButton = await vi.waitFor(() => {
+      const button = [...screen.container.querySelectorAll("button")].find((candidate) =>
+        candidate.textContent?.includes("Comment"),
+      );
+      expect(button).toBeTruthy();
+      return button!;
+    });
+    await userEvent.click(commentButton);
+
+    const commentBox = page.getByRole("textbox", { name: /Comment on lines/ });
+    await userEvent.type(commentBox, "Expand this section");
+    await userEvent.click(page.getByRole("button", { name: "Send to chat" }));
+
+    const comments =
+      useComposerDraftStore.getState().getComposerDraft(draftRef)?.reviewComments ?? [];
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatchObject({
+      sectionId: "file:docs/notes.md",
+      sectionTitle: "File comment",
+      filePath: "docs/notes.md",
+      startIndex: 2,
+      endIndex: 2,
+      rangeLabel: "L3",
+      text: "Expand this section",
+      diff: "Some text here.",
+    });
+    useComposerDraftStore.getState().setReviewComments(draftRef, []);
   });
 });

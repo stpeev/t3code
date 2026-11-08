@@ -91,8 +91,10 @@ import {
 } from "../../lib/composerContextReferences";
 import {
   buildMessageContext,
+  isSendableReviewComment,
   previewAnnotationContextReference,
   responseContextReference,
+  reviewCommentContextId,
 } from "../../lib/composerContextRecords";
 import { environmentServerConfigsAtom, serverEnvironment } from "../../state/server";
 import { useEnvironmentQuery } from "../../state/query";
@@ -125,6 +127,7 @@ import { readEnvironmentScope } from "../../state/session";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  replaceComposerContextReferences,
   threadContextsOutsideEnvironment,
 } from "@t3tools/shared/composerContextReferences";
 import {
@@ -820,8 +823,35 @@ export function useComposerSend(input: ComposerSendInput) {
       reviewComments: composerReviewCommentsSnapshot,
       threadContexts: composerThreadContextsSnapshot,
       environmentContexts: composerEnvironmentContextsSnapshot,
-      messageText: messageTextForSend,
+      messageText: messageTextForSendRaw,
     } = sendSnapshot;
+    // Records the wire schema would silently drop (e.g. inverted line range) must not
+    // degrade to a bare location marker: strip their references and say so instead.
+    const droppedReviewComments = composerReviewCommentsSnapshot.filter(
+      (comment) => !isSendableReviewComment(comment),
+    );
+    const sendableReviewComments =
+      droppedReviewComments.length === 0
+        ? composerReviewCommentsSnapshot
+        : composerReviewCommentsSnapshot.filter(isSendableReviewComment);
+    let messageTextForSend = messageTextForSendRaw;
+    if (droppedReviewComments.length > 0) {
+      const droppedIds = new Set(
+        droppedReviewComments.map((comment) => reviewCommentContextId(comment.id)),
+      );
+      messageTextForSend = replaceComposerContextReferences(messageTextForSend, (occurrence) =>
+        droppedIds.has(occurrence.contextId) ? "" : occurrence.source,
+      );
+      toastManager.add(
+        stackedThreadToast({
+          type: "warning",
+          title: "Dropped an invalid review comment",
+          description: `${droppedReviewComments
+            .map((comment) => `${comment.filePath} ${comment.rangeLabel}`)
+            .join(", ")} failed validation and was removed from this message.`,
+        }),
+      );
+    }
     const {
       missingWorktreeBaseBranch,
       baseBranchForWorktree,
@@ -852,7 +882,7 @@ export function useComposerSend(input: ComposerSendInput) {
     const buildOutgoingMessageContext = (attachmentIds: ReadonlyArray<string>) =>
       buildMessageContext({
         terminalContexts: composerTerminalContextsSnapshot,
-        reviewComments: composerReviewCommentsSnapshot,
+        reviewComments: sendableReviewComments,
         previewAnnotations: composerPreviewAnnotationsSnapshot,
         threadContexts: composerThreadContextsSnapshot,
         environmentContexts: composerEnvironmentContextsSnapshot,

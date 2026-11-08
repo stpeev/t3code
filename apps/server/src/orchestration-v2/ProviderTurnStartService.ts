@@ -1,5 +1,8 @@
 import { modelSelectionsEqual } from "@t3tools/shared/model";
-import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
+import {
+  projectComposerContextForProvider,
+  unresolvableContextReferences,
+} from "@t3tools/shared/composerContextReferences";
 import {
   CommandId,
   latestProviderTurnForAttempt,
@@ -865,9 +868,28 @@ export const layer: Layer.Layer<
       });
       let effectiveHandoffs = handoffs;
       let resumeFellBack = false;
+      const contextRecords = message.context?.records ?? [];
+      // References without a usable record project to `unavailable` envelopes: the
+      // provider sees the inline label (location) but never the payload (comment text).
+      const unresolvable = unresolvableContextReferences({
+        text: message.text,
+        records: contextRecords,
+      });
+      if (unresolvable.length > 0) {
+        yield* Effect.logWarning(
+          "Composer context references without a usable record; provider sees the label only",
+          {
+            references: unresolvable.map((occurrence) => ({
+              kind: occurrence.kind,
+              contextId: occurrence.contextId,
+              label: occurrence.label,
+            })),
+          },
+        );
+      }
       const userText = projectComposerContextForProvider({
         text: message.text,
-        records: message.context?.records ?? [],
+        records: contextRecords,
       });
       // Native goal commands go verbatim; handoff history waits a turn.
       const goalDriver =

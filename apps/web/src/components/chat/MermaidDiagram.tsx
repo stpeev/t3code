@@ -1,9 +1,89 @@
 import DOMPurify from "dompurify";
 import type { DiagramType, MathResolver } from "pele/lazy";
-import { use, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
 import { Button } from "../ui/button";
+import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
+
+/** A markable section of a rendered diagram: a node, edge or subgraph. */
+export interface DiagramSection {
+  readonly kind: "node" | "edge" | "cluster";
+  readonly id: string;
+  readonly label: string;
+}
+
+export function diagramSectionKey(section: DiagramSection): string {
+  return `${section.kind}:${section.id}`;
+}
+
+/** Human-readable name for a marked diagram section, used in comment labels. */
+export function diagramSectionLabel(section: DiagramSection | null): string {
+  if (!section) return "diagram";
+  const name = section.label && section.label !== section.id ? ` "${section.label}"` : "";
+  if (section.kind === "node") return `node${name || ` "${section.id}"`}`;
+  if (section.kind === "cluster") return `section${name || ` "${section.id}"`}`;
+  return `edge${name || ` "${section.id}"`}`;
+}
+
+const MARKABLE_SELECTOR = "g.pele-node, g.pele-edge, g.pele-cluster";
+const MARKABLE_CLASS = "t3-mermaid-markable";
+const MARKED_CLASS = "t3-mermaid-marked";
+
+// Injected once per document head; the diagram SVG itself is sanitized without
+// <style>, so the highlight rules must live outside it. The panel can be portaled
+// into a popout window, so key the style on the container's own document.
+const markStylesInstalled = new WeakSet<Document>();
+
+function ensureDiagramMarkStyles(doc: Document): void {
+  if (markStylesInstalled.has(doc)) return;
+  markStylesInstalled.add(doc);
+  const style = doc.createElement("style");
+  style.setAttribute("data-t3-mermaid-mark", "");
+  style.textContent = [
+    `.${MARKABLE_CLASS} { cursor: pointer; }`,
+    `.${MARKABLE_CLASS}:hover { filter: drop-shadow(0 0 2px var(--ring)); }`,
+    `.${MARKED_CLASS}, .${MARKED_CLASS}:hover { filter: drop-shadow(0 0 4px var(--ring)); }`,
+  ].join("\n");
+  doc.head.append(style);
+}
+
+function decorateSections(container: HTMLElement): void {
+  for (const element of container.querySelectorAll(MARKABLE_SELECTOR)) {
+    element.classList.add(MARKABLE_CLASS);
+  }
+}
+
+function sectionFromElement(element: Element): DiagramSection | null {
+  const kind = element.classList.contains("pele-node")
+    ? ("node" as const)
+    : element.classList.contains("pele-edge")
+      ? ("edge" as const)
+      : element.classList.contains("pele-cluster")
+        ? ("cluster" as const)
+        : null;
+  if (!kind) return null;
+  const id = element.getAttribute("data-id") ?? "";
+  const label = (element.textContent ?? "").replace(/\s+/g, " ").trim();
+  return { kind, id, label: label || id };
+}
+
+function escapeAttributeValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function applyMarked(container: HTMLElement, selectedSection: string | null): void {
+  for (const element of container.querySelectorAll(`.${MARKED_CLASS}`)) {
+    element.classList.remove(MARKED_CLASS);
+  }
+  if (!selectedSection) return;
+  const separator = selectedSection.indexOf(":");
+  const kind = selectedSection.slice(0, separator);
+  const id = selectedSection.slice(separator + 1);
+  container
+    .querySelector(`g.pele-${kind}[data-id="${escapeAttributeValue(id)}"]`)
+    ?.classList.add(MARKED_CLASS);
+}
 
 type Pele = typeof import("pele/lazy");
 type PeleLoad = { readonly status: "loaded"; readonly pele: Pele } | { readonly status: "failed" };
@@ -222,12 +302,27 @@ function diagramImageUrl(svg: SVGSVGElement): string {
 export function MermaidDiagram({
   source,
   onExpand,
+  markable = false,
+  onSelectSection,
+  onCommentSection,
 }: {
   source: string;
   onExpand: (imageUrl: string) => void;
+  /** Lets the user mark diagram sections (nodes, edges, subgraphs) for commenting. */
+  markable?: boolean;
+  onSelectSection?: (section: DiagramSection | null) => void;
+  /** Enables marking plus a comment bar whose submission is sent via this callback. */
+  onCommentSection?: ((section: DiagramSection, text: string) => void) | undefined;
 }) {
   const [, setAttempt] = useState(0);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<DiagramSection | null>(null);
+  const containerRef = useRef<HTMLSpanElement | null>(null);
+  const markingEnabled = markable || onCommentSection !== undefined;
+  const selectedKey = selected === null ? null : diagramSectionKey(selected);
+  // Read by the imperative mount's onRender; updated in the effect below so a
+  // selection change does not remount the diagram.
+  const selectedKeyRef = useRef<string | null>(selectedKey);
   const trimmedSource = source.trim();
   const core = use(loadCore());
   const type = core.status === "loaded" ? detectDiagramType(core.pele, trimmedSource) : null;
@@ -236,6 +331,7 @@ export function MermaidDiagram({
 
   // Re-created, and so remounted, whenever the renderer, math support or source changes.
   const mountDiagram = (container: HTMLSpanElement) => {
+    containerRef.current = container;
     if (load.status !== "loaded") return;
     const mounted = load.pele.mount(container, trimmedSource, {
       links: false,
@@ -244,14 +340,35 @@ export function MermaidDiagram({
       // Keep the author's direction; a wide diagram scales down to fit instead of turning vertical.
       autoDirection: false,
       ...(math ? { math, sanitize: sanitizeMathDiagramSvg } : { sanitize: sanitizeDiagramSvg }),
-      onRender: () => setRenderError(null),
+      onRender: () => {
+        setRenderError(null);
+        if (markingEnabled) {
+          decorateSections(container);
+          applyMarked(container, selectedKeyRef.current);
+        }
+      },
       onError: (error) =>
         setRenderError(
           error instanceof Error ? error.message : "The diagram could not be rendered.",
         ),
     });
-    return () => mounted.destroy();
+    return () => {
+      containerRef.current = null;
+      mounted.destroy();
+    };
   };
+
+  // Re-apply the marked highlight on selection change; onRender re-applies both
+  // after every (re)mount because pele renders asynchronously.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the imperative pele mount in step with the selected section: updates the ref its onRender reads and toggles the marked class on the rendered SVG
+  useEffect(() => {
+    selectedKeyRef.current = selectedKey;
+    const container = containerRef.current;
+    if (!container || !markingEnabled) return;
+    ensureDiagramMarkStyles(container.ownerDocument);
+    decorateSections(container);
+    applyMarked(container, selectedKey);
+  }, [markingEnabled, selectedKey]);
 
   if (load.status === "failed") {
     return (
@@ -267,19 +384,53 @@ export function MermaidDiagram({
     );
   }
 
+  const selectedLabel = diagramSectionLabel(selected);
   return (
     <div
       className="chat-markdown-mermaid overflow-x-auto"
       data-markdown-mermaid=""
       data-markdown-copy={serializeCodeBlockToMarkdown(source, "mermaid")}
     >
+      {onCommentSection && selected ? (
+        <div className="mb-2 border-b border-border pb-2">
+          <DiffCommentAnnotation
+            kind="draft"
+            rangeLabel={selectedLabel}
+            text=""
+            placeholder={`Comment on ${selectedLabel} and send it to the chat…`}
+            submitLabel="Send to chat"
+            onCancel={() => setSelected(null)}
+            onComment={(text) => {
+              if (!text.trim()) return;
+              onCommentSection(selected, text);
+              setSelected(null);
+            }}
+          />
+        </div>
+      ) : null}
       {renderError ? <DiagramError message={renderError} source={source} /> : null}
       <button
         type="button"
-        aria-label="Expand diagram"
+        aria-label={
+          markingEnabled
+            ? "Diagram; click a node, edge or subgraph to comment on it"
+            : "Expand diagram"
+        }
         hidden={renderError !== null}
         className="block w-full cursor-zoom-in rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         onClick={(event) => {
+          if (markingEnabled) {
+            const marked = (event.target as Element).closest?.(MARKABLE_SELECTOR);
+            if (marked) {
+              const section = sectionFromElement(marked);
+              if (section) {
+                const next = selectedKey === diagramSectionKey(section) ? null : section;
+                setSelected(next);
+                onSelectSection?.(next);
+                return;
+              }
+            }
+          }
           const svg = event.currentTarget.querySelector("svg");
           if (svg) onExpand(diagramImageUrl(svg));
         }}

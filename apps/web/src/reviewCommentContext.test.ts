@@ -3,6 +3,7 @@ import { parsePatchFiles } from "@pierre/diffs/utils/parsePatchFiles";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  buildDiagramReviewComment,
   buildDiffReviewComment,
   buildFileReviewComment,
   buildReviewCommentRenderablePatch,
@@ -279,5 +280,52 @@ describe("review comment context parsing", () => {
     expect(
       resolveDiffReviewAnchor(fileDiff, { start: 2, side: "additions", end: 22 }, true),
     ).toEqual({ position: { kind: "added", newLine: 22 } });
+  });
+});
+
+describe("buildDiagramReviewComment", () => {
+  const contents = ["graph TD", "  A[Login] --> B[Home]", "  subgraph S[Auth]", "  end"].join("\n");
+
+  it("anchors a diagram section comment to its source line as a file comment", () => {
+    const comment = buildDiagramReviewComment({
+      id: "diagram-1",
+      filePath: "diagram.mmd",
+      startLine: 2,
+      endLine: 2,
+      sectionLabel: 'node "Login"',
+      text: "  Should this handle SSO? ",
+      contents,
+    });
+    expect(comment).toEqual({
+      id: "diagram-1",
+      sectionId: "file:diagram.mmd",
+      sectionTitle: 'Diagram node "Login"',
+      filePath: "diagram.mmd",
+      startIndex: 1,
+      endIndex: 1,
+      rangeLabel: "L2",
+      text: "Should this handle SSO?",
+      diff: "  A[Login] --> B[Home]",
+      fenceLanguage: "mermaid",
+    });
+    // Reuses the file-comment path, so the composer chip reveals L2 in the editor.
+    expect(reviewCommentFileLine(comment)).toBe(2);
+  });
+
+  it("formats multi-line ranges and clamps inverted input", () => {
+    const comment = buildDiagramReviewComment({
+      id: "diagram-2",
+      filePath: "src/app.ts",
+      startLine: 9,
+      endLine: 4,
+      sectionLabel: "diagram",
+      text: "Whole block",
+      contents: "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\n",
+    });
+    expect(comment.rangeLabel).toBe("L4 to L9");
+    expect(comment.startIndex).toBe(3);
+    expect(comment.endIndex).toBe(8);
+    expect(comment.diff).toBe("d\ne\nf\ng\nh\ni");
+    expect(comment.fenceLanguage).toBe("mermaid");
   });
 });

@@ -24,6 +24,7 @@ import {
   previewAnnotationFromRecord,
   pullRequestContextKindLabel,
   resolveUserMessageContext,
+  isSendableReviewComment,
   reviewCommentContextLabel,
   selectedMessageContextFragment,
   reviewCommentContextRecord,
@@ -481,5 +482,34 @@ describe("selectedMessageContextFragment", () => {
 
     expect(fragment).toContain(review.contextId);
     expect(fragment).not.toContain(terminal.contextId);
+  });
+});
+
+describe("isSendableReviewComment", () => {
+  const base = {
+    id: "rc-1",
+    sectionId: "file:a/b.ts",
+    sectionTitle: "File comment",
+    filePath: "a/b.ts",
+    startIndex: 3,
+    endIndex: 3,
+    rangeLabel: "L4",
+    text: "looks wrong",
+    diff: "const a = 1;",
+    fenceLanguage: "ts",
+  };
+
+  it("accepts a well-formed comment", () => {
+    expect(isSendableReviewComment(base)).toBe(true);
+  });
+
+  it("rejects a record the wire schema would silently drop (inverted range)", () => {
+    expect(isSendableReviewComment({ ...base, startIndex: 9, endIndex: 2 })).toBe(false);
+  });
+
+  it("rejects oversized fields like a PR sectionId over 255 chars", () => {
+    expect(isSendableReviewComment({ ...base, sectionId: `pull-request:${"x".repeat(300)}` })).toBe(
+      false,
+    );
   });
 });
