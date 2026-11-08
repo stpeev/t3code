@@ -319,4 +319,7 @@ export function summarizeContextUsage(
   };
 }
 
-export { hasDismissedResumeCompaction } from "./state/contextWindow.ts";
+export {
+  hasDismissedResumeCompaction,
+  shouldOfferResumeCompaction,
+} from "./state/contextWindow.ts";
