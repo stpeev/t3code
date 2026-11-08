@@ -216,6 +216,7 @@ import { MarkdownCodeBlock, SuspenseShikiCodeBlock } from "./chat/MarkdownCodeBl
 import { createMarkdownRenderer } from "./chat/markdownRenderer";
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
+import type { DiagramSection } from "./chat/MermaidDiagram";
 import { MarkdownTable } from "./chat/MarkdownTable";
 import { MarkdownDetails } from "./chat/MarkdownDetails";
 import {
@@ -268,6 +269,10 @@ interface ChatMarkdownProps {
   imageBaseDir?: string | undefined;
   workspaceMutationId?: string | null | undefined;
   onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
+  /** Mermaid blocks become markable; a comment on a marked section arrives with the block's source. */
+  onDiagramComment?:
+    | ((diagramSource: string, section: DiagramSection | null, text: string) => void)
+    | undefined;
   /** Keep one list per configuration (a module constant): it keys the shared parse cache. */
   extraRemarkPlugins?: NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
   renderContextReference?: ((reference: ChatMarkdownContextReference) => ReactNode) | undefined;
@@ -541,6 +546,7 @@ function useChatMarkdownState({
   imageBaseDir,
   workspaceMutationId,
   onImageExpand,
+  onDiagramComment,
   renderContextReference,
   headingLevelOffset = 0,
   sourceControlMedia = false,
@@ -1040,6 +1046,7 @@ function useChatMarkdownState({
     onTaskListChange,
     onUseArtifactTemplate,
     onRunShellCommand,
+    onDiagramComment,
     openChangeRequestLink,
     openIssueLink,
     openDeferredMarkdownLink,
@@ -1775,6 +1782,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       expandMedia,
       isStreaming,
       onRunShellCommand,
+      onDiagramComment,
       inline,
       mathEnabled,
     } = use(ChatMarkdownRendererContext);
@@ -1828,6 +1836,11 @@ const CHAT_MARKDOWN_COMPONENTS = {
               images: [{ src, name: gt("Mermaid diagram"), mimeType: "image/svg+xml" }],
               index: 0,
             })
+          }
+          onCommentSection={
+            onDiagramComment
+              ? (section, text) => onDiagramComment(codeBlock.code, section, text)
+              : undefined
           }
         >
           {highlightedCode}

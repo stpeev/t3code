@@ -391,6 +391,25 @@ function formatEnvelopeEntry(
   return `${open}>\n${escapeComposerContextPayloadText(body)}\n</${CONTEXT_ENTRY_TAG}>`;
 }
 
+/**
+ * References in `text` with no usable record in `records` — missing, duplicated
+ * (deduped to undefined), or dropped by the wire schema's silent decode filter.
+ * These project to `unavailable="true"` envelope entries, so the provider sees
+ * the inline label (location) but never the payload (comment text, quoted code).
+ */
+export function unresolvableContextReferences(input: {
+  text: string;
+  records: ReadonlyArray<ComposerContextRecord>;
+}): ComposerContextReferenceOccurrence[] {
+  const recordsById = new Map<ComposerContextId, ComposerContextRecord | undefined>();
+  for (const record of input.records) {
+    recordsById.set(record.contextId, recordsById.has(record.contextId) ? undefined : record);
+  }
+  return collectComposerContextReferences(input.text).filter(
+    (occurrence) => recordsById.get(occurrence.contextId) === undefined,
+  );
+}
+
 export function projectComposerContextForProvider(input: {
   text: string;
   records: ReadonlyArray<ComposerContextRecord>;

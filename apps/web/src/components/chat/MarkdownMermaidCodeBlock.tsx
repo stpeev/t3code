@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { MarkdownCodeBlock } from "./MarkdownCodeBlock";
 import { findRevealRef, MarkdownFindContext } from "./markdownFindContext";
-import { MermaidDiagram } from "./MermaidDiagram";
+import { MermaidDiagram, type DiagramSection } from "./MermaidDiagram";
 
 export function MarkdownMermaidCodeBlock({
   code,
@@ -15,6 +15,7 @@ export function MarkdownMermaidCodeBlock({
   theme,
   isStreaming,
   onExpand,
+  onCommentSection,
   children,
 }: {
   code: string;
@@ -22,6 +23,8 @@ export function MarkdownMermaidCodeBlock({
   theme: "light" | "dark";
   isStreaming: boolean;
   onExpand: (imageUrl: string) => void;
+  /** Enables marking diagram sections and sending a comment on one via this callback. */
+  onCommentSection?: ((section: DiagramSection, text: string) => void) | undefined;
   children: ReactNode;
 }) {
   const gt = useGT();
@@ -70,7 +73,7 @@ export function MarkdownMermaidCodeBlock({
               </pre>
             }
           >
-            <MermaidDiagram source={code} onExpand={onExpand} />
+            <MermaidDiagram source={code} onExpand={onExpand} onCommentSection={onCommentSection} />
           </Suspense>
           {searching ? (
             <pre ref={sourceRevealRef} hidden aria-hidden>

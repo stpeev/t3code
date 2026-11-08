@@ -1,4 +1,7 @@
-import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
+import {
+  projectComposerContextForProvider,
+  unresolvableContextReferences,
+} from "@t3tools/shared/composerContextReferences";
 import {
   MessageId,
   type ModelSelection,
@@ -19,7 +22,6 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
-import * as McpAppModelContext from "../mcpApps/McpAppModelContext.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
@@ -115,7 +117,6 @@ export const layer: Layer.Layer<
   ProviderTurnControlServiceV2,
   never,
   | EventSink.EventSinkV2
-  | McpAppModelContext.McpAppModelContext
   | ProjectionStore.ProjectionStoreV2
   | ProviderSessionManager.ProviderSessionManagerV2
 > = Layer.effect(
@@ -124,7 +125,6 @@ export const layer: Layer.Layer<
     const eventSink = yield* EventSink.EventSinkV2;
     const projections = yield* ProjectionStore.ProjectionStoreV2;
     const sessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
-    const mcpAppModelContext = yield* McpAppModelContext.McpAppModelContext;
 
     const load = Effect.fn("ProviderTurnControlService.load")(function* (input: {
       readonly threadId: ThreadId;
@@ -448,10 +448,25 @@ export const layer: Layer.Layer<
               cause: "The persisted steering message or target run is missing.",
             });
           }
-          const appContext = yield* McpAppModelContext.forProvider(
-            mcpAppModelContext,
-            input.threadId,
-          );
+          const contextRecords = message.context?.records ?? [];
+          // References without a usable record project to `unavailable` envelopes: the
+          // provider sees the inline label (location) but never the payload (comment text).
+          const unresolvable = unresolvableContextReferences({
+            text: message.text,
+            records: contextRecords,
+          });
+          if (unresolvable.length > 0) {
+            yield* Effect.logWarning(
+              "Composer context references without a usable record; provider sees the label only",
+              {
+                references: unresolvable.map((occurrence) => ({
+                  kind: occurrence.kind,
+                  contextId: occurrence.contextId,
+                  label: occurrence.label,
+                })),
+              },
+            );
+          }
           yield* loaded.session.value
             .steerTurn({
               threadId: input.threadId,
@@ -461,9 +476,9 @@ export const layer: Layer.Layer<
               ...(input.modelSelection === undefined
                 ? {}
                 : { modelSelection: input.modelSelection }),
-              ...(appContext.length === 0 ? {} : { appContext }),
               message: {
                 messageId: message.id,
+<<<<<<< HEAD
                 text: withMessageSenderNote(
                   message,
                   projectComposerContextForProvider({
@@ -471,6 +486,12 @@ export const layer: Layer.Layer<
                     records: message.context?.records ?? [],
                   }),
                 ),
+=======
+                text: projectComposerContextForProvider({
+                  text: message.text,
+                  records: contextRecords,
+                }),
+>>>>>>> fd0398aa56 (feat(web): comment on mermaid diagram sections and text selected in file previews)
                 attachments: message.attachments,
                 createdBy: message.createdBy,
                 creationSource: message.creationSource,

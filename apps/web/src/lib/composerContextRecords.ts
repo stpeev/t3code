@@ -2,11 +2,13 @@ import {
   capitalizeTerm,
   sourceControlClients,
 } from "@t3tools/client-runtime/source-control-clients";
+import * as Schema from "effect/Schema";
 import {
   COMPOSER_CONTEXT_PREVIEW_COMMENT_MAX_CHARS,
   COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS,
   COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS,
   COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS,
+  ReviewCommentContextRecord,
 } from "@t3tools/contracts";
 import type {
   ComposerContextId,
@@ -56,6 +58,22 @@ const RESPONSE_LABEL_MAX_CHARS = 64;
 
 // Truncate selections to wire bounds before persistence to avoid send-time encoding failures.
 const TRUNCATION_MARKER = "\n… truncated …";
+
+/**
+ * The wire schema (`OrchestrationMessageContext`) silently drops records that fail
+ * validation, which degrades the provider prompt to a bare location marker. The send
+ * path checks this so an invalid comment can be dropped loudly instead.
+ */
+const decodeReviewCommentRecord = Schema.decodeSync(ReviewCommentContextRecord);
+
+export function isSendableReviewComment(comment: ReviewCommentContext): boolean {
+  try {
+    decodeReviewCommentRecord(reviewCommentContextRecord(comment));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function clampContextText(value: string, max: number): string {
   if (value.length <= max) return value;
