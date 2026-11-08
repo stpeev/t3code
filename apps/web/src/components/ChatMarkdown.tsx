@@ -209,6 +209,7 @@ import { matchInlineSkills } from "@t3tools/shared/inlineSkills";
 import { collectComposerModelMentions } from "@t3tools/client-runtime/composer-model-mentions";
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
+import type { DiagramSection } from "./chat/MermaidDiagram";
 import { MarkdownTable } from "./chat/MarkdownTable";
 import { MarkdownDetails } from "./chat/MarkdownDetails";
 import {
@@ -263,6 +264,10 @@ interface ChatMarkdownProps {
   onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
   /** Keep one object per configuration (a module constant): it keys the shared parse cache. */
   extensions?: MarkdownExtensions | undefined;
+  /** Mermaid blocks become markable; a comment on a marked section arrives with the block's source. */
+  onDiagramComment?:
+    | ((diagramSource: string, section: DiagramSection | null, text: string) => void)
+    | undefined;
   renderContextReference?: ((reference: ChatMarkdownContextReference) => ReactNode) | undefined;
   /** Loads media a source control host keeps behind a credential through the server, which holds
       `cwd`'s; without it a private repository's uploads load unauthenticated and 404. */
@@ -592,6 +597,7 @@ function useChatMarkdownState(
     imageBaseDir,
     workspaceMutationId,
     onImageExpand,
+    onDiagramComment,
     renderContextReference,
     headingLevelOffset = 0,
     sourceControlMedia = false,
@@ -1108,6 +1114,7 @@ function useChatMarkdownState(
     onTaskListChange,
     onUseArtifactTemplate,
     onRunShellCommand,
+    onDiagramComment,
     openChangeRequestLink,
     openIssueLink,
     openDeferredMarkdownLink,
@@ -1845,9 +1852,14 @@ const CHAT_MARKDOWN_COMPONENTS = {
   },
   pre: function MarkdownPre({ node, children, ...props }) {
     const gt = useGT();
-    const { resolvedTheme, diffThemeName, expandMedia, isStreaming, onRunShellCommand } = use(
-      ChatMarkdownRendererContext,
-    );
+    const {
+      resolvedTheme,
+      diffThemeName,
+      expandMedia,
+      isStreaming,
+      onRunShellCommand,
+      onDiagramComment,
+    } = use(ChatMarkdownRendererContext);
     const text = use(ChatMarkdownTextContext);
     const codeBlock = extractCodeBlock(children);
     if (!codeBlock) {
@@ -1889,6 +1901,11 @@ const CHAT_MARKDOWN_COMPONENTS = {
               images: [{ src, name: gt("Mermaid diagram"), mimeType: "image/svg+xml" }],
               index: 0,
             })
+          }
+          onCommentSection={
+            onDiagramComment
+              ? (section, text) => onDiagramComment(codeBlock.code, section, text)
+              : undefined
           }
         >
           {highlightedCode}

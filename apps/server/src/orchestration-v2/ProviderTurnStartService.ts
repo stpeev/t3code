@@ -1,6 +1,9 @@
 import { classifyCodexManagedError } from "../provider/CodexManagedErrors.ts";
 import { modelSelectionsEqual } from "@t3tools/shared/model";
-import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
+import {
+  projectComposerContextForProvider,
+  unresolvableContextReferences,
+} from "@t3tools/shared/composerContextReferences";
 import { expandAssistantCitationsForProvider } from "@t3tools/shared/assistantCitations";
 import {
   CommandId,
@@ -1200,11 +1203,30 @@ export const layer: Layer.Layer<
       });
       let effectiveHandoffs = handoffs;
       let resumeFellBack = false;
+      const contextRecords = providerMessage.context?.records ?? [];
+      // References without a usable record project to `unavailable` envelopes: the
+      // provider sees the inline label (location) but never the payload (comment text).
+      const unresolvable = unresolvableContextReferences({
+        text: providerMessage.text,
+        records: contextRecords,
+      });
+      if (unresolvable.length > 0) {
+        yield* Effect.logWarning(
+          "Composer context references without a usable record; provider sees the label only",
+          {
+            references: unresolvable.map((occurrence) => ({
+              kind: occurrence.kind,
+              contextId: occurrence.contextId,
+              label: occurrence.label,
+            })),
+          },
+        );
+      }
       const messageText = withMessageSenderNote(
         providerMessage,
         projectComposerContextForProvider({
           text: providerMessage.text,
-          records: providerMessage.context?.records ?? [],
+          records: contextRecords,
         }),
       );
       const slashCommand = isSlashCommandMessage(providerMessage);

@@ -1,6 +1,7 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 
 import ChatMarkdown from "~/components/ChatMarkdown";
+import type { DiagramSection } from "~/components/chat/MermaidDiagram";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { maskMarkdownFrontmatter } from "@t3tools/shared/markdownFrontmatter";
 
@@ -13,6 +14,9 @@ export function FileMarkdownPreview(props: {
   readonly className?: string;
   readonly onTaskListChange?:
     | ((input: { readonly markerOffset: number; readonly checked: boolean }) => void)
+    | undefined;
+  readonly onDiagramComment?:
+    | ((diagramSource: string, section: DiagramSection | null, text: string) => void)
     | undefined;
 }) {
   const lastSeparator = Math.max(
@@ -33,6 +37,7 @@ export function FileMarkdownPreview(props: {
       workspaceMutationId={props.workspaceMutationId}
       className={props.className ?? "mx-auto max-w-4xl px-6 py-5"}
       onTaskListChange={props.onTaskListChange}
+      onDiagramComment={props.onDiagramComment}
     />
   );
 }
