@@ -1364,57 +1364,6 @@ function selectAutoApprovedPermissionOption(
   );
 }
 
-/**
- * Generic ACP form properties express choices either as a string `enum` or as
- * `oneOf`/`anyOf` option objects (`{ const, title }`); agents like Mistral Vibe
- * use the object form, nesting it under `items` for multi-select questions.
- */
-function elicitationOptionList(candidates: unknown): OrchestrationV2UserInputQuestion["options"] {
-  if (!Array.isArray(candidates)) return [];
-  return candidates.flatMap((entry) => {
-    const record = unknownRecord(entry);
-    if (record === undefined) return [];
-    const label = nonEmptyText(record.title, "");
-    const value = nonEmptyText(record.const, label);
-    if (label.length === 0 || value.length === 0) return [];
-    return [{ label, description: nonEmptyText(record.description, label), value }];
-  });
-}
-
-function elicitationFormOptions(record: Record<string, unknown>): {
-  options: OrchestrationV2UserInputQuestion["options"];
-  multiSelect: boolean;
-} {
-  const multiSelect = record.type === "array";
-  if (Array.isArray(record.enum)) {
-    return {
-      options: record.enum
-        .filter((value): value is string => typeof value === "string")
-        .map((value) => ({ label: value, description: value })),
-      multiSelect,
-    };
-  }
-  const items = unknownRecord(record.items);
-  const candidates = record.oneOf ?? record.anyOf ?? (multiSelect ? items?.anyOf : undefined);
-  return { options: elicitationOptionList(candidates), multiSelect };
-}
-
-function elicitationContent(
-  answers: ProviderUserInputAnswers,
-  allowedKeys: ReadonlySet<string>,
-): Record<string, EffectAcpSchema.ElicitationContentValue> {
-  const content: Record<string, EffectAcpSchema.ElicitationContentValue> = {};
-  for (const [key, value] of Object.entries(answers)) {
-    if (!allowedKeys.has(key)) continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      content[key] = value;
-    } else if (Array.isArray(value)) {
-      content[key] = value.filter((entry): entry is string => typeof entry === "string");
-    }
-  }
-  return content;
-}
-
 interface ActiveTextSegment {
   readonly nativeItemId: string;
   readonly startedAt: DateTime.Utc;
@@ -6877,32 +6826,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               if (form === undefined) return { action: "decline" } as const;
               const elicitationScopeId =
                 "sessionId" in params ? params.sessionId : `request:${params.requestId}`;
-              const questions =
-                nativeForm?.questions ??
-                Object.entries(properties).map(
-                  ([id, property], index): OrchestrationV2UserInputQuestion => {
-                    const record = unknownRecord(property);
-                    const parsed =
-                      record === undefined ? undefined : elicitationFormOptions(record);
-                    const options =
-                      parsed !== undefined && parsed.options.length > 0
-                        ? parsed.options
-                        : record?.type === "boolean"
-                          ? [
-                              { label: "true", description: "Yes" },
-                              { label: "false", description: "No" },
-                            ]
-                          : (parsed?.options ?? []);
-                    const multiSelect = parsed?.multiSelect ?? false;
-                    return {
-                      id,
-                      header: nonEmptyText(record?.title, `Question ${index + 1}`),
-                      question: nonEmptyText(record?.description, params.message),
-                      options,
-                      ...(multiSelect ? { multiSelect } : {}),
-                    };
-                  },
-                );
               const userInput = yield* requestUserInputWithAdmission(
                 handlerGeneration,
                 Effect.gen(function* () {
