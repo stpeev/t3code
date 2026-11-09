@@ -2,10 +2,12 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
   CommandId,
+  type OrchestrationV2DomainEvent,
   PipelineId,
   PipelineStageId,
   type PipelinesStartStageInput,
   ProjectId,
+  renderPipelineStagePrompt,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -13,11 +15,14 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
 import * as Path from "effect/Path";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../config.ts";
+import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as PipelineDefinitions from "./PipelineDefinitions.ts";
 import * as PipelineService from "./PipelineService.ts";
@@ -27,6 +32,8 @@ const ticket = PipelineId.make("ticket");
 const plan = PipelineStageId.make("plan");
 const develop = PipelineStageId.make("develop");
 const review = PipelineStageId.make("review");
+const goal = PipelineId.make("goal");
+const work = PipelineStageId.make("work");
 const definitions: PipelineDefinitions.PipelineDefinitionsState = {
   pipelines: [
     {
@@ -37,6 +44,13 @@ const definitions: PipelineDefinitions.PipelineDefinitionsState = {
         { id: develop, name: "Develop", prompt: "Build {input}." },
         { id: review, name: "Review", prompt: "Review {input}." },
       ],
+    },
+    {
+      id: goal,
+      name: "Goal",
+      automation: "auto",
+      maxContinuations: 2,
+      stages: [{ id: work, name: "Work", prompt: "Work on {input}." }],
     },
   ],
   issues: [],
@@ -65,15 +79,23 @@ const withService = <A, E, R>(
   body: (
     service: PipelineService.PipelineService["Service"],
     sent: ReadonlyArray<ThreadManagementService.ThreadManagementSendInput>,
+    publish: (event: OrchestrationV2DomainEvent) => Effect.Effect<boolean>,
+    takeSent: Effect.Effect<ThreadManagementService.ThreadManagementSendInput>,
   ) => Effect.Effect<A, E, R>,
 ) =>
-  Effect.suspend(() => {
+  Effect.gen(function* () {
     const sent: Array<ThreadManagementService.ThreadManagementSendInput> = [];
+    const sentQueue = yield* Queue.unbounded<ThreadManagementService.ThreadManagementSendInput>();
+    const events = yield* PubSub.unbounded<OrchestrationV2DomainEvent>();
     const layerFakes = Layer.mergeAll(
       Layer.mock(PipelineDefinitions.PipelineDefinitions)({
         configPath: "/unused/pipelines.json",
         current: Effect.succeed(definitions),
         changes: Stream.make(definitions),
+      }),
+      Layer.mock(Orchestrator.OrchestratorV2)({
+        streamDomainEvents: Stream.fromPubSub(events),
+        streamStoredEventsFrom: () => Stream.empty,
       }),
       Layer.mock(ThreadManagementService.ThreadManagementService)({
         getThreadShell: () =>
@@ -83,12 +105,13 @@ const withService = <A, E, R>(
         sendToThread: (input) =>
           Effect.sync(() => {
             sent.push(input);
-            return {} as never;
-          }),
+          }).pipe(Effect.andThen(Queue.offer(sentQueue, input)), Effect.as({} as never)),
       }),
     );
-    return PipelineService.PipelineService.pipe(
-      Effect.flatMap((service) => body(service, sent)),
+    return yield* PipelineService.PipelineService.pipe(
+      Effect.flatMap((service) =>
+        body(service, sent, (event) => PubSub.publish(events, event), Queue.take(sentQueue)),
+      ),
       Effect.provide(PipelineService.layer.pipe(Layer.provide(layerFakes))),
     );
   });
@@ -136,19 +159,19 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
           })),
           [
             {
-              text: "Plan Fix the login bug.",
+              text: renderPipelineStagePrompt("Plan {input}.", "Fix the login bug", plan),
               mode: "queue",
               createdBy: "user",
               modelSelection: undefined,
             },
             {
-              text: "Build Fix the login bug.",
+              text: renderPipelineStagePrompt("Build {input}.", "Fix the login bug", develop),
               mode: "queue",
               createdBy: "user",
               modelSelection: composerModel,
             },
             {
-              text: "Plan Ship the signup flow.",
+              text: renderPipelineStagePrompt("Plan {input}.", "Ship the signup flow", plan),
               mode: "queue",
               createdBy: "user",
               modelSelection: undefined,
@@ -162,6 +185,10 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
             stageId: plan,
             input: "Ship the signup flow",
             enteredStages: [plan, develop],
+            status: "running",
+            detail: null,
+            history: [],
+            continuations: 0,
           },
         ]);
       }),
@@ -268,10 +295,30 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
           stageId: plan,
           input: "Fix the login bug",
           enteredStages: [plan],
+          status: "running",
+          detail: null,
+          history: [],
+          continuations: 0,
         },
-        { ...other, enteredStages: [develop] },
+        {
+          ...other,
+          enteredStages: [develop],
+          status: "running",
+          detail: null,
+          history: [],
+          continuations: 0,
+        },
       ]);
-      assert.deepEqual(afterLeaving, [{ ...other, enteredStages: [develop] }]);
+      assert.deepEqual(afterLeaving, [
+        {
+          ...other,
+          enteredStages: [develop],
+          status: "running",
+          detail: null,
+          history: [],
+          continuations: 0,
+        },
+      ]);
     }).pipe(Effect.provide(layerConfig())),
   );
 
@@ -288,6 +335,10 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
             stageId: review,
             input: "Fix the login bug",
             enteredStages: [plan, review],
+            status: "running",
+            detail: null,
+            history: [],
+            continuations: 0,
           },
         ]);
       }),
@@ -319,5 +370,99 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
       assert.lengthOf(asideNames, 1);
       assert.equal(yield* fs.readFileString(path.join(stateDir, asideNames[0] ?? "")), unreadable);
     }).pipe(Effect.provide(layerConfig())),
+  );
+
+  it.effect(
+    "an auto pipeline re-prompts a quiet stage up to maxContinuations, then waits for a person",
+    () =>
+      withService(makeThread(), (service, sent, publish, takeSent) =>
+        Effect.gen(function* () {
+          yield* service.startStage({
+            pipelineId: goal,
+            stageId: work,
+            commandId: CommandId.make("command:work"),
+            threadId,
+            expected: null,
+            creationSource: "web",
+          });
+          const quietTurn = Effect.gen(function* () {
+            yield* publish({
+              type: "message.updated",
+              threadId,
+              payload: {
+                threadId,
+                role: "assistant",
+                streaming: false,
+                text: "still working on it",
+              },
+            } as never);
+            yield* publish({
+              type: "run.updated",
+              threadId,
+              payload: { status: "completed" },
+            } as never);
+          });
+          const waitForStatus = (status: string) =>
+            service.subscribe.pipe(
+              Stream.filter((snapshot) => snapshot.threads[0]?.status === status),
+              Stream.runHead,
+            );
+
+          yield* quietTurn;
+          yield* takeSent;
+          yield* quietTurn;
+          yield* takeSent;
+          // Budget (2) exhausted: the next quiet turn stops the pipeline.
+          yield* quietTurn;
+          yield* waitForStatus("waiting_input");
+
+          const continuations = sent.slice(1).map((input) => input.text);
+          assert.lengthOf(continuations, 2);
+          assert.isTrue(continuations[0]!.includes("Continue where you left off"));
+          assert.isTrue(continuations.every((text) => text.includes("PIPELINE: DONE")));
+          assert.lengthOf(sent, 3);
+          const states = yield* savedStages(service);
+          assert.equal(states[0]?.status, "waiting_input");
+          assert.equal(states[0]?.continuations, 2);
+        }),
+      ).pipe(Effect.provide(layerConfig())),
+  );
+
+  it.effect("an auto pipeline advances on DONE without a human", () =>
+    withService(makeThread(), (service, sent, publish) =>
+      Effect.gen(function* () {
+        yield* service.startStage({
+          pipelineId: goal,
+          stageId: work,
+          commandId: CommandId.make("command:work"),
+          threadId,
+          expected: null,
+          creationSource: "web",
+        });
+        yield* publish({
+          type: "message.updated",
+          threadId,
+          payload: {
+            threadId,
+            role: "assistant",
+            streaming: false,
+            text: "finished.\nPIPELINE: DONE",
+          },
+        } as never);
+        yield* publish({
+          type: "run.updated",
+          threadId,
+          payload: { status: "completed" },
+        } as never);
+        yield* service.subscribe.pipe(
+          Stream.filter((snapshot) => snapshot.threads[0]?.status === "done"),
+          Stream.runHead,
+        );
+
+        const states = yield* savedStages(service);
+        assert.equal(states[0]?.status, "done");
+        assert.lengthOf(sent, 1);
+      }),
+    ).pipe(Effect.provide(layerConfig())),
   );
 });

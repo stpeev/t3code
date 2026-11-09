@@ -904,7 +904,11 @@ export function useComposerSend(input: ComposerSendInput) {
       effort: ctxSelectedPromptEffort,
       text:
         pipelineStart !== null
-          ? renderPipelineStagePrompt(pipelineStart.stage.prompt, pipelineStart.task)
+          ? renderPipelineStagePrompt(
+              pipelineStart.stage.prompt,
+              pipelineStart.task,
+              pipelineStart.stage.id,
+            )
           : messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
     });
     if (composerRef.current?.validateProviderInput(outgoingMessageText) === false) {

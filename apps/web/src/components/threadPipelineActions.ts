@@ -216,7 +216,7 @@ export async function stagePipelineAsDraft(
     .getState()
     .setPrompt(
       { environmentId: thread.environmentId, threadId: thread.id },
-      renderPipelineStagePrompt(stage.prompt, input),
+      renderPipelineStagePrompt(stage.prompt, input, stage.id),
     );
   onDrafted?.();
   return true;

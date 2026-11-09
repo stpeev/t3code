@@ -32,6 +32,9 @@ const savedAt = (pipelineId: string, stageId: string, entered: ReadonlyArray<str
       stageId: PipelineStageId.make(stageId),
       input: "Fix the login bug",
       enteredStages: entered.map((id) => PipelineStageId.make(id)),
+      status: "running" as const,
+      detail: null,
+      history: [],
       updatedAt: "2026-10-29T00:00:00.000Z",
     },
   ],
@@ -54,6 +57,8 @@ describe("resolveThreadPipelineProgress", () => {
       stageCount: 3,
       // The current stage counts as entered even when enteredStages is empty.
       entered: [false, true, false],
+      status: "running",
+      detail: null,
     });
     // No explicit color: amber first, then the cyan-blue-violet drift.
     expect(

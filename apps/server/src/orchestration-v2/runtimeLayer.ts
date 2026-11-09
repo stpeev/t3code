@@ -411,7 +411,9 @@ export const layerProduction = Layer.mergeAll(
   layerAgentSessionScannerProvided,
   layerAgentSessionImporterProvided,
   EffectOutbox.layerPruneWorker.pipe(Layer.provide(EffectOutbox.layer)),
-  PipelineService.layer.pipe(Layer.provide(layerThreadManagementProvided)),
+  PipelineService.layer.pipe(
+    Layer.provide(Layer.merge(layerThreadManagementProvided, layerOrchestratorProvided)),
+  ),
 ).pipe(
   Layer.provide(ResourceCleanupService.layer.pipe(Layer.provide(layerScheduledTaskProvided))),
   Layer.provide(Scheduler.layer),

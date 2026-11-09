@@ -8,7 +8,13 @@ import {
   AuthSettingsWriteScope,
   EnvironmentAuthorizationError,
 } from "./auth.ts";
-import { CommandId, IsoDateTime, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import {
+  CommandId,
+  IsoDateTime,
+  PositiveInt,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "./baseSchemas.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import { OrchestrationV2CreationSource } from "./orchestrationV2.ts";
 
@@ -43,8 +49,24 @@ export const PipelineStage = Schema.Struct({
   name: TrimmedNonEmptyString,
   prompt: TrimmedNonEmptyString,
   color: Schema.optional(PipelineStageColor),
+  /**
+   * When true, the pipeline stops after this stage's DONE verdict until a
+   * person accepts it — even in an `auto` pipeline. Approval always wins
+   * over automation.
+   */
+  approval: Schema.optional(Schema.Boolean),
+  /**
+   * Sent as a separate verifier turn after the stage reports DONE: the
+   * verifier judges the stage's report and diff against these acceptance
+   * criteria and answers `PIPELINE: VERIFIED` or `PIPELINE: REJECTED: <why>`.
+   * Only a VERIFIED stage advances automatically.
+   */
+  verifyPrompt: Schema.optional(TrimmedNonEmptyString),
 });
 export type PipelineStage = typeof PipelineStage.Type;
+
+export const PipelineAutomation = Schema.Literals(["manual", "auto"]);
+export type PipelineAutomation = typeof PipelineAutomation.Type;
 
 export const PipelineDefinition = Schema.Struct({
   id: PipelineId,
@@ -53,6 +75,19 @@ export const PipelineDefinition = Schema.Struct({
     Schema.isMinLength(1),
     Schema.isMaxLength(MAX_PIPELINE_STAGES),
   ),
+  /**
+   * "auto" lets the server send the next stage's prompt as soon as the
+   * current one ends with `PIPELINE: DONE` (and passes verification), with
+   * no human in the loop. Absent or "manual": stages start only from the UI.
+   */
+  automation: Schema.optional(PipelineAutomation),
+  /**
+   * In an "auto" pipeline, how many times the server re-prompts a stage whose
+   * turn ended without a verdict line before waiting on a person. Absent: 0.
+   * Makes a one-stage auto pipeline behave like a /goal: the runtime keeps
+   * the thread going until it says DONE.
+   */
+  maxContinuations: Schema.optional(PositiveInt),
 });
 export type PipelineDefinition = typeof PipelineDefinition.Type;
 
@@ -60,6 +95,31 @@ const ThreadPipelinePosition = Schema.Struct({
   pipelineId: PipelineId,
   stageId: PipelineStageId,
 });
+
+export const PipelineStageStatus = Schema.Literals([
+  /** A stage's (or verifier's) prompt was sent and its turn has not ended yet. */
+  "running",
+  /** The verifier prompt was sent after a DONE verdict; its turn has not ended. */
+  "verifying",
+  /** DONE on an `approval` stage: waiting for a person to accept the next stage. */
+  "waiting_approval",
+  /** WAITING verdict, no verdict line, or the run needs input: waiting on a person. */
+  "waiting_input",
+  /** FAILED verdict, REJECTED verification, or the run itself failed. */
+  "failed",
+  /** The last stage's verdict was DONE (and verified, when a verifier is set). */
+  "done",
+]);
+export type PipelineStageStatus = typeof PipelineStageStatus.Type;
+
+export const PipelineStageRun = Schema.Struct({
+  stageId: PipelineStageId,
+  outcome: Schema.Literals(["done", "failed"]),
+  /** The FAILED/REJECTED reason, when there was one. */
+  detail: Schema.optional(Schema.String),
+  at: IsoDateTime,
+});
+export type PipelineStageRun = typeof PipelineStageRun.Type;
 
 /** The pipeline a thread is in, at the last stage sent to it. */
 export const ThreadPipelineState = Schema.Struct({
@@ -75,6 +135,22 @@ export const ThreadPipelineState = Schema.Struct({
   enteredStages: Schema.Array(PipelineStageId)
     .check(Schema.isMaxLength(MAX_PIPELINE_STAGES))
     .pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
+  /**
+   * Where the thread is in the pipeline. Defaults to "running" for state
+   * files written before this field existed: their stage prompt was sent and
+   * unanswered at the time.
+   */
+  status: PipelineStageStatus.pipe(Schema.withDecodingDefaultKey(Effect.succeed("running"))),
+  /** The last FAILED/REJECTED/waiting detail, null while healthy. */
+  detail: Schema.NullOr(Schema.String).pipe(Schema.withDecodingDefaultKey(Effect.succeed(null))),
+  /** Finished stages in order. Defaults to empty for older state files. */
+  history: Schema.Array(PipelineStageRun).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
+  /**
+   * Continuation turns sent for the current stage because it ended without a
+   * verdict line. Reset to 0 whenever a stage (or the verifier) is sent.
+   * Defaults to 0 for older state files.
+   */
+  continuations: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
   updatedAt: IsoDateTime,
 });
 export type ThreadPipelineState = typeof ThreadPipelineState.Type;
@@ -154,8 +230,92 @@ export class PipelineError extends Schema.TaggedError<PipelineError>()("Pipeline
   cause: Schema.optional(Schema.Defect()),
 }) {}
 
-export function renderPipelineStagePrompt(prompt: string, input: string): string {
-  return prompt.replaceAll("{input}", input);
+export function renderPipelineStagePrompt(
+  prompt: string,
+  input: string,
+  stageId?: PipelineStageId,
+): string {
+  const body = prompt.replaceAll("{input}", input);
+  const reportLine =
+    stageId === undefined
+      ? "write a short report of this stage to pipeline-reports/"
+      : `write a short report of this stage to pipeline-reports/${stageId}.md`;
+  // Appended to every stage prompt so the server can read the stage's outcome
+  // from the final reply (see pipelineVerdictOf) in both manual and auto modes.
+  const rule =
+    "\n\nPipeline rule: this stage is finished only when its work is complete and verified, " +
+    "not when it has been started. Don't end your turn while anything it depends on still runs: " +
+    "run tests, builds and checks in the foreground and wait for their result. Before your " +
+    `verdict, read the earlier reports in pipeline-reports/ and ${reportLine} (what you did, ` +
+    "decisions, open questions, how to verify). End your final reply with exactly one of these " +
+    "lines:\n`PIPELINE: DONE` (all of it is finished and verified)\n" +
+    "`PIPELINE: FAILED: <why>` (it can't be finished)\n" +
+    "`PIPELINE: WAITING` (it can't go on until someone acts: my answer to a question, or a " +
+    "reviewer, an author or a merge)";
+  return `${body}\n${rule}`;
+}
+
+/** The verifier turn sent after a stage reports DONE on a stage with verifyPrompt. */
+export function renderPipelineVerifyPrompt(
+  stageName: string,
+  stageId: PipelineStageId,
+  verifyPrompt: string,
+  input: string,
+): string {
+  return (
+    `Verify the "${stageName}" stage of this pipeline, which just reported DONE. ` +
+    "Read pipeline-reports/ (especially the stage's own report and any earlier ones) and the " +
+    `diff this stage produced. Acceptance criteria: ${verifyPrompt.replaceAll("{input}", input)}\n\n` +
+    `Append your verdict to pipeline-reports/${stageId}.verify.md. End your final reply with ` +
+    "exactly one of these lines:\n`PIPELINE: VERIFIED` (the stage meets the criteria)\n" +
+    "`PIPELINE: REJECTED: <what is missing or wrong>`"
+  );
+}
+
+/**
+ * Sent when an auto pipeline's stage turn ends without a verdict line, up to
+ * the pipeline's maxContinuations: like a /goal, the runtime keeps the thread
+ * going instead of stopping on a quiet turn.
+ */
+export function renderPipelineContinuationPrompt(stageName: string): string {
+  return (
+    `The previous turn ended without a verdict, so the "${stageName}" stage is not finished. ` +
+    "Continue where you left off: don't repeat work that already took effect, finish what " +
+    "remains (running tests, builds and checks in the foreground), and end your final reply " +
+    "with exactly one of these lines:\n`PIPELINE: DONE`\n`PIPELINE: FAILED: <why>`\n" +
+    "`PIPELINE: WAITING` (only if a person or something outside this session must act first)"
+  );
+}
+
+export const PipelineVerdict = Schema.Literals([
+  "done",
+  "failed",
+  "waiting",
+  "verified",
+  "rejected",
+]);
+export type PipelineVerdict = typeof PipelineVerdict.Type;
+
+export interface PipelineVerdictReading {
+  readonly verdict: PipelineVerdict;
+  /** The text after `FAILED:` / `REJECTED:`, empty for the others. */
+  readonly detail: string;
+}
+
+const VERDICT_LINE = /PIPELINE:[\s*_`]*(DONE|FAILED|WAITING|VERIFIED|REJECTED)\b[ \t]*:?([^\n]*)/gi;
+
+/**
+ * The verdict a stage left in its final reply: the last `PIPELINE: …` line,
+ * so a quoted or mentioned line earlier in the reply doesn't win. Null when
+ * the reply has none — a quiet turn is not a finished stage.
+ */
+export function pipelineVerdictOf(text: string): PipelineVerdictReading | null {
+  let last: PipelineVerdictReading | null = null;
+  for (const match of text.matchAll(VERDICT_LINE)) {
+    const verdict = match[1]!.toLowerCase() as PipelineVerdict;
+    last = { verdict, detail: (match[2] ?? "").trim().replace(/[\s*_`]+$/u, "") };
+  }
+  return last;
 }
 
 // RPC registration lives here, and rpc.ts plus the auth/metrics maps spread it in.
