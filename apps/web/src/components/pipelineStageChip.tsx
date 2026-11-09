@@ -64,7 +64,22 @@ export function PipelineStageChip(props: {
   readonly className?: string;
 }) {
   const { labels, tone = "default", testId, compact = false, className } = props;
-  const failed = tone === "error";
+  const failed = tone === "error" || labels.status === "failed";
+  // waiting_approval / waiting_input / verifying: the pipeline is stopped on a person or a check.
+  const waiting =
+    labels.status === "waiting_approval" ||
+    labels.status === "waiting_input" ||
+    labels.status === "verifying";
+  const statusWord =
+    labels.status === "failed"
+      ? "failed"
+      : labels.status === "done"
+        ? "done"
+        : waiting
+          ? labels.status === "waiting_approval"
+            ? "awaiting accept"
+            : "waiting"
+          : null;
   const hue = pipelineHue(labels.pipelineId);
   // A stage's own CSS color becomes the chip background, passed through as-is;
   // otherwise the pipeline hue only tints border and text over the sidebar
@@ -97,6 +112,11 @@ export function PipelineStageChip(props: {
     >
       <WorkflowIcon className="size-3 shrink-0 opacity-70" />
       <span className="truncate">{labels.stageName}</span>
+      {compact || statusWord === null ? null : (
+        <span className={`shrink-0 opacity-70 ${waiting ? "animate-pulse" : ""}`}>
+          {statusWord}
+        </span>
+      )}
       {compact || count === 0 ? null : (
         <span className={`flex ${DOTS_WRAP_WIDTH} flex-wrap items-center gap-0.5`}>
           {Array.from({ length: count }, (_, index) => (

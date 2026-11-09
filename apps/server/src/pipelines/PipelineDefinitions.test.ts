@@ -30,10 +30,13 @@ const pipelineIds = (state: PipelineDefinitions.PipelineDefinitionsState) =>
 it.layer(NodeServices.layer)("PipelineDefinitions", (it) => {
   it.effect("fills in every {input} and leaves other braces alone", () =>
     Effect.sync(() => {
-      assert.equal(
-        renderPipelineStagePrompt("Plan {input}; keep {input} and {title} as {they} are.", "X"),
-        "Plan X; keep X and {title} as {they} are.",
+      const rendered = renderPipelineStagePrompt(
+        "Plan {input}; keep {input} and {title} as {they} are.",
+        "X",
       );
+      // The stage prompt itself is unchanged; the verdict/reports rule is appended after it.
+      assert.isTrue(rendered.startsWith("Plan X; keep X and {title} as {they} are.\n"));
+      assert.isTrue(rendered.includes("PIPELINE: DONE"));
     }),
   );
 
