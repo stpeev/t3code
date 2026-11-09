@@ -88,7 +88,10 @@ export async function resolveComposerPipeline(input: {
       task,
     );
     if (recorded) {
-      input.setDraftPrompt(input.draftTarget, renderPipelineStagePrompt(start.stage.prompt, task));
+      input.setDraftPrompt(
+        input.draftTarget,
+        renderPipelineStagePrompt(start.stage.prompt, task, start.stage.id),
+      );
     }
     return { type: "handled" };
   }

@@ -2,6 +2,7 @@ import type {
   PipelineDefinition,
   PipelineId,
   PipelineStage,
+  PipelineStageStatus,
   PipelinesSnapshot,
   ThreadId,
   ThreadPipelineState,
@@ -97,6 +98,10 @@ export interface PipelineStageLabels {
    * stage always counts as entered.
    */
   readonly entered: ReadonlyArray<boolean>;
+  /** Where the thread is in the pipeline: running, verifying, waiting on a person, failed, done. */
+  readonly status: PipelineStageStatus;
+  /** The last FAILED/REJECTED/waiting detail, null while healthy. */
+  readonly detail: string | null;
 }
 
 /**
@@ -124,6 +129,8 @@ export function labelThreadPipelineStage(progress: ThreadPipelineProgress): Pipe
     position: progress.position,
     stageCount: count,
     entered: (pipeline?.stages ?? []).map((entry) => enteredIds.has(entry.id)),
+    status: state.status,
+    detail: state.detail,
   };
   if (pipeline === null || stage === null) {
     return {
