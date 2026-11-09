@@ -205,7 +205,7 @@ function SubagentModelRow({
                 model={configured.model}
                 modelOptions={configured.options ?? []}
                 allowPromptInjectedEffort={false}
-                planModeEnabled={settings.planModeEnabled || selectsPlanAgent(configured.options)}
+                includePlanAgent={selectsPlanAgent(configured.options)}
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
                 onModelOptionsChange={(options) =>
                   save(createModelSelection(configured.instanceId, configured.model, options))

@@ -3284,10 +3284,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                       return (
                         <SidebarSearchResultRow
                           isSettled={settledThreadKeys.has(threadKey)}
-                            settlementSupported={
-                              serverConfigs.get(thread.environmentId)?.environment.capabilities
-                                .threadSettlement === true
-                            }
+                          settlementSupported={
+                            serverConfigs.get(thread.environmentId)?.environment.capabilities
+                              .threadSettlement === true
+                          }
                           key={threadKey}
                           thread={thread}
                           project={

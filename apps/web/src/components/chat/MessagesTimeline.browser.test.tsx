@@ -372,6 +372,8 @@ describe("MessagesTimeline work rows", () => {
       />,
     );
     await vi.waitFor(() => expect(distanceFromEnd()).toBeLessThan(2));
+  });
+
   it("keeps a pending question's options and previews visible in the chat when its row is collapsed", async () => {
     setup();
     await using screen = await renderTimeline([

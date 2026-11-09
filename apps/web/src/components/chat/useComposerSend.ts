@@ -350,7 +350,6 @@ export function useComposerSend(input: ComposerSendInput) {
   const handleNewThread = useNewThreadHandler();
   const navigate = useNavigate();
   const clientSettingsHydrated = useClientSettingsHydrated();
-  const planModeEnabled = useEnvironmentSettings(environmentId, selectPlanModeEnabled);
   const pipelinesSnapshot = useEnvironmentQuery(
     serverEnvironment.pipelinesLive({ environmentId, input: {} }),
   ).data;

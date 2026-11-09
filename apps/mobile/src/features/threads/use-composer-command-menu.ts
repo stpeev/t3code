@@ -108,15 +108,9 @@ export function buildComposerSlashCommandItems(input: {
   readonly offersSideChat?: boolean;
   /** Whether the composer can show /context-usage; only threads have usage to report. */
   readonly offersContextUsage?: boolean;
-  readonly allowInteractionMode: boolean;
-  readonly selectedProviderStatus: Pick<
-    ServerProvider,
-    "driver" | "slashCommands" | "showInteractionModeToggle"
-  > | null;
+  readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
 }): ComposerCommandItem[] {
   const query = input.query.toLowerCase();
-  const allowInteractionMode =
-    input.allowInteractionMode && input.selectedProviderStatus?.showInteractionModeToggle !== false;
   const builtIn = [
     {
       id: "cmd:model",
@@ -124,20 +118,6 @@ export function buildComposerSlashCommandItems(input: {
       command: "model",
       label: "/model",
       description: "Switch model",
-    },
-    {
-      id: "cmd:plan",
-      type: "slash-command",
-      command: "plan",
-      label: "/plan",
-      description: "Switch to plan mode",
-    },
-    {
-      id: "cmd:default",
-      type: "slash-command",
-      command: "default",
-      label: "/default",
-      description: "Switch to default mode",
     },
     {
       id: "cmd:context-usage",
@@ -150,7 +130,7 @@ export function buildComposerSlashCommandItems(input: {
   const items: ComposerCommandItem[] = builtIn.filter((item) => {
     if (!item.command.includes(query)) return false;
     if (item.command === CONTEXT_USAGE_COMMAND.name) return input.offersContextUsage === true;
-    return item.command === "model" || allowInteractionMode;
+    return true;
   });
 
   // Providers expand commands only at the start of a message. T3 commands
@@ -427,7 +407,6 @@ export function useComposerCommandMenu({
         offersFreshSession: onFreshSession !== undefined,
         offersSideChat,
         offersContextUsage,
-        allowInteractionMode: onUpdateInteractionMode !== undefined,
         selectedProviderStatus: selectedProviderStatus
           ? {
               ...selectedProviderStatus,
@@ -696,14 +675,7 @@ export function useComposerCommandMenu({
       return;
     }
 
-    const result = resolveComposerCommandSelection({
-      draftMessage,
-      trigger,
-      item,
-      allowInteractionMode:
-        onUpdateInteractionMode !== undefined &&
-        selectedProviderStatus?.showInteractionModeToggle !== false,
-    });
+    const result = resolveComposerCommandSelection({ draftMessage, trigger, item });
     setSelection({ start: result.cursor, end: result.cursor });
     onChangeDraftMessage(result.text);
   };

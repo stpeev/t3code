@@ -181,7 +181,6 @@ describe("mobile model mentions", () => {
         atMessageStart,
         hasThread: offersContextUsage,
         offersContextUsage,
-        allowInteractionMode: true,
         selectedProviderStatus: {
           driver: ProviderDriverKind.make("claudeAgent"),
           slashCommands: [{ name: "context", description: "Claude's context view" }],
