@@ -35,6 +35,7 @@ const savedAt = (pipelineId: string, stageId: string, entered: ReadonlyArray<str
       status: "running" as const,
       detail: null,
       history: [],
+      continuations: 0,
       updatedAt: "2026-10-29T00:00:00.000Z",
     },
   ],
