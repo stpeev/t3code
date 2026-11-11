@@ -21,7 +21,7 @@ import {
 } from "@t3tools/contracts";
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
 import { fromJsonStringPretty } from "@t3tools/shared/schemaJson";
-import * as NodeCrypto from "node:crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -312,7 +312,7 @@ const make = Effect.gen(function* () {
     yield* sendStage({
       pipelineId: pipeline.id,
       stage: next,
-      commandId: CommandId.make(`pipeline-auto:${NodeCrypto.randomUUID()}`),
+      commandId: CommandId.make(`pipeline-auto:${SecureRandom.uuidV4Unsafe()}`),
       threadId: input.threadId,
       projectId: input.projectId,
       input: state.input,
@@ -418,7 +418,7 @@ const make = Effect.gen(function* () {
         return;
       }
       if (stage.verifyPrompt !== undefined) {
-        const commandId = CommandId.make(`pipeline-verify:${NodeCrypto.randomUUID()}`);
+        const commandId = CommandId.make(`pipeline-verify:${SecureRandom.uuidV4Unsafe()}`);
         yield* threadManagement
           .sendToThread({
             projectId: thread.projectId,
@@ -484,7 +484,7 @@ const make = Effect.gen(function* () {
         runStatus === "completed" &&
         state.continuations < (pipeline.maxContinuations ?? 0);
       if (canContinue) {
-        const commandId = CommandId.make(`pipeline-continue:${NodeCrypto.randomUUID()}`);
+        const commandId = CommandId.make(`pipeline-continue:${SecureRandom.uuidV4Unsafe()}`);
         yield* threadManagement
           .sendToThread({
             projectId: thread.projectId,

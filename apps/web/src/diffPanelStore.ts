@@ -67,7 +67,7 @@ function branchBaseRef(
 
 export const useDiffPanelStore = create<DiffPanelStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       byThreadKey: {},
       keepSelectionOnOpenThreadKey: null,
       branchBaseRefByThreadKey: {},
