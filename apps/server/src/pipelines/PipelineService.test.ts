@@ -385,23 +385,22 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
             expected: null,
             creationSource: "web",
           });
-          const quietTurn = Effect.gen(function* () {
-            yield* publish({
-              type: "message.updated",
-              threadId,
-              payload: {
+          const turn = (text: string | null) =>
+            Effect.gen(function* () {
+              if (text !== null) {
+                yield* publish({
+                  type: "message.updated",
+                  threadId,
+                  payload: { threadId, role: "assistant", streaming: false, text },
+                } as never);
+              }
+              yield* publish({
+                type: "run.updated",
                 threadId,
-                role: "assistant",
-                streaming: false,
-                text: "still working on it",
-              },
-            } as never);
-            yield* publish({
-              type: "run.updated",
-              threadId,
-              payload: { status: "completed" },
-            } as never);
-          });
+                payload: { status: "completed" },
+              } as never);
+            });
+          const quietTurn = turn("still working on it");
           const waitForStatus = (status: string) =>
             service.subscribe.pipe(
               Stream.filter((snapshot) => snapshot.threads[0]?.status === status),
@@ -424,6 +423,13 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
           const states = yield* savedStages(service);
           assert.equal(states[0]?.status, "waiting_input");
           assert.equal(states[0]?.continuations, 2);
+
+          // A later turn (an answer, a PR watch wake-up) resumes the stage only with a new verdict.
+          yield* turn("PIPELINE: WAITING on review");
+          yield* turn(null);
+          yield* turn("merged.\nPIPELINE: DONE");
+          yield* waitForStatus("done");
+          assert.lengthOf(sent, 3);
         }),
       ).pipe(Effect.provide(layerConfig())),
   );
