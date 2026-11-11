@@ -2384,7 +2384,9 @@ describe("deriveMessagesTimelineRows", () => {
     };
     const paths = ["/repo/docs/sidebar.png", "/repo/docs/topbar.png"];
 
-    expect(viewedImages(false)).toEqual([{ after: "work-live", paths }]);
+    // The unanswered question renders standalone (never folded into the collapsed group), so the
+    // reads above it stay a settled work-toggle row and the images follow it.
+    expect(viewedImages(false)).toEqual([{ after: "work-toggle", paths }]);
     // A settled turn's fold keeps hiding its work, images included, until it is opened.
     expect(viewedImages(true)).toEqual([]);
     expect(viewedImages(true, new Set([runId]))).toEqual([{ after: "work-toggle", paths }]);

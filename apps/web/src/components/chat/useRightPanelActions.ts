@@ -15,7 +15,6 @@ import {
 import { useDiffPanelStore } from "../../diffPanelStore";
 import { type ThreadPanelPresentation } from "../../rightPanelLayout";
 import {
-  selectActiveRightPanel,
   selectSelectedRightPanelSurface,
   selectThreadPanelOpen,
   type RightPanelSurface,
@@ -63,6 +62,7 @@ interface RightPanelActionsInput {
   readonly pullRequestsSurfaceAvailable: boolean;
   readonly gitCwd: string | null;
   readonly activeProjectCwd: string | null;
+  readonly explicitDiffOpenRef: { current: ScopedThreadRef | null };
   readonly onDiffPanelOpen: (() => void) | undefined;
   readonly closeRightPanelSurface: (surface: RightPanelSurface) => void;
 }
@@ -97,6 +97,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     pullRequestsSurfaceAvailable,
     gitCwd,
     activeProjectCwd,
+    explicitDiffOpenRef,
     onDiffPanelOpen,
   } = input;
 

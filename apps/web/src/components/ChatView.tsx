@@ -172,6 +172,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { FileMetadataThreadProvider } from "../hooks/FileMetadataThreadProvider";
 import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../rightPanelLayout";
 import { PopoverCreateHandle } from "./ui/popover";
+import { useDiffPanelStore } from "../diffPanelStore";
 import {
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
@@ -2483,6 +2484,7 @@ export default function ChatView(props: ChatViewProps) {
     pullRequestsSurfaceAvailable,
     gitCwd,
     activeProjectCwd,
+    explicitDiffOpenRef,
     onDiffPanelOpen,
     closeRightPanelSurface,
   });
@@ -3804,7 +3806,7 @@ export default function ChatView(props: ChatViewProps) {
                                 isLocalDraftThread && activeProject === null
                               }
                               phase={phase}
-                              isCompacting={isCompacting}
+                              canSteer={!compactionBlocksSteer}
                               canInterrupt={canInterruptRunningThread}
                               isSendBusy={
                                 (isSendBusy && !sendQueuesBehindSetup) ||
