@@ -2851,6 +2851,7 @@ export default function ChatView(props: ChatViewProps) {
     editableFocus: isEditableFocused(eventTarget),
     // This listener runs before the diff's own find handler, so it must see diff focus too.
     diffFocus: asElement(eventTarget)?.closest("[data-diff-find-scope]") != null,
+    markdownFindFocus: asElement(eventTarget)?.closest("[data-markdown-find-scope]") != null,
     modelPickerOpen: composerRef.current?.isModelPickerOpen() ?? false,
     composerFocus:
       document.activeElement?.getAttribute("data-testid") === "composer-editor" &&
@@ -2897,8 +2898,12 @@ export default function ChatView(props: ChatViewProps) {
       "chat.find": ({ event }) => {
         if (!isServerThread || serverConfig?.threadFind !== true || activeThreadKey === null)
           return false;
-        // Leave it to the diff's own find handler, which runs after this listener.
-        if (isDiffFindShortcut(event, keybindings, { context: getShortcutContext(event.target) })) {
+        const shortcutContext = getShortcutContext(event.target);
+        // Leave it to the diff's or the rendered markdown viewer's own find handler, which runs after this listener.
+        if (
+          isDiffFindShortcut(event, keybindings, { context: shortcutContext }) ||
+          shortcutContext.markdownFindFocus
+        ) {
           return false;
         }
         openThreadFind(activeThreadKey);

@@ -109,7 +109,9 @@ import { FileExplorerPane } from "./FileExplorerPane";
 import { FileBreadcrumbs } from "./FileBreadcrumbs";
 import { breadcrumbPathOf, retainedBreadcrumbTrail, trailChildOf } from "./filePath";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
+import { MarkdownFindBar } from "./MarkdownFindBar";
 import { MarkdownViewCommentToolbar } from "./MarkdownViewCommentToolbar";
+import { useMarkdownFind } from "./useMarkdownFind";
 import {
   type FileCommentAnnotationEntry,
   type FileCommentAnnotationGroup,
@@ -1104,36 +1106,61 @@ function RenderedMarkdownSurface({
   useFileSaveSession(saveTarget, onPendingChange);
   const addReviewComment = useComposerDraftStore((store) => store.addReviewComment);
   const [markdownViewport, setMarkdownViewport] = useState<HTMLDivElement | null>(null);
+  const [findContainer, setFindContainer] = useState<HTMLDivElement | null>(null);
+  const find = useMarkdownFind(findContainer);
 
   return (
-    <div ref={setMarkdownViewport} className="relative min-h-0 flex-1">
+    <div
+      ref={setMarkdownViewport}
+      className="relative min-h-0 flex-1 outline-none"
+      data-markdown-find-scope="true"
+      tabIndex={0}
+      onKeyDownCapture={find.onKeyDownCapture}
+    >
       <ScrollArea className="min-h-0 flex-1" onKeyDown={selectRenderedContentOnSelectAll}>
-        <FileMarkdownPreview
-          text={contents}
-          cwd={cwd}
-          relativePath={relativePath}
-          threadRef={threadRef}
-          workspaceMutationId={workspaceMutationId}
-          onDiagramComment={onDiagramComment}
-          onTaskListChange={
-            readOnly
-              ? undefined
-              : ({ markerOffset, checked }) => {
-                  const currentContents =
-                    getOptimisticProjectFileQueryData(environmentId, cwd, relativePath)?.contents ??
-                    contents;
-                  const nextContents = setMarkdownTaskChecked(
-                    currentContents,
-                    markerOffset,
-                    checked,
-                  );
-                  if (nextContents === currentContents) return;
-                  setProjectFileQueryData(environmentId, cwd, relativePath, nextContents);
-                  changeFileSaveSession(saveTarget, nextContents);
-                }
-          }
-        />
+        <div ref={setFindContainer}>
+          <FileMarkdownPreview
+            text={contents}
+            cwd={cwd}
+            relativePath={relativePath}
+            threadRef={threadRef}
+            workspaceMutationId={workspaceMutationId}
+            onDiagramComment={onDiagramComment}
+            onTaskListChange={
+              readOnly
+                ? undefined
+                : ({ markerOffset, checked }) => {
+                    const currentContents =
+                      getOptimisticProjectFileQueryData(environmentId, cwd, relativePath)
+                        ?.contents ?? contents;
+                    const nextContents = setMarkdownTaskChecked(
+                      currentContents,
+                      markerOffset,
+                      checked,
+                    );
+                    if (nextContents === currentContents) return;
+                    setProjectFileQueryData(environmentId, cwd, relativePath, nextContents);
+                    changeFileSaveSession(saveTarget, nextContents);
+                  }
+            }
+          />
+        </div>
       </ScrollArea>
+      </ScrollArea>
+      {find.open ? (
+        <div className="absolute top-2 right-3 z-40">
+          <MarkdownFindBar
+            query={find.query}
+            matchCount={find.matchCount}
+            activeIndex={find.activeIndex}
+            focusToken={find.focusToken}
+            onQueryChange={find.setQuery}
+            onNext={find.next}
+            onPrevious={find.previous}
+            onClose={find.close}
+          />
+        </div>
+      ) : null}
       {markdownViewport ? (
         <MarkdownViewCommentToolbar
           viewport={markdownViewport}

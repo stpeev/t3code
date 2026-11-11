@@ -538,3 +538,127 @@ describe("mermaid file preview", () => {
     useComposerDraftStore.getState().setReviewComments(draftRef, []);
   });
 });
+
+describe("rendered Markdown find", () => {
+  function findPanel(contents: string) {
+    state.file = {
+      relativePath: "notes.md",
+      contents,
+      byteLength: contents.length,
+      truncated: false,
+    };
+    return (
+      <FilePreviewPanel
+        environmentId={environmentId}
+        cwd="/workspace"
+        projectName="Project"
+        relativePath="notes.md"
+        threadRef={threadRef}
+        composerDraftTarget={threadRef}
+        keybindings={[]}
+        availableEditors={[]}
+        openInShortcutEnabled={false}
+        revealLine={null}
+        revealRequestId={0}
+        onOpenFile={vi.fn()}
+        onNavigateFolder={vi.fn()}
+        folderTrail={undefined}
+        onPendingChange={vi.fn()}
+        selectedFilePending={false}
+        workspaceMutationId={null}
+      />
+    );
+  }
+
+  function findLabel(container: HTMLElement) {
+    return container.querySelector<HTMLElement>(
+      '[data-markdown-find-ignore] span[aria-live="polite"]',
+    );
+  }
+
+  it("opens on Cmd+F, counts and steps matches, highlights them, and closes on Escape", async () => {
+    using _settings = setup();
+    const contents = [
+      "# Notes",
+      "",
+      "needle one",
+      "",
+      "some **nee**dle two",
+      "",
+      "needle three",
+    ].join("\n");
+    await using screen = await render(findPanel(contents));
+
+    const scope = screen.container.querySelector<HTMLElement>("[data-markdown-find-scope]")!;
+    expect(scope).not.toBeNull();
+    await act(() => {
+      scope.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "f",
+          metaKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+
+    const input = await vi.waitFor(() => {
+      const element = screen.container.querySelector<HTMLInputElement>(
+        'input[placeholder="Find in file"]',
+      );
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    await vi.waitFor(() => expect(document.activeElement).toBe(input));
+
+    await userEvent.type(input, "needle");
+    await vi.waitFor(() => expect(findLabel(screen.container)?.textContent).toBe("1/3"));
+    expect(CSS.highlights.get("t3-markdown-find")?.size).toBe(3);
+    expect(CSS.highlights.get("t3-markdown-find-active")?.size).toBe(1);
+
+    await userEvent.keyboard("{Enter}");
+    await vi.waitFor(() => expect(findLabel(screen.container)?.textContent).toBe("2/3"));
+    await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
+    await vi.waitFor(() => expect(findLabel(screen.container)?.textContent).toBe("1/3"));
+
+    // The next-match button steps too.
+    const nextButton = screen.container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Next match"]',
+    )!;
+    await userEvent.click(nextButton);
+    await vi.waitFor(() => expect(findLabel(screen.container)?.textContent).toBe("2/3"));
+
+    // A query without matches reports no results.
+    await userEvent.type(input, " zzz");
+    await vi.waitFor(() => expect(findLabel(screen.container)?.textContent).toBe("No results"));
+    expect(CSS.highlights.get("t3-markdown-find")?.size ?? 0).toBe(0);
+
+    await act(() => {
+      scope.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      );
+    });
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector('input[placeholder="Find in file"]')).toBeNull(),
+    );
+    expect(CSS.highlights.get("t3-markdown-find")?.size ?? 0).toBe(0);
+  });
+
+  it("does not open on Cmd+Shift+F", async () => {
+    using _settings = setup();
+    await using screen = await render(findPanel("# Notes\n\nneedle\n"));
+    const scope = screen.container.querySelector<HTMLElement>("[data-markdown-find-scope]")!;
+    await act(() => {
+      scope.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F",
+          metaKey: true,
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(screen.container.querySelector('input[placeholder="Find in file"]')).toBeNull();
+  });
+});
