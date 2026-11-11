@@ -84,8 +84,8 @@ import * as PullRequestsHandlers from "./toolkits/pullRequests/handlers.ts";
 import * as ToolSearchHandlers from "./toolkits/toolSearch/handlers.ts";
 import { ToolSearchToolkit } from "./toolkits/toolSearch/tools.ts";
 import { PullRequestsToolkit } from "./toolkits/pullRequests/tools.ts";
-import * as IssuesHandlers from "./toolkits/issues/handlers.ts";
-import { IssuesToolkit } from "./toolkits/issues/tools.ts";
+import * as PipelinesHandlers from "./toolkits/pipelines/handlers.ts";
+import { PipelinesToolkit } from "./toolkits/pipelines/tools.ts";
 import * as DeviceHandlers from "./toolkits/device/handlers.ts";
 import {
   DeviceScreenshotTool,
@@ -1012,6 +1012,7 @@ const HANDOFF_TOOLS: ReadonlySet<string> = new Set([
   "t3_thread_send_attachments",
   "schedule_task",
   "run_scheduled_task_now",
+  "pipeline_start",
 ]);
 
 /** Tool actions that hand work over with only a `{ sequence }` result; the input names the thread. */
@@ -1365,7 +1366,7 @@ export const layerPullRequestsToolkit = toolkitRegistration(
   PullRequestsHandlers.layer,
 ).pipe(Layer.provide(PullRequestWatchService.layer));
 
-const layerIssuesToolkit = toolkitRegistration(IssuesToolkit, IssuesHandlers.layer);
+const layerPipelinesToolkit = toolkitRegistration(PipelinesToolkit, PipelinesHandlers.layer);
 
 const layerDeviceStandardToolkitRegistration = toolkitRegistration(
   DeviceStandardToolkit,
@@ -1423,7 +1424,7 @@ export const layerTools = Layer.mergeAll(
   layerPreviewControlsRegistration,
   layerWorktreeToolkitRegistration,
   layerPullRequestsToolkit,
-  layerIssuesToolkit,
+  layerPipelinesToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
   layerMessageToolkit,

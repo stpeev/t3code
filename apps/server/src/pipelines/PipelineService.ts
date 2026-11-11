@@ -46,6 +46,7 @@ export class PipelineService extends Context.Service<
   PipelineService,
   {
     readonly subscribe: Stream.Stream<PipelinesSnapshot>;
+    readonly current: Effect.Effect<PipelinesSnapshot>;
     /** Sends the stage's prompt into the thread, then saves the thread as at that stage. */
     readonly startStage: (
       input: PipelinesStartStageInput,
@@ -332,7 +333,12 @@ const make = Effect.gen(function* () {
   ) {
     const { pipelines } = yield* definitions.current;
     const state = (yield* SubscriptionRef.get(statesRef)).get(threadId);
-    if (state === undefined || (state.status !== "running" && state.status !== "verifying")) {
+    if (
+      state === undefined ||
+      (state.status !== "running" &&
+        state.status !== "verifying" &&
+        state.status !== "waiting_input")
+    ) {
       return;
     }
     const pipeline = pipelines.find((entry) => entry.id === state.pipelineId);
@@ -344,9 +350,24 @@ const make = Effect.gen(function* () {
     if (thread === null || thread.deletedAt !== null) return;
     if (thread.activeRunId !== null || thread.pendingRuntimeRequest !== null) return;
 
-    const lastText = (yield* Ref.get(lastAssistantText)).get(threadId);
+    // Each turn's reply is judged once, so a reply-less later turn can't reuse an old verdict.
+    const lastText = yield* Ref.modify(lastAssistantText, (map) => {
+      const rest = new Map(map);
+      rest.delete(threadId);
+      return [map.get(threadId), rest] as const;
+    });
     const reading = lastText === undefined ? null : pipelineVerdictOf(lastText);
     const now = DateTime.formatIso(yield* DateTime.now);
+
+    // A later turn (the person's answer, a PR watch wake-up) resumes a waiting stage only by
+    // ending with a new DONE or FAILED.
+    if (
+      state.status === "waiting_input" &&
+      reading?.verdict !== "done" &&
+      reading?.verdict !== "failed"
+    ) {
+      return;
+    }
 
     if (state.status === "verifying") {
       if (reading?.verdict === "verified") {
@@ -602,16 +623,21 @@ const make = Effect.gen(function* () {
     ),
   );
 
+  const snapshotOf = (
+    { pipelines, issues }: PipelineDefinitions.PipelineDefinitionsState,
+    states: ThreadStates,
+  ): PipelinesSnapshot => ({
+    configPath: definitions.configPath,
+    pipelines,
+    issues,
+    threads: [...states.values()],
+  });
   const subscribe = Stream.zipLatest(definitions.changes, SubscriptionRef.changes(statesRef)).pipe(
-    Stream.map(([{ pipelines, issues }, states]) => ({
-      configPath: definitions.configPath,
-      pipelines,
-      issues,
-      threads: [...states.values()],
-    })),
+    Stream.map(([state, states]) => snapshotOf(state, states)),
   );
+  const current = Effect.zipWith(definitions.current, SubscriptionRef.get(statesRef), snapshotOf);
 
-  return PipelineService.of({ subscribe, startStage, recordStage, leave });
+  return PipelineService.of({ subscribe, current, startStage, recordStage, leave });
 });
 
 export const layer = Layer.effect(PipelineService, make);
