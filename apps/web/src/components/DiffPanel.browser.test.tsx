@@ -17,6 +17,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
+import { createPortal } from "react-dom";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
@@ -304,3 +305,105 @@ it.each([false, true])(
     await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
   },
 );
+
+it("opens a line comment from the popped-out panel window", async () => {
+  using context = setup("origin/orphan");
+  const path = "popout-comment.ts";
+  const metadata = preview();
+  const source = {
+    ...metadata.sources[0]!,
+    files: [{ path, previousPath: null, additions: 2, deletions: 0 }],
+  };
+  state.previews.set("main", Atom.make(AsyncResult.success({ ...metadata, sources: [source] })));
+  useDiffPanelStore.getState().selectBranchBaseRef(context.threadRef, "main");
+  // A popout is a separate window/document; the app portals the right panel into it.
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "width:900px;height:600px;border:0";
+  document.body.appendChild(iframe);
+  const popoutRoot = iframe.contentDocument!.createElement("div");
+  popoutRoot.style.cssText = "height:600px;display:flex;flex-direction:column";
+  iframe.contentDocument!.body.appendChild(popoutRoot);
+  const inPopout = (selector: string): Element[] => {
+    const out: Element[] = [];
+    const walk = (root: ParentNode) => {
+      out.push(...Array.from(root.querySelectorAll(selector)));
+      for (const el of Array.from(root.querySelectorAll("*"))) {
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    walk(iframe.contentDocument!);
+    return out;
+  };
+  try {
+    await using _screen = await render(
+      createPortal(
+        <RegistryContext.Provider value={context.registry}>
+          <DiffPanel
+            threadRef={context.threadRef}
+            projectId={null}
+            worktreePath={null}
+            composerDraftTarget={context.threadRef}
+            workspaceMutationId={null}
+            visible
+          />
+        </RegistryContext.Provider>,
+        popoutRoot,
+      ),
+    );
+    let toggle: Element | null = null;
+    await vi.waitFor(() => {
+      toggle =
+        inPopout("button").find((el) => el.getAttribute("aria-label") === `Expand ${path}`) ?? null;
+      expect(toggle).not.toBeNull();
+    });
+    await act(() => {
+      toggle!.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+    });
+    await act(() =>
+      context.registry.set(
+        context.patch,
+        AsyncResult.success({
+          ...source,
+          diff: `diff --git a/${path} b/${path}\nnew file mode 100644\n--- /dev/null\n+++ b/${path}\n@@ -0,0 +1,2 @@\n+alpha\n+beta\n`,
+        }),
+      ),
+    );
+    let line: Element | null = null;
+    await vi.waitFor(() => {
+      line = inPopout("[data-line]").find((el) => el.textContent?.includes("beta")) ?? null;
+      expect(line).not.toBeNull();
+    });
+    const doc = iframe.contentDocument!;
+    const fire = (target: Element | Document, type: string, init: PointerEventInit) => {
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          composed: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          button: 0,
+          ...init,
+        }),
+      );
+    };
+    const lineEl = line!;
+    const lineRect = lineEl.getBoundingClientRect();
+    fire(lineEl, "pointermove", { clientX: lineRect.x + 40, clientY: lineRect.y + 4 });
+    let button: Element | null = null;
+    await vi.waitFor(() => {
+      button = inPopout("[data-utility-button]")[0] ?? null;
+      expect(button).not.toBeNull();
+    });
+    const buttonEl = button!;
+    const buttonRect = buttonEl.getBoundingClientRect();
+    const x = buttonRect.x + buttonRect.width / 2;
+    const y = buttonRect.y + buttonRect.height / 2;
+    fire(buttonEl, "pointerdown", { clientX: x, clientY: y });
+    fire(doc, "pointerup", { clientX: x, clientY: y });
+    await vi.waitFor(() => {
+      expect(inPopout("[data-line-annotation]").length).toBeGreaterThan(0);
+    });
+  } finally {
+    iframe.remove();
+  }
+});
