@@ -34,6 +34,9 @@ const develop = PipelineStageId.make("develop");
 const review = PipelineStageId.make("review");
 const goal = PipelineId.make("goal");
 const work = PipelineStageId.make("work");
+const epic = PipelineId.make("epic");
+const breakdown = PipelineStageId.make("breakdown");
+const dispatch = PipelineStageId.make("dispatch");
 const definitions: PipelineDefinitions.PipelineDefinitionsState = {
   pipelines: [
     {
@@ -51,6 +54,21 @@ const definitions: PipelineDefinitions.PipelineDefinitionsState = {
       automation: "auto",
       maxContinuations: 2,
       stages: [{ id: work, name: "Work", prompt: "Work on {input}." }],
+    },
+    {
+      id: epic,
+      name: "Epic",
+      automation: "auto",
+      stages: [
+        {
+          id: breakdown,
+          name: "Breakdown",
+          prompt: "Split {input}.",
+          verifyPrompt: "Each story is one PR.",
+          approval: true,
+        },
+        { id: dispatch, name: "Dispatch", prompt: "Start {input}." },
+      ],
     },
   ],
   issues: [],
@@ -468,6 +486,49 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
         const states = yield* savedStages(service);
         assert.equal(states[0]?.status, "done");
         assert.lengthOf(sent, 1);
+      }),
+    ).pipe(Effect.provide(layerConfig())),
+  );
+
+  it.effect("a stage with a verifier and approval is verified before it waits for approval", () =>
+    withService(makeThread(), (service, sent, publish, takeSent) =>
+      Effect.gen(function* () {
+        yield* service.startStage({
+          pipelineId: epic,
+          stageId: breakdown,
+          commandId: CommandId.make("command:breakdown"),
+          threadId,
+          expected: null,
+          creationSource: "web",
+        });
+        yield* takeSent;
+        const turn = (text: string) =>
+          publish({
+            type: "message.updated",
+            threadId,
+            payload: { threadId, role: "assistant", streaming: false, text },
+          } as never).pipe(
+            Effect.andThen(
+              publish({ type: "run.updated", threadId, payload: { status: "completed" } } as never),
+            ),
+          );
+
+        yield* turn("split.\nPIPELINE: DONE");
+        const verify = yield* takeSent;
+        assert.isTrue(verify.text.includes("Each story is one PR."));
+
+        yield* turn("PIPELINE: VERIFIED");
+        yield* service.subscribe.pipe(
+          Stream.filter((snapshot) => snapshot.threads[0]?.status === "waiting_approval"),
+          Stream.runHead,
+        );
+        const states = yield* savedStages(service);
+        assert.equal(states[0]?.stageId, breakdown);
+        assert.deepEqual(
+          states[0]?.history.map(({ stageId, outcome }) => ({ stageId, outcome })),
+          [{ stageId: breakdown, outcome: "done" }],
+        );
+        assert.lengthOf(sent, 2);
       }),
     ).pipe(Effect.provide(layerConfig())),
   );
