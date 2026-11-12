@@ -371,7 +371,7 @@ const make = Effect.gen(function* () {
 
     if (state.status === "verifying") {
       if (reading?.verdict === "verified") {
-        yield* save({
+        const verified = yield* save({
           threadId,
           pipelineId: state.pipelineId,
           stageId: state.stageId,
@@ -387,7 +387,7 @@ const make = Effect.gen(function* () {
           pipeline,
           stage,
           index,
-          state,
+          state: verified,
         });
       } else if (reading?.verdict === "rejected") {
         yield* save({
@@ -425,19 +425,7 @@ const make = Effect.gen(function* () {
 
     // A stage work turn ended.
     if (reading?.verdict === "done") {
-      if (stage.approval === true) {
-        yield* save({
-          threadId,
-          pipelineId: state.pipelineId,
-          stageId: state.stageId,
-          input: state.input,
-          status: "waiting_approval",
-          detail: null,
-          history: [...state.history, { stageId: state.stageId, outcome: "done", at: now }],
-          continuations: state.continuations,
-        });
-        return;
-      }
+      // Verify before asking for approval, so the person approves work the verifier passed.
       if (stage.verifyPrompt !== undefined) {
         const commandId = CommandId.make(`pipeline-verify:${SecureRandom.uuidV4Unsafe()}`);
         yield* threadManagement
@@ -461,6 +449,19 @@ const make = Effect.gen(function* () {
           status: "verifying",
           detail: null,
           history: state.history,
+          continuations: state.continuations,
+        });
+        return;
+      }
+      if (stage.approval === true) {
+        yield* save({
+          threadId,
+          pipelineId: state.pipelineId,
+          stageId: state.stageId,
+          input: state.input,
+          status: "waiting_approval",
+          detail: null,
+          history: [...state.history, { stageId: state.stageId, outcome: "done", at: now }],
           continuations: state.continuations,
         });
         return;
