@@ -23,7 +23,6 @@ import type {
   PreviewAnnotationContextRecord,
   PreviewAnnotationPayload,
   ResponseContextRecord,
-  ReviewCommentContextRecord,
   TerminalContextRecord,
   ThreadContextRecord,
   ThreadId,

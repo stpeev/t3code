@@ -1,5 +1,6 @@
 // Copies config/pipelines.jsonc to <T3 home>/userdata/pipelines.json, where the server hot-reloads it.
 // Usage: node scripts/install-pipelines.ts [--home <dir>]   (default: $T3CODE_HOME, else ~/.t3)
+// @effect-diagnostics nodeBuiltinImport:off globalConsole:off - Plain CLI script; Effect's FileSystem/Path are for service code, not one-shot installers.
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
