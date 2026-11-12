@@ -165,18 +165,18 @@
           "id": "breakdown",
           "name": "Breakdown",
           "approval": true,
-          "prompt": "Epic: {input}. Read the epic and its stories in Jira, explore the code, and split the epic into stories that each ship as one reviewable PR. Write pipeline-reports/epic.json: [{ \"key\", \"title\", \"acceptance\", \"dependsOn\": [keys], \"base\": \"main\" or the key of the story it stacks on }]. Prefer independent stories; stack only when a story can't build without another. Change no code.",
+          "prompt": "Epic: {input}. Read the epic and its stories in Jira, explore the code, and split the epic into stories that each ship as one reviewable PR. Write pipeline-reports/epic.json: [{ \"key\", \"title\", \"repo\", \"acceptance\", \"dependsOn\": [keys], \"base\": \"main\" or the key of the story it stacks on }]. Prefer independent stories; stack only when a story can't build without another. A story's dependencies in its own repo must all reach it through its base (stack B on A, then C on B), so one branch carries them. Change no code.",
           "verifyPrompt": "Each story in pipeline-reports/epic.json is one PR in size with testable acceptance criteria, dependsOn has no cycles, and together the stories cover all of {input}.",
         },
         {
           "id": "dispatch",
           "name": "Dispatch",
-          "prompt": "Read pipeline-reports/epic.json. Get this thread's id from t3_thread_list, which marks your own thread. A story can start when its base story (if any) is ready or merged, and every other story in its dependsOn is merged. A story is ready when it has reported its branch: its PR is open and green, but not necessarily merged. For each story that can start: t3_thread_launch a worktree thread (title \"<key> <title>\", no message) from origin/main, or from its base story's branch when the base isn't merged yet. Then pipeline_start it with pipelineId \"epic-story\" and input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>)\". Record key -> threadId, worktree, branch, base branch in pipeline-reports/epic-state.json. Don't wait for the stories; this stage is done once the startable ones are started.",
+          "prompt": "Read pipeline-reports/epic.json. Get this thread's id from t3_thread_list, which marks your own thread. A story can start once every story in its dependsOn has a PR: its work is committed, its tests pass and its PR is open. The PR doesn't need to be green or merged. For each story that can start: t3_thread_launch a worktree thread (title \"<key> <title>\", no message) from its base story's branch when that isn't merged yet, otherwise from origin/main, and confirm the thread has its worktree before going on. Then pipeline_start it with pipelineId \"epic-story\" and input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>; unmerged dependencies in other repos: <key> <repo> <branch> <worktree> each, or none)\". Record key -> threadId, worktree, branch, base branch in pipeline-reports/epic-state.json. Don't wait for the stories; this stage is done once the startable ones are started.",
         },
         {
           "id": "track",
           "name": "Track",
-          "prompt": "Read pipeline-reports/epic-state.json. Call pipeline_status for the story threads and check each story PR (gh pr view --json state,reviewDecision,statusCheckRollup,baseRefName). A story is finished when it is ready (it reported its branch, worktree and PR, and its PR is open and green) or merged; merging isn't required. Record each finished story's branch, worktree and PR in epic-state.json, then start every story that just became startable, as in Dispatch. Reply with a table: key, stage, status, branch, base, PR state. DONE only when every story is ready or merged; FAILED if a story failed and can't be recovered; otherwise WAITING. Story threads message you when they're ready: on each such message, run this check again and end with a verdict line again.",
+          "prompt": "Read pipeline-reports/epic-state.json. Call pipeline_status for the story threads and check each story PR (gh pr view --json state,reviewDecision,statusCheckRollup,baseRefName). Judge a story by its PR and its messages, not its pipeline status. A story has a PR once it reported one; it is finished when it is ready (its PR is open and green, with review comments handled) or merged; merging isn't required. Record each story's branch, worktree and PR in epic-state.json, then start every story that just became startable, as in Dispatch. Reply with a table: key, stage, status, branch, base, PR state. DONE only when every story is ready or merged; FAILED if a story failed and can't be recovered; otherwise WAITING. Each story thread messages you twice, when its PR opens and when it's ready: on each such message, run this check again and end with a verdict line again.",
         },
         {
           "id": "integrate",
@@ -206,7 +206,7 @@
         {
           "id": "develop",
           "name": "Develop",
-          "prompt": "The plan is approved. Implement it in this worktree: tests first, then the change, then run the tests you added. Commit locally; don't push or open a PR yet.",
+          "prompt": "The plan is approved. Implement it in this worktree: tests first, then the change, then run the tests you added. If \"{input}\" names unmerged dependencies in other repos, build against packages built locally from their worktrees; this PR must not merge before theirs. Commit locally; don't push or open a PR yet.",
         },
         {
           "id": "code-review",
@@ -224,6 +224,11 @@
           "prompt": "/pr-push with the PR's base set to the base branch named in \"{input}\", so a stacked story's PR shows only its own changes.",
         },
         {
+          "id": "announce",
+          "name": "Announce",
+          "prompt": "t3_thread_send the epic thread named in \"{input}\" this message, filled in: \"Story <key> has a PR: <url>. Branch: <branch>, base: <base branch>. Worktree: <absolute path>. Thread: <this thread's id>. Its work is committed and its tests pass, so stories that depend on it can start now. Run the Track check again and end with a PIPELINE verdict line.\"",
+        },
+        {
           "id": "ready",
           "name": "Ready",
           "prompt": "Call watch_pull_request on this story's PR. Handle each failed check and review comment, pushing fixes. The story is ready when the PR is open, every check is green and every review comment is handled; it doesn't need to be merged. DONE once it's ready (or merged); until then end with WAITING, and T3 Code wakes you on the next change.",
@@ -231,7 +236,7 @@
         {
           "id": "report",
           "name": "Report",
-          "prompt": "t3_thread_send the epic thread named in \"{input}\" this message, filled in: \"Story <key> is ready. PR: <url> (<state>). Branch: <branch>, base: <base branch>. Worktree: <absolute path>. Thread: <this thread's id>. Stories that depend on it can stack on this branch. Run the Track check again and end with a PIPELINE verdict line.\" Keep watching the PR: if it gets new comments or checks fail later, fix them and push.",
+          "prompt": "t3_thread_send the epic thread named in \"{input}\" this message, filled in: \"Story <key> is ready. PR: <url> (<state>): checks green and review comments handled. Thread: <this thread's id>. Run the Track check again and end with a PIPELINE verdict line.\" Keep watching the PR: if it gets new comments or checks fail later, fix them and push.",
         },
       ],
     },
