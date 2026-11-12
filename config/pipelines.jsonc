@@ -1,0 +1,239 @@
+{
+  // Source: config/pipelines.jsonc in the t3code fork. Edit it there, then `vp run pipelines:install`.
+  // "hub-ticket" copied from claude-hub apps/web/src/pipeline/template.ts (TICKET_STAGES).
+  "pipelines": [
+    {
+      "id": "abi-pipeline",
+      "name": "ABI Pipeline",
+      "automation": "manual",
+      "maxContinuations": 1,
+      "stages": [
+        {
+          "id": "plan",
+          "name": "Plan",
+          "prompt": "/analyze-ask {input}",
+          "approval": false,
+        },
+        {
+          "id": "arch-review",
+          "name": "Architectural review",
+          "prompt": "/arch-review of the spec written by the previos stage",
+          "approval": false,
+        },
+        {
+          "id": "design-review",
+          "name": "Design review",
+          "prompt": "/review-spec of the same spec",
+          "approval": false,
+        },
+        {
+          "id": "in-progress",
+          "name": "In progress",
+          "prompt": "The plan is approved now. Implement it in the worktree. Commit locally; don't push or open a PR yet.",
+          "approval": false,
+        },
+        {
+          "id": "code-review",
+          "name": "Code review",
+          "prompt": "Review this change using independent reviewer",
+          "approval": false,
+        },
+        {
+          "id": "test",
+          "name": "Test",
+          "prompt": "Propose conducting local experiments in attempt to replicate the conditions being address with the change and then verify the change itself using the same experimental setup. Also evaluate whether new tests (e2e, integration, unit) are needed. If so, propose to write some. Run all affected tests (including e2e) of every module this change touches, and wait for each to finish. Fix what fails and run them again until all pass, then give me the passed, failed and skipped counts per suite.",
+          "approval": false,
+        },
+        {
+          "id": "pr",
+          "name": "PR",
+          "prompt": "/pr-push",
+          "approval": false,
+        },
+        {
+          "id": "screenshots",
+          "name": "Screenshots",
+          "prompt": "/annotated-screenshots",
+          "approval": false,
+        },
+        {
+          "id": "babysit-pr",
+          "name": "Babysit PR",
+          "prompt": "/babysit-pr",
+          "approval": false,
+        },
+        {
+          "id": "ready-to-merge",
+          "name": "Merge",
+          "prompt": "Nothing to do here, just wait to be merged",
+          "approval": false,
+        },
+        {
+          "id": "followups",
+          "name": "Follow-ups",
+          "prompt": "Inspect the spec once more for leftovers or follow-up records and take a decisions on those",
+          "approval": false,
+        },
+        {
+          "id": "done",
+          "name": "Done",
+          "prompt": "We are finally done!",
+          "approval": false,
+        },
+      ],
+    },
+    {
+      "id": "hub-ticket",
+      "name": "Hub ticket (from claude-hub)",
+      "automation": "auto",
+      "maxContinuations": 2,
+      "stages": [
+        {
+          "id": "plan",
+          "name": "Plan",
+          "prompt": "Work item: {input}\nTicket: {input}\nNotes: \n\nPlan this only; change no code yet. Read the ticket, then enter a worktree named after the ticket (EnterWorktree) and explore the code. Write a step-by-step plan, with the tests you will add first and whether the change touches the UI.",
+          "approval": false,
+        },
+        {
+          "id": "develop",
+          "name": "Develop",
+          "prompt": "The plan is approved. Implement it in the worktree: tests first, then the change, then run the tests you added. Commit locally; don\u2019t push or open a PR yet.",
+          "approval": false,
+        },
+        {
+          "id": "simplify",
+          "name": "Simplify",
+          "prompt": "/simplify",
+          "approval": false,
+        },
+        {
+          "id": "review",
+          "name": "Review",
+          "prompt": "Review this change with the `platform-code-review` skill (a careful self-review if it isn\u2019t installed) and fix what it finds. Commit locally; don\u2019t push yet.",
+          "approval": false,
+        },
+        {
+          "id": "build",
+          "name": "Build",
+          "prompt": "/validate-build",
+          "approval": false,
+        },
+        {
+          "id": "test",
+          "name": "Test",
+          "prompt": "Run the full test suites of every project this change touches, in the foreground, and wait for each to finish: they can take a long time, so don\u2019t move on early or leave them running in the background. Fix what fails and run them again until all pass, then give me the passed, failed and skipped counts per suite. Then, if the change touches the UI, `/ui-preview {input}` and tell me how to open the preview from my machine.",
+          "approval": false,
+        },
+        {
+          "id": "pr",
+          "name": "PR",
+          "prompt": "/pr for {input}, with return-after green and mode unattended.\n\nThis stage is done only when the PR is open, every check is green, and every review comment (a person\u2019s or a bot\u2019s) is handled: fixed and pushed, or answered, with its thread resolved. Right before you finish, check again (`gh pr checks`, and the PR\u2019s comments and review threads) and list what you did about each comment.",
+          "approval": false,
+        },
+        {
+          "id": "merge",
+          "name": "Merge",
+          "prompt": "Wait for the PR to merge (/pr step 5). It\u2019s merged only when `gh pr view --json state` says MERGED: approved or green isn\u2019t merged. If it isn\u2019t merged and you can\u2019t merge it (no approval yet, branch protection, an open comment), say why: it isn\u2019t done. Once it\u2019s merged, stop the preview (`/ui-preview stop`) and leave the worktree as the canonical instructions say (\"Ending a task\").",
+          "approval": false,
+        },
+      ],
+    },
+    {
+      "id": "goal",
+      "name": "Goal",
+      "automation": "auto",
+      "maxContinuations": 5,
+      "stages": [
+        {
+          "id": "work",
+          "name": "Work",
+          "prompt": "Goal: {input}\n\nWork on this goal until it is fully achieved and verified. Run tests, builds and checks in the foreground and wait for their result; don't stop early.",
+          "verifyPrompt": "Is the goal fully achieved: {input}? Check the actual outcome (code, tests, PR state), not just the plan. If anything is missing, REJECT with what is left.",
+          "approval": true,
+        },
+      ],
+    },
+    {
+      // Coordinator: run in one thread with the epic key as input. Each story runs "epic-story"
+      // in its own worktree thread, started over MCP (pipeline_start).
+      "id": "epic",
+      "name": "Epic",
+      "automation": "auto",
+      "maxContinuations": 2,
+      "stages": [
+        {
+          "id": "breakdown",
+          "name": "Breakdown",
+          "approval": true,
+          "prompt": "Epic: {input}. Read the epic and its stories in Jira, explore the code, and split the epic into stories that each ship as one reviewable PR. Write pipeline-reports/epic.json: [{ \"key\", \"title\", \"acceptance\", \"dependsOn\": [keys], \"base\": \"main\" or the key of the story it stacks on }]. Prefer independent stories; stack only when a story can't build without another. Change no code.",
+          "verifyPrompt": "Each story in pipeline-reports/epic.json is one PR in size with testable acceptance criteria, dependsOn has no cycles, and together the stories cover all of {input}.",
+        },
+        {
+          "id": "dispatch",
+          "name": "Dispatch",
+          "prompt": "Read pipeline-reports/epic.json. Get this thread's id from t3_thread_list, which marks your own thread. A story can start when its base story (if any) is ready or merged, and every other story in its dependsOn is merged. A story is ready when it has reported its branch: its PR is open and green, but not necessarily merged. For each story that can start: t3_thread_launch a worktree thread (title \"<key> <title>\", no message) from origin/main, or from its base story's branch when the base isn't merged yet. Then pipeline_start it with pipelineId \"epic-story\" and input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>)\". Record key -> threadId, worktree, branch, base branch in pipeline-reports/epic-state.json. Don't wait for the stories; this stage is done once the startable ones are started.",
+        },
+        {
+          "id": "track",
+          "name": "Track",
+          "prompt": "Read pipeline-reports/epic-state.json. Call pipeline_status for the story threads and check each story PR (gh pr view --json state,reviewDecision,statusCheckRollup,baseRefName). A story is finished when it is ready (it reported its branch, worktree and PR, and its PR is open and green) or merged; merging isn't required. Record each finished story's branch, worktree and PR in epic-state.json, then start every story that just became startable, as in Dispatch. Reply with a table: key, stage, status, branch, base, PR state. DONE only when every story is ready or merged; FAILED if a story failed and can't be recovered; otherwise WAITING. Story threads message you when they're ready: on each such message, run this check again and end with a verdict line again.",
+        },
+        {
+          "id": "integrate",
+          "name": "Integrate",
+          "prompt": "Every story of {input} is ready or merged. In a fresh worktree from origin/main, merge each unmerged story branch locally in dependency order (don't push), then build, run the test suites of every module the epic touched in the foreground, and check the epic's acceptance criteria end to end. Remove the worktree when done.",
+          "verifyPrompt": "Every acceptance criterion of {input} is shown to hold on main with every story branch merged in.",
+        },
+        {
+          "id": "close",
+          "name": "Close",
+          "prompt": "Gather follow-ups from every story's pipeline-reports and PR threads; file each as a Jira ticket or drop it with a reason. Post a summary of {input} on the epic in Jira: each story with its PR, state and base branch, and the order to merge the stacked PRs (a PR's base must merge first, then rebase the PRs on top of it). Transition the epic only if every story PR is merged.",
+        },
+      ],
+    },
+    {
+      // One story of an epic; the epic's Dispatch stage starts it. {input} names the epic thread.
+      "id": "epic-story",
+      "name": "Epic story",
+      "automation": "auto",
+      "maxContinuations": 2,
+      "stages": [
+        {
+          "id": "plan",
+          "name": "Plan",
+          "prompt": "/analyze-ask {input}",
+        },
+        {
+          "id": "develop",
+          "name": "Develop",
+          "prompt": "The plan is approved. Implement it in this worktree: tests first, then the change, then run the tests you added. Commit locally; don't push or open a PR yet.",
+        },
+        {
+          "id": "code-review",
+          "name": "Code review",
+          "prompt": "Review this change using an independent reviewer and fix what it finds. Commit locally.",
+        },
+        {
+          "id": "test",
+          "name": "Test",
+          "prompt": "Run all affected tests of every module this change touches in the foreground and wait for each to finish. Fix what fails and run them again until all pass, then give the passed, failed and skipped counts per suite.",
+        },
+        {
+          "id": "pr",
+          "name": "PR",
+          "prompt": "/pr-push with the PR's base set to the base branch named in \"{input}\", so a stacked story's PR shows only its own changes.",
+        },
+        {
+          "id": "ready",
+          "name": "Ready",
+          "prompt": "Call watch_pull_request on this story's PR. Handle each failed check and review comment, pushing fixes. The story is ready when the PR is open, every check is green and every review comment is handled; it doesn't need to be merged. DONE once it's ready (or merged); until then end with WAITING, and T3 Code wakes you on the next change.",
+        },
+        {
+          "id": "report",
+          "name": "Report",
+          "prompt": "t3_thread_send the epic thread named in \"{input}\" this message, filled in: \"Story <key> is ready. PR: <url> (<state>). Branch: <branch>, base: <base branch>. Worktree: <absolute path>. Thread: <this thread's id>. Stories that depend on it can stack on this branch. Run the Track check again and end with a PIPELINE verdict line.\" Keep watching the PR: if it gets new comments or checks fail later, fix them and push.",
+        },
+      ],
+    },
+  ],
+}
