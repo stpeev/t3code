@@ -1088,7 +1088,6 @@ function RenderedMarkdownSurface({
 }: Omit<
   EditableFileSurfaceProps,
   | "resolvedTheme"
-  | "composerDraftTarget"
   | "revealLine"
   | "revealRequestId"
   | "wordWrap"
@@ -1145,7 +1144,6 @@ function RenderedMarkdownSurface({
             }
           />
         </div>
-      </ScrollArea>
       </ScrollArea>
       {find.open ? (
         <div className="absolute top-2 right-3 z-40">

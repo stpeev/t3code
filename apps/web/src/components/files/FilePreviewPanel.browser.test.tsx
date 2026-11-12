@@ -303,6 +303,9 @@ describe("rendered Markdown select all", () => {
     // A toggled checkbox keeps focus on an input inside the preview.
     await userEvent.click(screen.getByRole("checkbox"));
     await expectFileOnlySelection();
+  });
+});
+
 function diagramSetup() {
   const keys = [
     "t3code.fileExplorerOpen",

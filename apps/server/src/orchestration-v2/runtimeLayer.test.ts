@@ -3993,15 +3993,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         projectId,
         title: "Watch closed unreadable",
         workspaceRoot: "/workspace/watch-closed-unreadable",
-  it.effect("wakes once and stops watching when the watched PR merges", () =>
-    Effect.gen(function* () {
-      const orchestrator = yield* Orchestrator.OrchestratorV2;
-      const threadId = ThreadId.make("runtime-pull-request-watch-merged");
-      const projectId = ProjectId.make("pr-watch-merged-project");
-      yield* seedProject({
-        projectId,
-        title: "Watch merged",
-        workspaceRoot: "/workspace/watch-merged",
         defaultModelSelection: null,
         createdAt: "2026-10-01T00:00:00.000Z",
       });
@@ -4013,10 +4004,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         threadId,
         projectId,
         title: "Watch closed unreadable",
-        commandId: CommandId.make("pr-watch-merged-create"),
-        threadId,
-        projectId,
-        title: "Watch merged",
         modelSelection,
         runtimeMode: "full-access",
         interactionMode: "default",
@@ -4033,6 +4020,67 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         watching: true,
         link: { url: "https://github.com/pingdotgg/t3code/pull/8", source: "agent" },
       });
+      const reactor = yield* PullRequestWatchReactor.make.pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            NodeServices.layer,
+            NodeCrypto.layer,
+            Layer.mock(PullRequestService.PullRequestService)({
+              watchFingerprint: () => Effect.succeed(null),
+              detail: () =>
+                Effect.succeed({
+                  ...watchedPullRequestDetail({
+                    projectId,
+                    number: 8,
+                    at: "2026-10-02T12:00:00.000Z",
+                  }),
+                  state: "closed" as const,
+                }),
+              activity: () => Effect.die("host unreachable"),
+            }),
+          ),
+        ),
+      );
+      yield* reactor.sweep;
+
+      const thread = yield* orchestrator.getThreadShell(threadId);
+      assert.isUndefined(thread?.pullRequests?.[0]?.watch);
+      const { messages } = yield* orchestrator.getThreadRecords(threadId, ["messages"]);
+      assert.deepEqual(
+        messages.flatMap((message) => message.notification?.summary ?? []),
+        ["#8: closed, stopped watching"],
+      );
+    }),
+  );
+
+  it.effect("wakes once and stops watching when the watched PR merges", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const threadId = ThreadId.make("runtime-pull-request-watch-merged");
+      const projectId = ProjectId.make("pr-watch-merged-project");
+      yield* seedProject({
+        projectId,
+        title: "Watch merged",
+        workspaceRoot: "/workspace/watch-merged",
+        defaultModelSelection: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("pr-watch-merged-create"),
+        threadId,
+        projectId,
+        title: "Watch merged",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.pull-request.watch",
         commandId: CommandId.make("pr-watch-merged-start"),
         threadId,
         host: "github.com",
@@ -4053,12 +4101,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                 Effect.succeed({
                   ...watchedPullRequestDetail({
                     projectId,
-                    number: 8,
-                    at: "2026-10-02T12:00:00.000Z",
-                  }),
-                  state: "closed" as const,
-                }),
-              activity: () => Effect.die("host unreachable"),
                     number: 9,
                     at: "2026-10-02T12:00:00.000Z",
                   }),
@@ -4085,15 +4127,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             }),
           ),
         ),
-      );
-      yield* reactor.sweep;
-
-      const thread = yield* orchestrator.getThreadShell(threadId);
-      assert.isUndefined(thread?.pullRequests?.[0]?.watch);
-      const { messages } = yield* orchestrator.getThreadRecords(threadId, ["messages"]);
-      assert.deepEqual(
-        messages.flatMap((message) => message.notification?.summary ?? []),
-        ["#8: closed, stopped watching"],
       );
       const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
       const sweep = reactor.sweep.pipe(Effect.andThen(worker.drain()));

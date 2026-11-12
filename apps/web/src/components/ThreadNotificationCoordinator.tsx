@@ -90,6 +90,13 @@ export function startThreadNotifications(
       closeThreadToast(active.environmentId as EnvironmentId, active.threadId);
     }
   };
+  const closeToasts = (shouldClose: (key: string) => boolean) => {
+    for (const [key] of openToasts) {
+      if (!shouldClose(key)) continue;
+      toastManager.close(key);
+      openToasts.delete(key);
+    }
+  };
 
   const trackNotification = (
     environmentId: EnvironmentId,
