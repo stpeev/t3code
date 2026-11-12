@@ -3993,6 +3993,15 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         projectId,
         title: "Watch closed unreadable",
         workspaceRoot: "/workspace/watch-closed-unreadable",
+  it.effect("wakes once and stops watching when the watched PR merges", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const threadId = ThreadId.make("runtime-pull-request-watch-merged");
+      const projectId = ProjectId.make("pr-watch-merged-project");
+      yield* seedProject({
+        projectId,
+        title: "Watch merged",
+        workspaceRoot: "/workspace/watch-merged",
         defaultModelSelection: null,
         createdAt: "2026-10-01T00:00:00.000Z",
       });
@@ -4004,6 +4013,10 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         threadId,
         projectId,
         title: "Watch closed unreadable",
+        commandId: CommandId.make("pr-watch-merged-create"),
+        threadId,
+        projectId,
+        title: "Watch merged",
         modelSelection,
         runtimeMode: "full-access",
         interactionMode: "default",
@@ -4020,6 +4033,15 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         watching: true,
         link: { url: "https://github.com/pingdotgg/t3code/pull/8", source: "agent" },
       });
+        commandId: CommandId.make("pr-watch-merged-start"),
+        threadId,
+        host: "github.com",
+        repository: "pingdotgg/t3code",
+        number: 9,
+        watching: true,
+        link: { url: "https://github.com/pingdotgg/t3code/pull/9", source: "agent" },
+      });
+      let state: "open" | "merged" = "open";
       const reactor = yield* PullRequestWatchReactor.make.pipe(
         Effect.provide(
           Layer.mergeAll(
@@ -4037,6 +4059,29 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                   state: "closed" as const,
                 }),
               activity: () => Effect.die("host unreachable"),
+                    number: 9,
+                    at: "2026-10-02T12:00:00.000Z",
+                  }),
+                  state,
+                  headSha: "abc1234def",
+                  checks: [
+                    {
+                      name: "test",
+                      status: "pending" as const,
+                      description: null,
+                      url: null,
+                      required: true,
+                    },
+                  ],
+                }),
+              activity: () =>
+                Effect.succeed({
+                  comments: [],
+                  commentCount: 0,
+                  commentsTruncated: false,
+                  reviewThreads: [],
+                  commits: [],
+                }),
             }),
           ),
         ),
@@ -4050,6 +4095,24 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         messages.flatMap((message) => message.notification?.summary ?? []),
         ["#8: closed, stopped watching"],
       );
+      const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+      const sweep = reactor.sweep.pipe(Effect.andThen(worker.drain()));
+      const summaries = Effect.map(
+        orchestrator.getThreadRecords(threadId, ["messages"]),
+        ({ messages }) => messages.flatMap((message) => message.notification?.summary ?? []),
+      );
+      yield* sweep;
+      assert.deepEqual(yield* summaries, []);
+
+      state = "merged";
+      yield* TestClock.adjust("2 minutes");
+      yield* sweep;
+      assert.deepEqual(yield* summaries, ["#9: merged, stopped watching"]);
+      assert.isUndefined((yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch);
+
+      yield* TestClock.adjust("2 minutes");
+      yield* sweep;
+      assert.deepEqual(yield* summaries, ["#9: merged, stopped watching"]);
     }),
   );
 
