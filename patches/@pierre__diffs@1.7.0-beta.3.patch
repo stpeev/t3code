@@ -379,6 +379,37 @@ index 96d4fb137ea683b66381b1ce6e47e8708a89366c..13f2564897a5bf53a8f311300003b3ea
  	}
  	/**
  	* Re-measure the '0' character width against the font that is loaded right
+diff --git a/dist/managers/InteractionManager.js b/dist/managers/InteractionManager.js
+index bebe9dc2000ff5b53b82e443c75ea52f071c4ede..4ab0cfea5a327394030a601e0b23f7b6fa116c1f 100644
+--- a/dist/managers/InteractionManager.js
++++ b/dist/managers/InteractionManager.js
+@@ -627,16 +627,20 @@ var InteractionManager = class {
+ 	}
+ 	attachDocumentPointerListeners() {
+ 		if (this.hasDocumentPointerListeners) return;
+-		document.addEventListener("pointermove", this.handleDocumentPointerMove);
+-		document.addEventListener("pointerup", this.handleDocumentPointerUp);
+-		document.addEventListener("pointercancel", this.handleDocumentPointerCancel);
++		// T3 patch: the viewer can be portaled into a popout window's document, so listen on the
++		// document that owns the viewer instead of the main window's document.
++		this.pointerEventDocument = this.pre?.ownerDocument ?? document;
++		this.pointerEventDocument.addEventListener("pointermove", this.handleDocumentPointerMove);
++		this.pointerEventDocument.addEventListener("pointerup", this.handleDocumentPointerUp);
++		this.pointerEventDocument.addEventListener("pointercancel", this.handleDocumentPointerCancel);
+ 		this.hasDocumentPointerListeners = true;
+ 	}
+ 	detachDocumentPointerListeners() {
+ 		if (!this.hasDocumentPointerListeners) return;
+-		document.removeEventListener("pointermove", this.handleDocumentPointerMove);
+-		document.removeEventListener("pointerup", this.handleDocumentPointerUp);
+-		document.removeEventListener("pointercancel", this.handleDocumentPointerCancel);
++		this.pointerEventDocument?.removeEventListener("pointermove", this.handleDocumentPointerMove);
++		this.pointerEventDocument?.removeEventListener("pointerup", this.handleDocumentPointerUp);
++		this.pointerEventDocument?.removeEventListener("pointercancel", this.handleDocumentPointerCancel);
++		this.pointerEventDocument = void 0;
+ 		this.hasDocumentPointerListeners = false;
+ 	}
+ 	clearPointerSession() {
 diff --git a/dist/utils/createFileHeaderElement.js b/dist/utils/createFileHeaderElement.js
 index 19934176d0787ae1304e771c707230d5c8837e83..298b3386eac5126a7c1ec985674e799aac0ffd42 100644
 --- a/dist/utils/createFileHeaderElement.js
