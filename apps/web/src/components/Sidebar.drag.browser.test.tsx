@@ -115,6 +115,8 @@ it("keeps focus in the search box when a click picks a search result", async () 
       <ul role="listbox">
         <SidebarSearchResultRow
           isSettled={false}
+          settlementSupported={false}
+          onUnsettle={vi.fn()}
           thread={makeThreadFixture({ title: "Invoice export" })}
           project={null}
           projectDisplayName={null}

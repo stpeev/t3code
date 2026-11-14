@@ -304,7 +304,14 @@ it("opens a repository-relative file from a nested project without a remote", as
   useDiffPanelStore.getState().selectBranchBaseRef(context.threadRef, "main");
   await using screen = await render(
     <RegistryContext.Provider value={context.registry}>
-      <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+      <DiffPanel
+        threadRef={context.threadRef}
+        projectId={null}
+        worktreePath={null}
+        composerDraftTarget={context.threadRef}
+        workspaceMutationId={null}
+        visible
+      />
     </RegistryContext.Provider>,
   );
   await userEvent.click(screen.getByText(path, { exact: true }));
@@ -380,7 +387,14 @@ it("says a turn diff cut off at the server's size limit is incomplete", async ()
   await using screen = await render(
     <RegistryContext.Provider value={context.registry}>
       <div style={{ height: 600, display: "flex", flexDirection: "column" }}>
-        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+        <DiffPanel
+          threadRef={context.threadRef}
+          projectId={null}
+          worktreePath={null}
+          composerDraftTarget={context.threadRef}
+          workspaceMutationId={null}
+          visible
+        />
       </div>
     </RegistryContext.Provider>,
   );
@@ -499,6 +513,8 @@ it.each([
   await expect
     .element(screen.getByRole("button", { name: `Collapse ${name}`, exact: true }))
     .toHaveAttribute("aria-expanded", "true");
+});
+
 it("opens a line comment from the popped-out panel window", async () => {
   using context = setup("origin/orphan");
   const path = "popout-comment.ts";
@@ -624,7 +640,14 @@ it("opens a file from a tool call's diff by the path its agent recorded", async 
   await using screen = await render(
     <RegistryContext.Provider value={context.registry}>
       <div className="flex h-[600px] flex-col">
-        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+        <DiffPanel
+          threadRef={context.threadRef}
+          projectId={null}
+          worktreePath={null}
+          composerDraftTarget={context.threadRef}
+          workspaceMutationId={null}
+          visible
+        />
       </div>
     </RegistryContext.Provider>,
   );

@@ -119,6 +119,7 @@ const OPENCODE_SETTINGS = Schema.decodeSync(AcpRegistrySettings)({
   source: "local",
   commandPath: "/usr/local/bin/opencode",
   commandArgs: ["acp"],
+});
 // An agent id without a bespoke elicitation form parser, so question forms fall
 // through to the generic fallback.
 const GENERIC_SETTINGS = Schema.decodeSync(AcpRegistrySettings)({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { ThreadTokenUsageSnapshot } from "@t3tools/contracts";
+import { ProviderThreadId, type ThreadTokenUsageSnapshot } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 
 import {
@@ -12,6 +12,7 @@ import {
 
 function summarize(contextUsage: ThreadTokenUsageSnapshot, lastTurn: LastTurnUsage | null = null) {
   const snapshot = deriveLatestContextWindowSnapshot([], undefined, {
+    id: ProviderThreadId.make("provider-thread"),
     contextUsage,
     updatedAt: DateTime.makeUnsafe("2026-08-23T00:00:00.000Z"),
   });

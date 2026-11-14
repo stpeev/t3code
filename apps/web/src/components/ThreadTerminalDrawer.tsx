@@ -55,6 +55,11 @@ import { readTextFromClipboard, writeTextToClipboard } from "~/hooks/useCopyToCl
 import { cn } from "~/lib/utils";
 import { type TerminalContextSelection } from "~/lib/terminalContext";
 import {
+  observeSelectionActions,
+  resolveSelectionActionPosition,
+  type SelectionActionPoint,
+} from "~/lib/selectionActions";
+import {
   GhosttyTerminalSurface,
   type GhosttyTerminalSurfaceOptions,
 } from "~/terminal/ghostty/surface";
@@ -441,6 +446,15 @@ function terminalContextMenuItems(options: {
   ];
 }
 
+/** A superseded popup's unsettled promise must not cancel the newer right-click flow. */
+export function shouldClearTerminalSelectionAction(options: {
+  actionPending: boolean;
+  openMenuRequestId: number | null;
+  currentRequestId: number;
+}): boolean {
+  return options.actionPending || options.openMenuRequestId === options.currentRequestId;
+}
+
 /**
  * A writable session's output generation. A new one is a fresh PTY (or a
  * reconnect) that has not seen the surface's grid yet.
@@ -591,6 +605,7 @@ function TerminalSessionViewport({
   });
   const hasHandledExitRef = useRef(false);
   const selectionActionRequestIdRef = useRef(0);
+  const openSelectionMenuRequestIdRef = useRef<number | null>(null);
   const readKeybindings = useEffectEvent(() => keybindings);
   const readThreadShortcutContext = useEffectEvent(() => threadShortcutContext(threadRef));
   const handleSessionExited = useEffectEvent(() => {
@@ -725,6 +740,7 @@ function TerminalSessionViewport({
     let teardown: (() => void) | null = null;
     let setupTerminal: GhosttyTerminalSurface | null = null;
     let setupCleanups: Array<() => void> = [];
+    let selectionActions: ReturnType<typeof observeSelectionActions> | null = null;
 
     const setup = async (): Promise<(() => void) | null> => {
       const setupFont = terminalFontRef.current;
@@ -735,7 +751,7 @@ function TerminalSessionViewport({
         onBinary: (data) => void sendTerminalInput(data, m(msg("Terminal write failed")), "binary"),
         onReply: (data) => void sendTerminalInput(data, m(msg("Terminal write failed")), "reply"),
         onResize: (cols, rows) => void resizeTerminal(cols, rows),
-        onSelectionChange: () => {},
+        onSelectionChange: () => handleSelectionChange(),
         beforeKey: (event) => handleBeforeKey(event),
         onLinkActivate: (text, event) => handleLinkActivate(text, event),
         canActivateLink: (text) => canActivateTerminalLink(text),
@@ -808,17 +824,28 @@ function TerminalSessionViewport({
         terminal.focus();
       }
 
+      const dismissSelectionAction = (supersede = false) => {
+        const ownsMenu =
+          openSelectionMenuRequestIdRef.current === selectionActionRequestIdRef.current;
+        if (supersede || ownsMenu) selectionActionRequestIdRef.current += 1;
+        if (ownsMenu) void localApi?.contextMenu.close();
+      };
       const clearSelectionAction = () => {
-        selectionActionRequestIdRef.current += 1;
+        selectionActions?.cancel();
+        dismissSelectionAction(true);
       };
       setupCleanups.push(clearSelectionAction);
 
-      const readSelectionAction = (): {
+      const readSelectionAction = (
+        pointer: SelectionActionPoint | null = null,
+      ): {
+        position: { x: number; y: number };
         clipboardText: string;
         selection: TerminalContextSelection;
       } | null => {
         const activeTerminal = terminalRef.current;
-        if (!activeTerminal || !activeTerminal.hasSelection()) {
+        const mountElement = containerRef.current;
+        if (!activeTerminal || !mountElement || !activeTerminal.hasSelection()) {
           return null;
         }
         const selectionText = activeTerminal.getSelection();
@@ -837,6 +864,7 @@ function TerminalSessionViewport({
           viewport: { width: view.innerWidth, height: view.innerHeight },
         });
         return {
+          position,
           clipboardText: selectionText,
           selection: {
             terminalId,
@@ -968,6 +996,44 @@ function TerminalSessionViewport({
             ? { threadId, terminalId, data, [kind]: true }
             : { threadId, terminalId, data },
         });
+      const showSelectionAction = async (pointer: SelectionActionPoint | null) => {
+        if (!localApi) {
+          clearSelectionAction();
+          return;
+        }
+        if (openSelectionMenuRequestIdRef.current === selectionActionRequestIdRef.current) {
+          return;
+        }
+        const nextAction = readSelectionAction(pointer);
+        if (!nextAction) {
+          clearSelectionAction();
+          return;
+        }
+        const requestId = ++selectionActionRequestIdRef.current;
+        openSelectionMenuRequestIdRef.current = requestId;
+        const clicked = await localApi.contextMenu
+          .show(
+            terminalSelectionMenuItems({ canAddToChat: canAddSelectionToChat() }),
+            nextAction.position,
+          )
+          .finally(() => {
+            if (openSelectionMenuRequestIdRef.current === requestId) {
+              openSelectionMenuRequestIdRef.current = null;
+            }
+          });
+        if (requestId !== selectionActionRequestIdRef.current || clicked === null) {
+          return;
+        }
+        switch (clicked) {
+          case "add-to-chat":
+            if (canAddSelectionToChat()) addSelectionToChat(nextAction.clipboardText);
+            return;
+          case "copy":
+            await copySelection(nextAction.clipboardText, requestId);
+            return;
+        }
+      };
+
       const sendTerminalInput = (
         data: string,
         fallbackError: string,
@@ -1130,6 +1196,28 @@ function TerminalSessionViewport({
       function handleData(data: string): void {
         void sendTerminalInput(data, m(msg("Terminal write failed")));
       }
+
+      function handleSelectionChange(): void {
+        if (terminalRef.current?.hasSelection()) {
+          return;
+        }
+        const shouldClear = shouldClearTerminalSelectionAction({
+          actionPending: selectionActions?.pending ?? false,
+          openMenuRequestId: openSelectionMenuRequestIdRef.current,
+          currentRequestId: selectionActionRequestIdRef.current,
+        });
+        if (!shouldClear) return;
+        clearSelectionAction();
+      }
+
+      selectionActions = observeSelectionActions({
+        element: mount,
+        onSelection: (pointer) => {
+          void showSelectionAction(pointer);
+        },
+        onDismiss: (reason) => dismissSelectionAction(reason === "interaction"),
+      });
+      setupCleanups.push(() => selectionActions?.dispose());
 
       const themeObserver = new MutationObserver(() => {
         const activeTerminal = terminalRef.current;
