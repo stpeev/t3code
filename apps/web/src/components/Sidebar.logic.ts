@@ -609,6 +609,7 @@ export function filterSidebarV2VisibleThreads<
   threads: readonly T[],
   scopedProjectKeys: ReadonlySet<string> | null,
   delegatedUnderParent: ReadonlySet<string>,
+  scopedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
 ): T[] {
   return threads.filter(
     (thread) =>
@@ -618,9 +619,44 @@ export function filterSidebarV2VisibleThreads<
         thread.lineage,
         delegatedUnderParent,
       ) &&
+      (scopedEnvironmentIds === null || scopedEnvironmentIds.has(thread.environmentId)) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );
+}
+
+/**
+ * The persisted environment scope resolves against the catalog: a stored id whose
+ * environment is gone reads as unscoped, but the stored value is kept, so the scope
+ * returns with the environment.
+ */
+export function resolveSidebarEnvironmentScopeIds(input: {
+  readonly environmentIds: ReadonlyArray<EnvironmentId>;
+  readonly persistedIds: ReadonlyArray<EnvironmentId>;
+}): EnvironmentId[] {
+  const known = new Set(input.environmentIds);
+  return [...new Set(input.persistedIds.filter((id) => known.has(id)))];
+}
+
+/**
+ * Clicking an environment icon shows only that environment (radio semantics; the
+ * All button is the way back). Shift-click toggles membership for multi-select.
+ * An empty scope means all environments, so a full selection collapses to it.
+ */
+export function resolveSidebarEnvironmentScopeToggle(input: {
+  readonly scopedIds: ReadonlyArray<EnvironmentId>;
+  readonly allIds: ReadonlyArray<EnvironmentId>;
+  readonly target: EnvironmentId;
+  readonly additive: boolean;
+}): EnvironmentId[] {
+  if (!input.additive) {
+    return [input.target];
+  }
+  const effective = input.scopedIds.length === 0 ? [...input.allIds] : [...input.scopedIds];
+  const next = effective.includes(input.target)
+    ? effective.filter((id) => id !== input.target)
+    : [...effective, input.target];
+  return next.length === input.allIds.length ? [] : next;
 }
 
 export function buildBulkTitleRegenerationContextMenuItem(input: {

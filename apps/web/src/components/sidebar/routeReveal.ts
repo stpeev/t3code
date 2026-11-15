@@ -1,5 +1,7 @@
 import { useRef } from "react";
 
+import type { EnvironmentId } from "@t3tools/contracts";
+
 import { observeResize } from "~/lib/observeResize";
 
 import { filterSidebarV2VisibleThreads } from "../Sidebar.logic";
@@ -88,18 +90,31 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly routeKeyInPlace: boolean;
   readonly isSearching: boolean;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
+  readonly scopedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
   readonly delegatedUnderParent: ReadonlySet<string>;
   readonly findThread: (key: string) => T | undefined;
 }): { readonly pendingKey: string | null; readonly widensScope: boolean } {
-  const { reveal, routeKey, isSearching, scopedProjectKeys, delegatedUnderParent, findThread } =
-    input;
-  const pendingKey = pendingSidebarRouteReveal(reveal, routeKey, input.routeKeyInPlace);
+  const {
+    reveal,
+    routeKey,
+    isSearching,
+    scopedProjectKeys,
+    scopedEnvironmentIds,
+    delegatedUnderParent,
+    findThread,
+  } = input;
+  const pendingKey = pendingSidebarRouteReveal(reveal, routeKey);
   // Search results replace the thread list; the reveal waits for it to return.
   const thread = pendingKey === null || isSearching ? undefined : findThread(pendingKey);
   const widensScope =
     thread !== undefined &&
-    scopedProjectKeys !== null &&
-    filterSidebarV2VisibleThreads([thread], scopedProjectKeys, delegatedUnderParent).length === 0 &&
-    filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent).length === 1;
+    (scopedProjectKeys !== null || scopedEnvironmentIds !== null) &&
+    filterSidebarV2VisibleThreads(
+      [thread],
+      scopedProjectKeys,
+      delegatedUnderParent,
+      scopedEnvironmentIds,
+    ).length === 0 &&
+    filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent, null).length === 1;
   return { pendingKey, widensScope };
 }
