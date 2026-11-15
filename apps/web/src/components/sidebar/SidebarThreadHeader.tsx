@@ -1,5 +1,4 @@
-import { useGT } from "gt-react";
-import { SearchIcon, SquarePenIcon, XIcon } from "lucide-react";
+import { CheckIcon, FolderPlusIcon, SearchIcon, SquarePenIcon, XIcon } from "lucide-react";
 import {
   type ComponentProps,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -12,10 +11,14 @@ import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { SidebarInput, SidebarMenuButton } from "../ui/sidebar";
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
+import { msg, T } from "gt-react";
+
 
 export interface SidebarThreadHeaderProps {
   hasProjects: boolean;
+  environmentScope?: ReactNode;
   projectScope: ReactNode;
+  onNewProject: () => void;
   onNewThread: (event: ReactMouseEvent) => void;
   newThreadDisabled: boolean;
   newThreadShortcutLabel: string | null | undefined;
@@ -33,7 +36,9 @@ export interface SidebarThreadHeaderProps {
 
 export function SidebarThreadHeader({
   hasProjects,
+  environmentScope = null,
   projectScope,
+  onNewProject,
   onNewThread,
   newThreadDisabled,
   newThreadShortcutLabel,
@@ -48,13 +53,12 @@ export function SidebarThreadHeader({
   activeSearchResultIndex,
   onClearSearch,
 }: SidebarThreadHeaderProps) {
-  const gt = useGT();
   const resultsVisible = isSearching && searchResultCount > 0;
   // Shrinking results can remove the active option; never leave aria-activedescendant pointing at it.
   const activeResultExists = resultsVisible && activeSearchResultIndex < searchResultCount;
   const newThreadLabel = newThreadShortcutLabel
-    ? gt("New thread ({shortcut})", { shortcut: newThreadShortcutLabel })
-    : gt("New thread");
+    ? `New thread (${newThreadShortcutLabel})`
+    : "New thread";
 
   return (
     <div className="flex items-center gap-1">
@@ -67,8 +71,8 @@ export function SidebarThreadHeader({
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
           onKeyDown={onSearchKeyDown}
-          placeholder={gt("Search", { $context: "search field placeholder" })}
-          aria-label={gt("Search threads")}
+          placeholder={msg("Search")}
+          aria-label={msg("Search threads")}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={resultsVisible}
@@ -86,7 +90,7 @@ export function SidebarThreadHeader({
             size="icon-micro"
             variant="ghost-muted"
             className="shrink-0"
-            aria-label={gt("Clear thread search")}
+            aria-label={msg("Clear thread search")}
             onClick={() => {
               onClearSearch();
               searchInputRef.current?.focus();
@@ -97,19 +101,24 @@ export function SidebarThreadHeader({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center">
-        {hasProjects ? projectScope : null}
+        {environmentScope}
+        {hasProjects ? (
+          <>
+            {projectScope}
+            <SidebarHeaderIconButton label={msg("Add project")} onClick={onNewProject}>
+              <FolderPlusIcon />
+            </SidebarHeaderIconButton>
+          </>
+        ) : null}
         <SidebarHeaderIconButton
-          label={gt("New thread")}
+          label={msg("New thread")}
           tooltip={
             showNewThreadInProjectHint ? (
               <span className="flex flex-col gap-0.5">
                 <span>{newThreadLabel}</span>
                 <span className="text-muted-foreground">
-                  {newThreadInProjectShortcutLabel
-                    ? gt("New thread in current project: Shift+click ({shortcut})", {
-                        shortcut: newThreadInProjectShortcutLabel,
-                      })
-                    : gt("New thread in current project: Shift+click")}
+                  <T>New thread in current project: Shift+click</T>
+                  {newThreadInProjectShortcutLabel ? ` (${newThreadInProjectShortcutLabel})` : ""}
                 </span>
               </span>
             ) : (
@@ -126,6 +135,20 @@ export function SidebarThreadHeader({
   );
 }
 
+/** The icon badge that marks a selected row in a scope menu. */
+export function SidebarScopeRowIcon(props: { isSelected: boolean; children: ReactNode }) {
+  return (
+    <span className="relative flex shrink-0">
+      {props.children}
+      {props.isSelected ? (
+        <span className="pointer-events-none absolute -right-1 -bottom-1 grid size-3 place-items-center rounded-full bg-primary ring-2 ring-popover">
+          <CheckIcon className="size-2 text-primary-foreground" strokeWidth={4} aria-hidden />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function SidebarHeaderIconButton({
   label,
   tooltip = label,
@@ -139,7 +162,7 @@ export function SidebarHeaderIconButton({
   children?: ReactNode;
 } & Omit<
   ComponentProps<typeof SidebarMenuButton>,
-  "children" | "className" | "tooltip" | "isActive" | "aria-label"
+  "children" | "className" | "tooltip" | "aria-label"
 >) {
   return (
     <SharedTooltipTrigger

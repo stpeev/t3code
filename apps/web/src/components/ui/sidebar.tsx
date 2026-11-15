@@ -890,6 +890,7 @@ const sidebarMenuButtonVariants = cva(
       variant: {
         default: "font-medium text-sidebar-muted-foreground/80",
         outline: "bg-sidebar-control-surface ring-1 ring-sidebar-border",
+        pressed: "data-[active=true]:inset-shadow-control-pressed",
       },
     },
   },

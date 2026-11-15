@@ -40,6 +40,9 @@ import {
   resolveSidebarFolderDot,
   sidebarFolderExpansionKeys,
   withoutRemovedCheckout,
+  filterSidebarV2VisibleThreads,
+  resolveSidebarEnvironmentScopeIds,
+  resolveSidebarEnvironmentScopeToggle,
 } from "./Sidebar.logic";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import {
@@ -1604,6 +1607,7 @@ describe("resolveSidebarRouteReveal", () => {
         routeKeyInPlace: false,
         isSearching: false,
         scopedProjectKeys,
+        scopedEnvironmentIds: null,
         delegatedUnderParent: new Set(),
         findThread,
       }),
@@ -1619,6 +1623,7 @@ describe("resolveSidebarRouteReveal", () => {
         routeKeyInPlace: false,
         isSearching: false,
         scopedProjectKeys,
+        scopedEnvironmentIds: null,
         delegatedUnderParent: new Set(),
         findThread,
       }),
@@ -1636,6 +1641,7 @@ describe("resolveSidebarRouteReveal", () => {
         routeKeyInPlace: false,
         isSearching: false,
         scopedProjectKeys,
+        scopedEnvironmentIds: null,
         delegatedUnderParent: new Set(),
         findThread,
       });
@@ -1651,10 +1657,182 @@ describe("resolveSidebarRouteReveal", () => {
         routeKeyInPlace: false,
         isSearching: true,
         scopedProjectKeys,
+        scopedEnvironmentIds: null,
         delegatedUnderParent: new Set(),
         findThread,
       }),
     ).toEqual({ pendingKey: hiddenKey, widensScope: false });
+  });
+
+  it("widens the environment scope for a newly opened thread in another environment", () => {
+    const remoteThread = makeThreadFixture({
+      environmentId: EnvironmentId.make("environment-remote"),
+    });
+    const remoteKey = scopedThreadKey(scopeThreadRef(remoteThread.environmentId, remoteThread.id));
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: hiddenKey, pendingKey: null },
+        routeKey: remoteKey,
+        isSearching: false,
+        scopedProjectKeys: null,
+        scopedEnvironmentIds: new Set([EnvironmentId.make("environment-test")]),
+        delegatedUnderParent: new Set(),
+        findThread: (key) => (key === remoteKey ? remoteThread : undefined),
+      }),
+    ).toEqual({ pendingKey: remoteKey, widensScope: true });
+  });
+
+  it("does not widen when the environment scope already includes the route thread's environment", () => {
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: "environment-test:other", pendingKey: null },
+        routeKey: hiddenKey,
+        isSearching: false,
+        scopedProjectKeys: null,
+        scopedEnvironmentIds: new Set([EnvironmentId.make("environment-test")]),
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: hiddenKey, widensScope: false });
+  });
+});
+
+describe("filterSidebarV2VisibleThreads environment scope", () => {
+  const local = EnvironmentId.make("environment-local");
+  const remote = EnvironmentId.make("environment-remote");
+  const threadIn = (id: string, environmentId: EnvironmentId) =>
+    makeThreadFixture({ id: ThreadId.make(id), environmentId });
+
+  it("keeps only threads whose environment is in the scope", () => {
+    const threads = [threadIn("thread-a", local), threadIn("thread-b", remote)];
+    expect(
+      filterSidebarV2VisibleThreads(threads, null, new Set(), new Set([local])).map(
+        (thread) => thread.id,
+      ),
+    ).toEqual([ThreadId.make("thread-a")]);
+  });
+
+  it("treats a null scope as every environment", () => {
+    const threads = [threadIn("thread-a", local), threadIn("thread-b", remote)];
+    expect(filterSidebarV2VisibleThreads(threads, null, new Set(), null)).toHaveLength(2);
+  });
+
+  it("combines with the project scope", () => {
+    const threads = [
+      makeThreadFixture({
+        id: ThreadId.make("thread-a"),
+        environmentId: local,
+        projectId: ProjectId.make("project-one"),
+      }),
+      makeThreadFixture({
+        id: ThreadId.make("thread-b"),
+        environmentId: local,
+        projectId: ProjectId.make("project-two"),
+      }),
+    ];
+    expect(
+      filterSidebarV2VisibleThreads(
+        threads,
+        new Set([`${local}:project-one`]),
+        new Set(),
+        new Set([local]),
+      ).map((thread) => thread.id),
+    ).toEqual([ThreadId.make("thread-a")]);
+  });
+});
+
+describe("resolveSidebarEnvironmentScopeIds", () => {
+  it("drops stored ids whose environment is gone and keeps known ones in stored order", () => {
+    const local = EnvironmentId.make("environment-local");
+    const remote = EnvironmentId.make("environment-remote");
+    const gone = EnvironmentId.make("environment-gone");
+    expect(
+      resolveSidebarEnvironmentScopeIds({
+        environmentIds: [local, remote],
+        persistedIds: [gone, remote, local],
+      }),
+    ).toEqual([remote, local]);
+  });
+
+  it("reads as unscoped when no stored id survives", () => {
+    expect(
+      resolveSidebarEnvironmentScopeIds({
+        environmentIds: [EnvironmentId.make("environment-local")],
+        persistedIds: [EnvironmentId.make("environment-gone")],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("resolveSidebarEnvironmentScopeToggle", () => {
+  const local = EnvironmentId.make("environment-local");
+  const vps = EnvironmentId.make("environment-vps");
+  const cloud = EnvironmentId.make("environment-cloud");
+  const all = [local, vps, cloud];
+
+  it("shows only the clicked environment, even when it is already the only one", () => {
+    expect(
+      resolveSidebarEnvironmentScopeToggle({
+        scopedIds: [],
+        allIds: all,
+        target: vps,
+        additive: false,
+      }),
+    ).toEqual([vps]);
+    expect(
+      resolveSidebarEnvironmentScopeToggle({
+        scopedIds: [vps],
+        allIds: all,
+        target: vps,
+        additive: false,
+      }),
+    ).toEqual([vps]);
+    expect(
+      resolveSidebarEnvironmentScopeToggle({
+        scopedIds: [local],
+        allIds: all,
+        target: vps,
+        additive: false,
+      }),
+    ).toEqual([vps]);
+  });
+
+  it("shift-click removes the target from an all-scope and toggles membership otherwise", () => {
+    expect(
+      resolveSidebarEnvironmentScopeToggle({
+        scopedIds: [],
+        allIds: all,
+        target: vps,
+        additive: true,
+      }),
+    ).toEqual([local, cloud]);
+    expect(
+      resolveSidebarEnvironmentScopeToggle({
+        scopedIds: [local],
+        allIds: all,
+        target: vps,
+        additive: true,
+      }),
+    ).toEqual([local, vps]);
+    expect(
+      resolveSidebarEnvironmentScopeToggle({
+        scopedIds: [local, vps],
+        allIds: all,
+        target: vps,
+        additive: true,
+      }),
+    ).toEqual([local]);
+  });
+
+  it("collapses a full selection back to the all-scope", () => {
+    expect(
+      resolveSidebarEnvironmentScopeToggle({
+        scopedIds: [local, cloud],
+        allIds: all,
+        target: vps,
+        additive: true,
+      }),
+    ).toEqual([]);
   });
 });
 
