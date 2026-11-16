@@ -87,7 +87,7 @@ type RevealableThread = Parameters<typeof filterSidebarV2VisibleThreads>[0][numb
 export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly reveal: SidebarRouteReveal;
   readonly routeKey: string | null;
-  readonly routeKeyInPlace: boolean;
+  readonly routeKeyInPlace?: boolean;
   readonly isSearching: boolean;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly scopedEnvironmentIds: ReadonlySet<EnvironmentId> | null;

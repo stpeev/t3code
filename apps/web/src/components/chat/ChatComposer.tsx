@@ -263,6 +263,7 @@ import { isVideoAttachment, type SessionPhase, type Thread, type ThreadShell } f
 import type { ThreadSyncPhase } from "../../threadSync";
 import { type ComposerPromptHistoryPosition } from "./composerPromptHistory";
 import type { PendingUserInputDraftAnswer } from "@t3tools/client-runtime/state/pending-user-input";
+import type { PendingUserInputProgress } from "../../pendingUserInput";
 import type { PendingApproval, PendingUserInput, TimelineEntry } from "../../session-logic";
 import {
   composerRunsDraftLocally,
@@ -420,19 +421,7 @@ export interface ChatComposerProps {
   pendingApprovals: PendingApproval[];
   onHeldRequestIdsChange: (requestIds: ReadonlySet<string>) => void;
   pendingUserInputs: PendingUserInput[];
-  activePendingProgress: {
-    questionIndex: number;
-    isLastQuestion: boolean;
-    canAdvance: boolean;
-    customAnswer: string;
-    activeQuestion: {
-      id: string;
-      options: ReadonlyArray<unknown>;
-      initialAnswer?: string | undefined;
-      multiSelect?: boolean | undefined;
-      allowCustomAnswer?: boolean | undefined;
-    } | null;
-  } | null;
+  activePendingProgress: PendingUserInputProgress | null;
   activePendingResolvedAnswers: Record<string, unknown> | null;
   activePendingIsResponding: boolean;
   activePendingDraftAnswers: Record<string, PendingUserInputDraftAnswer>;
