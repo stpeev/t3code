@@ -1585,7 +1585,7 @@ describe("resolveSidebarRouteReveal", () => {
         delegatedUnderParent: new Set(),
         findThread,
       }),
-    ).toEqual({ pendingKey: hiddenKey, widensScope: true });
+    ).toEqual({ pendingKey: hiddenKey, widensScope: true, revealEnvironmentId: null });
   });
 
   it("never widens for a thread whose reveal already completed", () => {
@@ -1601,7 +1601,7 @@ describe("resolveSidebarRouteReveal", () => {
         delegatedUnderParent: new Set(),
         findThread,
       }),
-    ).toEqual({ pendingKey: null, widensScope: false });
+    ).toEqual({ pendingKey: null, widensScope: false, revealEnvironmentId: null });
   });
 
   it("widens again for a thread reopened before the thread between them listed its row", () => {
@@ -1620,7 +1620,11 @@ describe("resolveSidebarRouteReveal", () => {
         findThread,
       });
     resolve("environment-test:unlisted");
-    expect(resolve(hiddenKey)).toEqual({ pendingKey: hiddenKey, widensScope: true });
+    expect(resolve(hiddenKey)).toEqual({
+      pendingKey: hiddenKey,
+      widensScope: true,
+      revealEnvironmentId: null,
+    });
   });
 
   it("holds a pending reveal without widening while searching", () => {
@@ -1635,10 +1639,10 @@ describe("resolveSidebarRouteReveal", () => {
         delegatedUnderParent: new Set(),
         findThread,
       }),
-    ).toEqual({ pendingKey: hiddenKey, widensScope: false });
+    ).toEqual({ pendingKey: hiddenKey, widensScope: false, revealEnvironmentId: null });
   });
 
-  it("widens the environment scope for a newly opened thread in another environment", () => {
+  it("reveals the opened thread's environment when the environment scope hides it", () => {
     const remoteThread = makeThreadFixture({
       environmentId: EnvironmentId.make("environment-remote"),
     });
@@ -1653,7 +1657,26 @@ describe("resolveSidebarRouteReveal", () => {
         delegatedUnderParent: new Set(),
         findThread: (key) => (key === remoteKey ? remoteThread : undefined),
       }),
-    ).toEqual({ pendingKey: remoteKey, widensScope: true });
+    ).toEqual({
+      pendingKey: remoteKey,
+      widensScope: true,
+      revealEnvironmentId: EnvironmentId.make("environment-remote"),
+    });
+  });
+
+  it("leaves the environment scope alone when the project scope hid the route thread", () => {
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: "environment-test:other", pendingKey: null },
+        routeKey: hiddenKey,
+        routeKeyInPlace: false,
+        isSearching: false,
+        scopedProjectKeys,
+        scopedEnvironmentIds: new Set([EnvironmentId.make("environment-test")]),
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: hiddenKey, widensScope: true, revealEnvironmentId: null });
   });
 
   it("does not widen when the environment scope already includes the route thread's environment", () => {
@@ -1667,7 +1690,7 @@ describe("resolveSidebarRouteReveal", () => {
         delegatedUnderParent: new Set(),
         findThread,
       }),
-    ).toEqual({ pendingKey: hiddenKey, widensScope: false });
+    ).toEqual({ pendingKey: hiddenKey, widensScope: false, revealEnvironmentId: null });
   });
 });
 

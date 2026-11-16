@@ -93,7 +93,13 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly scopedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
   readonly delegatedUnderParent: ReadonlySet<string>;
   readonly findThread: (key: string) => T | undefined;
-}): { readonly pendingKey: string | null; readonly widensScope: boolean } {
+}): {
+  readonly pendingKey: string | null;
+  readonly widensScope: boolean;
+  // The route thread's environment when the environment scope hides it: the reveal
+  // switches the filter to that environment instead of widening to all.
+  readonly revealEnvironmentId: EnvironmentId | null;
+} {
   const {
     reveal,
     routeKey,
@@ -116,5 +122,12 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
       scopedEnvironmentIds,
     ).length === 0 &&
     filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent, null).length === 1;
-  return { pendingKey, widensScope };
+  const revealEnvironmentId =
+    widensScope &&
+    scopedEnvironmentIds !== null &&
+    thread !== undefined &&
+    !scopedEnvironmentIds.has(thread.environmentId)
+      ? thread.environmentId
+      : null;
+  return { pendingKey, widensScope, revealEnvironmentId };
 }
