@@ -372,13 +372,10 @@ function AgentActivity(
       >
         {attentionRow
           ? attentionRow.phase === "waiting_for_approval"
-            ? // oxlint-disable-next-line t3code/no-untranslated-copy -- fallback for a Live Activity without translated text
-              (text?.approval ?? "Approval")
-            : // oxlint-disable-next-line t3code/no-untranslated-copy -- fallback for a Live Activity without translated text
-              (text?.input ?? "Input")
+            ? (text?.approval ?? "Approval")
+            : (text?.input ?? "Input")
           : failedRow
-            ? // oxlint-disable-next-line t3code/no-untranslated-copy -- fallback for a Live Activity without translated text
-              (text?.failed ?? "Failed")
+            ? (text?.failed ?? "Failed")
             : activeLabel}
       </Text>
     ),

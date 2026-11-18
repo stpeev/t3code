@@ -1203,3 +1203,5 @@ export function deriveCanInterruptRunningThread(
 }
 
 export type { TurnDiffSummary };
+
+export { formatDuration } from "@t3tools/shared/orchestrationTiming";

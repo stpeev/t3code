@@ -383,6 +383,7 @@ function DiscoveryItemRow({
 function InferParentBranchSetting() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
+  const searchableSetting = useSearchableSetting();
   const setting = searchableSetting("infer-parent-branch");
 
   return (
@@ -393,7 +394,7 @@ function InferParentBranchSetting() {
             <span className="text-xs font-medium text-foreground">{setting.title}</span>
             {settings.inferParentBranch ? (
               <SettingResetButton
-                label="parent branch guessing"
+                ariaLabel="parent branch guessing"
                 onClick={() => updateSettings({ inferParentBranch: false })}
               />
             ) : null}

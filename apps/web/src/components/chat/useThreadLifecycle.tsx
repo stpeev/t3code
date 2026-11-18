@@ -85,7 +85,7 @@ import type { useLocalDispatchState } from "./useLocalDispatchState";
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
 
 function actionErrorMessage(error: unknown): string {
-  return errorDisplayMessage(error, m) ?? chatActionErrorMessage(error, m);
+  return errorDisplayMessage(error) ?? chatActionErrorMessage(error);
 }
 const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
   Atom.withLabel("web-thread-run-stop:empty"),

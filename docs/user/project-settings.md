@@ -210,6 +210,7 @@ If the pattern file is missing, creating the worktree fails instead of checking 
 Submodules still follow **Submodules** above, also under excluded paths; set it to **Skip** to leave
 them empty. The first sparse worktree turns on Git's `extensions.worktreeConfig` for the repository.
 This needs Git 2.35 or newer.
+
 ## Subagent models
 
 Agents can hand work to subagents and label each task with a role: implementation, research,

@@ -240,6 +240,24 @@ function ExcerptDiff({
   };
   const gt = useGT();
   const interactive = commenting !== null && draft === null;
+<<<<<<< HEAD
+=======
+  const onAskAgent = commenting?.onAskAgent ?? null;
+  const askAgent = (request: string) => {
+    if (draft === null || onAskAgent === null) return;
+    const comment = buildDiffReviewComment({
+      id: `pull-request-guide:${diffReviewSelectionId(excerpt.path, draft.range)}`,
+      sectionId: `pull-request-guide:${excerpt.path}`,
+      sectionTitle: "Review guide",
+      filePath: excerpt.path,
+      fileDiff: file,
+      range: draft.range,
+      text: request,
+    });
+    setDraft(null);
+    if (comment !== null) onAskAgent(comment, request);
+  };
+>>>>>>> fb486d3d81 (fix: repair fork features after the upstream sync; re-measure context budget)
 
   const options = {
     diffStyle: "unified" as const,

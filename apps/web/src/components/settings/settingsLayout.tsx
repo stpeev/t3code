@@ -413,7 +413,7 @@ export function SettingsRow({
     managed !== undefined ? null : isProjectScope && scopedKeys.length > 0 ? (
       source === "project" || source === "mixed" ? (
         <SettingResetButton
-          label={resetLabel ?? (typeof title === "string" ? title : "override")}
+          ariaLabel={resetLabel ?? (typeof title === "string" ? title : "override")}
           tooltip="Reset to inherited value"
           onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
         />
@@ -567,12 +567,12 @@ export function SettingsRow({
 }
 
 export function SettingResetButton({
-  label,
+  ariaLabel,
   tooltip = "Reset to default",
   disabled = false,
   onClick,
 }: {
-  label: string;
+  ariaLabel: string;
   tooltip?: string;
   disabled?: boolean;
   onClick: () => void;
@@ -584,7 +584,7 @@ export function SettingResetButton({
           <Button
             size="icon-micro"
             variant="ghost-muted"
-            aria-label={`Reset ${label} to default`}
+            aria-label={ariaLabel}
             disabled={disabled}
             onClick={(event) => {
               event.stopPropagation();

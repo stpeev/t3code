@@ -504,7 +504,6 @@ function ProjectScriptEditorForm({
               </Label>
               <Textarea
                 id="script-command"
-                // oxlint-disable-next-line t3code/no-untranslated-copy -- example shell command
                 placeholder="bun test"
                 value={command}
                 onChange={(event) => setCommand(event.target.value)}

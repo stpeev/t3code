@@ -1,4 +1,3 @@
-import { useLocale, useMessages } from "gt-react";
 import { useState } from "react";
 import {
   computeStableMessagesTimelineRows,
@@ -44,25 +43,17 @@ export function useIncrementalTimelineRows(
   identity: string,
   input: MessagesTimelineRowsInput,
 ): MessagesTimelineRow[] {
-  // Keyed on the locale: without a GTProvider, useMessages() returns a new function every render.
-  const locale = useLocale();
-  const resolve = useMessages();
   const [state, setState] = useState(() => ({
     identity,
     input,
-    locale,
-    projection: deriveMessagesTimelineRowsWithState(input, null, resolve),
+    projection: deriveMessagesTimelineRowsWithState(input, null),
   }));
-  const reusable = state.identity === identity && state.locale === locale;
+  const reusable = state.identity === identity;
   if (reusable && sameRowsInput(state.input, input)) {
     return state.projection.rows;
   }
-  const projection = deriveMessagesTimelineRowsWithState(
-    input,
-    reusable ? state.projection : null,
-    resolve,
-  );
-  setState({ identity, input, locale, projection });
+  const projection = deriveMessagesTimelineRowsWithState(input, reusable ? state.projection : null);
+  setState({ identity, input, projection });
   return projection.rows;
 }
 

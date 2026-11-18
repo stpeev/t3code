@@ -121,6 +121,12 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
 };
 
 /** Sidebar order. A group with a hidden heading is set apart on screen by space alone. */
+export const SETTINGS_NAV_LABELS: Readonly<Record<SettingsPath, string>> = {
+  ...SETTINGS_SECTION_LABELS,
+  "/settings/source-control": "Source control & issues",
+  "/settings/access": "Sharing & access",
+};
+
 export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   readonly heading: string;
   readonly headingHidden?: true;
@@ -1252,6 +1258,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["pull request merge squash rebase last selected"],
   },
   {
+    id: "issue-trackers",
+    title: "Issue trackers",
+    to: "/settings/source-control",
+    scope: "environment-defaults",
+    searchTerms: ["linear jira issues tracker team api key connect bind project"],
+  },
+  {
     id: "source-control",
     title: "Source control",
     to: "/settings/source-control",
@@ -1637,6 +1650,12 @@ export function isSettingsSearchScopeAvailable(
         scopeKind === "checkout"
       );
   }
+}
+
+/** Hook form of `searchableSetting`, for spreading onto a row. */
+// oxlint-disable-next-line t3code/no-hookless-use-function -- plain-string titles need no locale hook
+export function useSearchableSetting() {
+  return (id: SettingsSearchItemId) => searchableSetting(id);
 }
 
 export function searchableSetting(id: SettingsSearchItemId): {

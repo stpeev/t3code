@@ -40,7 +40,6 @@ const pocketPiEndpoint = {
 export const SHOWCASE_CONNECTED_CLOUD_ENVIRONMENTS: ReadonlyArray<ConnectedEnvironmentSummary> = [
   {
     environmentId: EnvironmentId.make("showcase-aurora-gpu"),
-    // oxlint-disable-next-line t3code/no-untranslated-copy -- showcase fixture data
     environmentLabel: "Aurora GPU Pod",
     displayUrl: "https://aurora-gpu.t3.sh",
     isRelayManaged: true,
@@ -55,7 +54,6 @@ export const SHOWCASE_AVAILABLE_CLOUD_ENVIRONMENTS: ReadonlyArray<RelayEnvironme
   {
     environment: {
       environmentId: pocketPiId,
-      // oxlint-disable-next-line t3code/no-untranslated-copy -- showcase fixture data
       label: "Pocket Pi",
       endpoint: pocketPiEndpoint,
       linkedAt: "2026-07-16T08:00:00.000Z",

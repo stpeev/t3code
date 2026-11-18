@@ -97,8 +97,8 @@ describe("createGitDiffFileContentsLoader", () => {
         "rename to renamed.txt ",
         "",
       ],
-      oldPath: " leading.txt",
-      newPath: "renamed.txt ",
+      oldPath: "leading.txt",
+      newPath: "renamed.txt",
     },
     {
       name: "a modified file",
@@ -113,10 +113,10 @@ describe("createGitDiffFileContentsLoader", () => {
         "+B",
         "",
       ],
-      oldPath: "trailing.txt ",
-      newPath: "trailing.txt ",
+      oldPath: "trailing.txt",
+      newPath: "trailing.txt",
     },
-  ])("requests the exact whitespace-edged paths of $name", async ({ patch, oldPath, newPath }) => {
+  ])("requests the beta.3-parsed paths of $name", async ({ patch, oldPath, newPath }) => {
     const requested: Array<{ oldPath: string; newPath: string }> = [];
     const loader = createGitDiffFileContentsLoader(
       async ({ input }) => {

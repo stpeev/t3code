@@ -1745,11 +1745,9 @@ function ContextCompactionTimelineRow({
 }) {
   const gt = useGT();
   const label =
-    row.title && row.compacted
-      ? row.tokenCounts
-        ? gt("{title} {before} → {after} tokens", { title: row.title, ...row.tokenCounts })
-        : row.title
-      : row.label;
+    row.title && row.tokenCounts
+      ? gt("{title} {before} → {after} tokens", { title: row.title, ...row.tokenCounts })
+      : (row.title ?? row.label);
   const content = (
     <span className="flex min-w-0 items-center gap-1.5">
       {row.failed ? (
@@ -1777,7 +1775,6 @@ function ContextCompactionTimelineRow({
         label
       )}
       {row.failure ? (
-        // oxlint-disable-next-line t3code/no-untranslated-copy -- separator before server-authored failure text
         <span className="min-w-0 truncate opacity-80">&middot; {row.failure}</span>
       ) : null}
     </span>

@@ -275,7 +275,7 @@ export function AppearanceSettingsPanel() {
           resetAction={
             settings.attentionHighlight !== DEFAULT_UNIFIED_SETTINGS.attentionHighlight ? (
               <SettingResetButton
-                label="attention highlight"
+                ariaLabel="attention highlight"
                 onClick={() =>
                   updateSettings({
                     attentionHighlight: DEFAULT_UNIFIED_SETTINGS.attentionHighlight,
