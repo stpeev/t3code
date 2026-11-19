@@ -39,6 +39,7 @@ import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import { forkParked } from "../serverActivation.ts";
 import * as PipelineDefinitions from "./PipelineDefinitions.ts";
+import * as PipelineReportsExclude from "./pipelineReportsExclude.ts";
 
 export const PIPELINE_THREADS_FILE_NAME = "pipeline-threads.json";
 
@@ -633,6 +634,12 @@ const make = Effect.gen(function* () {
     issues,
     threads: [...states.values()],
   });
+
+  // Stage reports land in pipeline-reports/ inside whatever repo the thread
+  // works in; make sure git ignores them machine-wide without any .gitignore edit.
+  const reportsExclude = yield* PipelineReportsExclude.PipelineReportsExclude;
+  yield* Effect.forkDetach(reportsExclude.ensure);
+
   const subscribe = Stream.zipLatest(definitions.changes, SubscriptionRef.changes(statesRef)).pipe(
     Stream.map(([state, states]) => snapshotOf(state, states)),
   );
