@@ -14387,6 +14387,61 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     ),
   );
 
+  it.effect("a turn Claude starts by itself holds the idle session until its command ends", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeWakeHarness;
+      yield* harness.runtime.startTurn(
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make("attempt-claude-self-started-1"),
+          text: "Poll every ten minutes.",
+          attachments: [],
+        }),
+      );
+      yield* Queue.offer(harness.sdkMessages, turnOneResult);
+      yield* harness.awaitTerminal(1);
+      assert.isFalse(yield* harness.hasPendingBackgroundWork);
+
+      const commandUuid = "00000000-0000-4000-8000-000000002601";
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "command_lifecycle",
+          command_uuid: commandUuid,
+          state: "started",
+          wakeup_source: "schedule_wakeup",
+          uuid: "00000000-0000-4000-8000-000000002602",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
+      assert.isTrue(
+        yield* harness.hasPendingBackgroundWork,
+        "the turn has no wake frame until its model replies, so only the lifecycle start shows it",
+      );
+
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "command_lifecycle",
+          command_uuid: commandUuid,
+          state: "completed",
+          uuid: "00000000-0000-4000-8000-000000002603",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
+      assert.isFalse(yield* harness.hasPendingBackgroundWork);
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
+      ),
+    ),
+  );
+
   it.effect.skipIf(process.getuid === undefined)(
     "tails foreground Bash output under the physical cwd the query launched in",
     () =>
@@ -16650,6 +16705,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       );
       yield* harness.awaitTerminal(1);
       assert.equal(harness.terminalEvents()[0]?.status, "completed");
+      assert.isFalse(yield* harness.hasPendingBackgroundWork);
     }).pipe(
       Effect.provide(
         Layer.mergeAll(

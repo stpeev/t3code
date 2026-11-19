@@ -6343,6 +6343,28 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             scheduledWakeupsByNativeThread.delete(nativeThreadId);
           }
         });
+        // A turn Claude starts by itself (a cron or wakeup firing) shows no wake frame until its
+        // model replies, so its command uuid holds the session from lifecycle started to its end.
+        const selfStartedCommandByNativeThread = new Map<string, string>();
+        const trackClaudeSelfStartedCommand = Effect.fnUntraced(function* (
+          nativeThreadId: string,
+          message: SDKMessage,
+        ) {
+          const lifecycle = claudePromptLifecycle(message);
+          if (lifecycle === null) return;
+          if (lifecycle.state === "started") {
+            const context = yield* Ref.get(activeTurn);
+            const promptedByT3 =
+              context !== null &&
+              (lifecycle.uuid === context.promptUuid || context.steerUuids.has(lifecycle.uuid));
+            if (!promptedByT3) selfStartedCommandByNativeThread.set(nativeThreadId, lifecycle.uuid);
+          } else if (
+            (lifecycle.state === "completed" || lifecycle.state === "cancelled") &&
+            selfStartedCommandByNativeThread.get(nativeThreadId) === lifecycle.uuid
+          ) {
+            selfStartedCommandByNativeThread.delete(nativeThreadId);
+          }
+        });
         const publishedPendingBackgroundTasks = (
           nativeThreadId: string | null,
           roster: ReadonlyMap<string, OrchestrationV2PendingBackgroundTask>,
@@ -7085,6 +7107,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const clearWakeStateForNativeThread =
           /* Provider events include streaming deltas; avoid a span for each update. */
           Effect.fnUntraced(function* (nativeThreadId: string) {
+            selfStartedCommandByNativeThread.delete(nativeThreadId);
             yield* clearWakeReports(nativeThreadId);
             yield* Ref.update(wakeBuffers, (current) => {
               if (!current.has(nativeThreadId)) {
@@ -7167,6 +7190,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           );
           scheduledWakeupsByNativeThread.delete(nativeThreadId);
           possibleEarlyWakeNativeThreads.delete(nativeThreadId);
+          selfStartedCommandByNativeThread.delete(nativeThreadId);
           yield* clearPendingBackgroundTasksForNativeThread(nativeThreadId);
           yield* clearNativeThreadTaskIdSet(
             wakeEligibleBackgroundTasksByNativeThread,
@@ -10049,6 +10073,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           closedQuery: ClaudeLiveQueryContext,
           cause?: Cause.Cause<ClaudeAgentSdkQueryRunnerError>,
         ) {
+          // The exited process took its in-flight turn with it.
+          selfStartedCommandByNativeThread.delete(closedQuery.nativeThreadId);
           const current = yield* Ref.get(activeTurn);
           // A replacement query can reuse the native thread id; only this query's turn is ours.
           const context = closedQuery.lastTurn;
@@ -10836,6 +10862,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           // Track before routing: idle-wake Monitors report tasks before replaying their tool calls.
           yield* trackClaudeMonitorCalls(message);
           yield* trackClaudeScheduledWakeup(liveQuery.nativeThreadId, message);
+          yield* trackClaudeSelfStartedCommand(liveQuery.nativeThreadId, message);
           // Update before routing because the idle wake gate reads this.
           if (
             message.type === "system" &&
@@ -14409,7 +14436,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           backgroundTasksEndWithProcess: true,
           hasPendingBackgroundWork: Effect.gen(function* () {
             // A wakeup can be up to an hour out, past the idle timeout, and dies with the process.
-            if (scheduledWakeupsByNativeThread.size > 0) {
+            if (
+              scheduledWakeupsByNativeThread.size > 0 ||
+              selfStartedCommandByNativeThread.size > 0
+            ) {
               return true;
             }
             for (const roster of (yield* Ref.get(pendingBackgroundTasksByNativeThread)).values()) {
