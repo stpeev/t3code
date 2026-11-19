@@ -6879,6 +6879,42 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             selfStartedCommandByNativeThread.delete(nativeThreadId);
           }
         });
+        // Session crons fire turns by themselves and die with the process. A one-shot job deletes
+        // itself unseen, so its stale id holds only until the session manager's idle pin cap.
+        const cronCreateCalls = new Set<string>();
+        const cronDeleteJobIdsByToolUseId = new Map<string, string>();
+        const liveCronJobsByNativeThread = new Map<string, Set<string>>();
+        const trackClaudeSessionCrons = (nativeThreadId: string, message: SDKMessage) => {
+          for (const toolUse of claudeToolUseBlocksFromAssistantMessage(message)) {
+            if (toolUse.name === "CronCreate") cronCreateCalls.add(toolUse.id);
+            const jobId =
+              toolUse.name === "CronDelete" &&
+              typeof toolUse.input === "object" &&
+              toolUse.input !== null
+                ? Reflect.get(toolUse.input, "id")
+                : undefined;
+            if (typeof jobId === "string") cronDeleteJobIdsByToolUseId.set(toolUse.id, jobId);
+          }
+          if (message.type !== "user") return;
+          const toolResults = claudeToolResultBlocksFromUserMessage(message);
+          for (const toolResult of toolResults) {
+            // A failed delete also drops the job: an id Claude cannot delete is not live either.
+            const deletedJobId = cronDeleteJobIdsByToolUseId.get(toolResult.tool_use_id);
+            if (deletedJobId !== undefined) {
+              cronDeleteJobIdsByToolUseId.delete(toolResult.tool_use_id);
+              const jobs = liveCronJobsByNativeThread.get(nativeThreadId);
+              jobs?.delete(deletedJobId);
+              if (jobs?.size === 0) liveCronJobsByNativeThread.delete(nativeThreadId);
+            }
+            if (!cronCreateCalls.delete(toolResult.tool_use_id)) continue;
+            const result = toolResults.length === 1 ? message.tool_use_result : undefined;
+            const jobId =
+              typeof result === "object" && result !== null ? Reflect.get(result, "id") : undefined;
+            if (typeof jobId !== "string") continue;
+            const jobs = liveCronJobsByNativeThread.get(nativeThreadId) ?? new Set<string>();
+            liveCronJobsByNativeThread.set(nativeThreadId, jobs.add(jobId));
+          }
+        };
         const publishedPendingBackgroundTasks = (
           nativeThreadId: string | null,
           roster: ReadonlyMap<string, OrchestrationV2PendingBackgroundTask>,
@@ -7764,6 +7800,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           scheduledWakeupsByNativeThread.delete(nativeThreadId);
           possibleEarlyWakeNativeThreads.delete(nativeThreadId);
           selfStartedCommandByNativeThread.delete(nativeThreadId);
+          liveCronJobsByNativeThread.delete(nativeThreadId);
           yield* clearPendingBackgroundTasksForNativeThread(nativeThreadId);
           yield* clearNativeThreadTaskIdSet(
             wakeEligibleBackgroundTasksByNativeThread,
@@ -10744,8 +10781,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           closedQuery: ClaudeLiveQueryContext,
           cause?: Cause.Cause<ClaudeAgentSdkQueryRunnerError>,
         ) {
-          // The exited process took its in-flight turn with it.
+          // The exited process took its in-flight turn and session crons with it.
           selfStartedCommandByNativeThread.delete(closedQuery.nativeThreadId);
+          liveCronJobsByNativeThread.delete(closedQuery.nativeThreadId);
           const current = yield* Ref.get(activeTurn);
           // A replacement query can reuse the native thread id; only this query's turn is ours.
           const context = closedQuery.lastTurn;
@@ -11536,6 +11574,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           yield* trackClaudeMonitorCalls(message);
           yield* trackClaudeScheduledWakeup(liveQuery.nativeThreadId, message);
           yield* trackClaudeSelfStartedCommand(liveQuery.nativeThreadId, message);
+          trackClaudeSessionCrons(liveQuery.nativeThreadId, message);
           // Update before routing because the idle wake gate reads this.
           if (
             message.type === "system" &&
@@ -15381,9 +15420,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           events: Stream.fromEffectRepeat(Queue.take(events)),
           backgroundTasksEndWithProcess: true,
           hasPendingBackgroundWork: Effect.gen(function* () {
-            // A wakeup can be up to an hour out, past the idle timeout, and dies with the process.
+            // Wakeups and crons can fire past the idle timeout, and die with the process.
             if (
               scheduledWakeupsByNativeThread.size > 0 ||
+              liveCronJobsByNativeThread.size > 0 ||
               selfStartedCommandByNativeThread.size > 0
             ) {
               return true;
