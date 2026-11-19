@@ -3129,7 +3129,9 @@ export default function ChatView(props: ChatViewProps) {
                 : null;
   const openSideChatStable = useStableCallback(() => void sideChat.open());
   const openSurfaceInMainView = useOpenSurfaceInMainView(activeThreadRef);
-  const sendSideChatStable = useStableCallback(sideChat.open);
+  const sendSideChatStable = useStableCallback((prompt: string) =>
+    sideChat.open({ text: prompt, attachments: [], titleSeed: prompt }),
+  );
   const { onConfirmRevertStable, onForkFromRunStable, onRevertTimelineTurnStable } =
     useTimelineRewind({
       environmentId,

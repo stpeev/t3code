@@ -76,28 +76,31 @@ export class PipelineReportsExclude extends Context.Service<
   {
     readonly ensure: Effect.Effect<void>;
   }
->()("t3/pipelines/PipelineReportsExclude") {}
+>()("t3/pipelines/pipelineReportsExclude") {}
 
-export const layer = Layer.effect(PipelineReportsExclude, Effect.gen(function* () {
-  const git = yield* GitVcsDriver.GitVcsDriver;
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  // Exit 1 just means core.excludesFile is unset, which is the common case.
-  const readGlobalExcludesFile = git
-    .execute({
-      operation: "PipelineReportsExclude.readGlobalExcludesFile",
-      cwd: process.cwd(),
-      args: ["config", "--global", "--get", "core.excludesfile"],
-      allowNonZeroExit: true,
-    })
-    .pipe(
-      Effect.map((result) => {
-        const value = result.stdout.trim();
-        return value === "" ? null : value;
-      }),
-      Effect.orElseSucceed(() => null as string | null),
-    );
-  return PipelineReportsExclude.of({
-    ensure: ensureWith({ fs, path, env: process.env, readGlobalExcludesFile }),
-  });
-}));
+export const layer = Layer.effect(
+  PipelineReportsExclude,
+  Effect.gen(function* () {
+    const git = yield* GitVcsDriver.GitVcsDriver;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    // Exit 1 just means core.excludesFile is unset, which is the common case.
+    const readGlobalExcludesFile = git
+      .execute({
+        operation: "PipelineReportsExclude.readGlobalExcludesFile",
+        cwd: process.cwd(),
+        args: ["config", "--global", "--get", "core.excludesfile"],
+        allowNonZeroExit: true,
+      })
+      .pipe(
+        Effect.map((result) => {
+          const value = result.stdout.trim();
+          return value === "" ? null : value;
+        }),
+        Effect.orElseSucceed(() => null as string | null),
+      );
+    return PipelineReportsExclude.of({
+      ensure: ensureWith({ fs, path, env: process.env, readGlobalExcludesFile }),
+    });
+  }),
+);
