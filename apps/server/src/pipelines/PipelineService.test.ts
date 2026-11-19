@@ -25,6 +25,7 @@ import * as ServerConfig from "../config.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as PipelineDefinitions from "./PipelineDefinitions.ts";
+import * as PipelineReportsExclude from "./pipelineReportsExclude.ts";
 import * as PipelineService from "./PipelineService.ts";
 
 const threadId = ThreadId.make("thread-1");
@@ -111,6 +112,7 @@ const withService = <A, E, R>(
         current: Effect.succeed(definitions),
         changes: Stream.make(definitions),
       }),
+      Layer.mock(PipelineReportsExclude.PipelineReportsExclude)({ ensure: Effect.void }),
       Layer.mock(Orchestrator.OrchestratorV2)({
         streamDomainEvents: Stream.fromPubSub(events),
         streamStoredEventsFrom: () => Stream.empty,

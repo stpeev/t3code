@@ -65,6 +65,7 @@ import * as ThreadForkService from "./ThreadForkService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as PipelineService from "../pipelines/PipelineService.ts";
+import * as PipelineReportsExclude from "../pipelines/pipelineReportsExclude.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as FeedbackStore from "../feedback/FeedbackStore.ts";
 import * as WorkspaceFolders from "../workspace/WorkspaceFolders.ts";
@@ -465,7 +466,13 @@ export const layerProduction = Layer.mergeAll(
   layerAgentSessionImporterProvided,
   EffectOutbox.layerPruneWorker.pipe(Layer.provide(EffectOutbox.layer)),
   PipelineService.layer.pipe(
-    Layer.provide(Layer.merge(layerThreadManagementProvided, layerOrchestratorProvided)),
+    Layer.provide(
+      Layer.mergeAll(
+        layerThreadManagementProvided,
+        layerOrchestratorProvided,
+        PipelineReportsExclude.layer.pipe(Layer.provide(GitVcsDriver.layer)),
+      ),
+    ),
   ),
 ).pipe(
   Layer.provide(ResourceCleanupService.layer.pipe(Layer.provide(layerScheduledTaskProvided))),
