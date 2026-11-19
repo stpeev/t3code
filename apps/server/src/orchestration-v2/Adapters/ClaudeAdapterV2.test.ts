@@ -14387,6 +14387,125 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     ),
   );
 
+  it.effect(
+    "a live session cron holds the idle session until it is deleted or the process ends",
+    () =>
+      Effect.gen(function* () {
+        let closes = 0;
+        const harness = yield* makeWakeHarnessWithOptions({
+          close: (sdkMessages) =>
+            Effect.sync(() => {
+              closes++;
+            }).pipe(Effect.andThen(Queue.shutdown(sdkMessages))),
+        });
+        const cronTurn = Effect.fnUntraced(function* (input: {
+          readonly ordinal: number;
+          readonly toolName: "CronCreate" | "CronDelete";
+          readonly toolInput: Record<string, unknown>;
+          readonly toolUseResult: Record<string, unknown>;
+        }) {
+          const toolUseId = `toolu_cron_${input.ordinal}`;
+          const uuid = (n: number) => `00000000-0000-4000-8000-00000000270${input.ordinal}${n}`;
+          yield* harness.runtime.startTurn(
+            makeClaudeTestTurnInput({
+              threadId: harness.threadId,
+              providerThread: harness.providerThread,
+              now: yield* DateTime.now,
+              attemptId: RunAttemptId.make(`attempt-claude-cron-${input.ordinal}`),
+              text: `${input.toolName} please.`,
+              attachments: [],
+              providerTurnOrdinal: input.ordinal,
+            }),
+          );
+          yield* Queue.offer(
+            harness.sdkMessages,
+            claudeSdkFrame({
+              type: "assistant",
+              message: {
+                model: "claude-sonnet-4-6",
+                id: `msg_${toolUseId}`,
+                type: "message",
+                role: "assistant",
+                content: [
+                  { type: "tool_use", id: toolUseId, name: input.toolName, input: input.toolInput },
+                ],
+                stop_reason: null,
+                stop_sequence: null,
+                usage: { input_tokens: 1, output_tokens: 1 },
+              },
+              parent_tool_use_id: null,
+              uuid: uuid(1),
+              session_id: WAKE_NATIVE_SESSION,
+            }),
+          );
+          yield* Queue.offer(
+            harness.sdkMessages,
+            claudeSdkFrame({
+              type: "user",
+              message: {
+                role: "user",
+                content: [{ type: "tool_result", tool_use_id: toolUseId, content: "Done." }],
+              },
+              parent_tool_use_id: null,
+              uuid: uuid(2),
+              session_id: WAKE_NATIVE_SESSION,
+              tool_use_result: input.toolUseResult,
+            }),
+          );
+          yield* Queue.offer(
+            harness.sdkMessages,
+            makeResultFrame({ uuid: uuid(3), result: "Done." }),
+          );
+          yield* harness.awaitTerminal(input.ordinal);
+        });
+        const createCron = (ordinal: number) =>
+          cronTurn({
+            ordinal,
+            toolName: "CronCreate",
+            toolInput: { cron: "*/45 * * * *", prompt: "/poll", recurring: true },
+            toolUseResult: {
+              id: "19278fce",
+              humanSchedule: "Every 45 minutes",
+              recurring: true,
+              durable: false,
+            },
+          });
+
+        yield* createCron(1);
+        assert.isTrue(
+          yield* harness.hasPendingBackgroundWork,
+          "a cron can fire past the idle timeout and dies with the process",
+        );
+
+        yield* cronTurn({
+          ordinal: 2,
+          toolName: "CronDelete",
+          toolInput: { id: "19278fce" },
+          toolUseResult: { id: "19278fce" },
+        });
+        assert.isFalse(yield* harness.hasPendingBackgroundWork);
+
+        yield* createCron(3);
+        assert.isTrue(yield* harness.hasPendingBackgroundWork);
+        yield* harness.runtime.interruptTurn({
+          providerThread: harness.providerThread,
+          providerTurnId: harness.terminalEvents()[2]!.providerTurnId,
+          requestRuntimeRestart: true,
+        });
+        assert.equal(closes, 1);
+        assert.isFalse(yield* harness.hasPendingBackgroundWork);
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            IdAllocator.layer,
+            McpProviderSessions.layer,
+            NodeServices.layer,
+            NodeCrypto.layer,
+          ),
+        ),
+      ),
+  );
+
   it.effect("a turn Claude starts by itself holds the idle session until its command ends", () =>
     Effect.gen(function* () {
       const harness = yield* makeWakeHarness;
