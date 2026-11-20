@@ -128,6 +128,12 @@ export const ThreadPipelineState = Schema.Struct({
   /** What `{input}` becomes in each of the pipeline's stages. */
   input: Schema.String,
   /**
+   * Per-thread override of the pipeline's automation mode, chosen before the
+   * first stage starts or switched on the fly. Absent: the pipeline
+   * definition's own mode applies.
+   */
+  automation: Schema.optional(PipelineAutomation),
+  /**
    * Every stage the thread has been at, so a stage skipped by jumping ahead
    * keeps an empty dot. Defaults to empty for state files written before this
    * field existed; the current stage always counts as entered.
@@ -174,6 +180,8 @@ export const PipelinesStartStageInput = Schema.Struct({
   expected: Schema.NullOr(ThreadPipelinePosition),
   /** The model picked in the thread's composer; omitted, the thread keeps its own. */
   modelSelection: Schema.optional(ModelSelection),
+  /** Overrides the pipeline's automation mode for this thread's run; omitted: the definition's mode. */
+  automation: Schema.optional(PipelineAutomation),
   creationSource: OrchestrationV2CreationSource,
 });
 export type PipelinesStartStageInput = typeof PipelinesStartStageInput.Type;
@@ -188,6 +196,13 @@ export type PipelinesRecordStageInput = typeof PipelinesRecordStageInput.Type;
 
 export const PipelinesLeaveInput = Schema.Struct({ threadId: ThreadId });
 export type PipelinesLeaveInput = typeof PipelinesLeaveInput.Type;
+
+/** Switches a thread's pipeline between auto and manual while it runs. */
+export const PipelinesSetAutomationInput = Schema.Struct({
+  threadId: ThreadId,
+  automation: PipelineAutomation,
+});
+export type PipelinesSetAutomationInput = typeof PipelinesSetAutomationInput.Type;
 
 export const PipelinesSubscribeInput = Schema.Struct({});
 export type PipelinesSubscribeInput = typeof PipelinesSubscribeInput.Type;
@@ -330,6 +345,7 @@ export const PIPELINE_WS_METHODS = {
   pipelinesStartStage: "pipelines.startStage",
   pipelinesRecordStage: "pipelines.recordStage",
   pipelinesLeave: "pipelines.leave",
+  pipelinesSetAutomation: "pipelines.setAutomation",
 } as const;
 
 const WsPipelinesSubscribeRpc = Rpc.make(PIPELINE_WS_METHODS.pipelinesSubscribe, {
@@ -374,6 +390,12 @@ const WsPipelinesLeaveRpc = Rpc.make(PIPELINE_WS_METHODS.pipelinesLeave, {
   error: Schema.Union([PipelineError, EnvironmentAuthorizationError]),
 });
 
+const WsPipelinesSetAutomationRpc = Rpc.make(PIPELINE_WS_METHODS.pipelinesSetAutomation, {
+  payload: PipelinesSetAutomationInput,
+  success: ThreadPipelineState,
+  error: Schema.Union([PipelineError, EnvironmentAuthorizationError]),
+});
+
 export const pipelineWsRpcs = [
   WsPipelinesSubscribeRpc,
   WsPipelinesEnsureConfigFileRpc,
@@ -382,6 +404,7 @@ export const pipelineWsRpcs = [
   WsPipelinesStartStageRpc,
   WsPipelinesRecordStageRpc,
   WsPipelinesLeaveRpc,
+  WsPipelinesSetAutomationRpc,
 ] as const;
 
 // Writes the starter pipelines.json into the server's home, as keybinding edits do.
@@ -391,6 +414,7 @@ export const PIPELINE_CLIENT_GUARDED_RPC_SCOPES = {
   [PIPELINE_WS_METHODS.pipelinesStartStage]: AuthOrchestrationOperateScope,
   [PIPELINE_WS_METHODS.pipelinesRecordStage]: AuthOrchestrationOperateScope,
   [PIPELINE_WS_METHODS.pipelinesLeave]: AuthOrchestrationOperateScope,
+  [PIPELINE_WS_METHODS.pipelinesSetAutomation]: AuthOrchestrationOperateScope,
 } as const;
 
 export const PIPELINE_RPC_REQUIRED_SCOPES = {
@@ -406,4 +430,5 @@ export const PIPELINE_RPC_AGGREGATES = {
   [PIPELINE_WS_METHODS.pipelinesStartStage]: "pipelines",
   [PIPELINE_WS_METHODS.pipelinesRecordStage]: "pipelines",
   [PIPELINE_WS_METHODS.pipelinesLeave]: "pipelines",
+  [PIPELINE_WS_METHODS.pipelinesSetAutomation]: "pipelines",
 } as const;

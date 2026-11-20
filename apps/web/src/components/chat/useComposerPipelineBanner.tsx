@@ -10,6 +10,7 @@ import { serverEnvironment } from "../../state/server";
 import {
   isThreadPipelineBusy,
   leaveThreadPipeline,
+  setThreadPipelineAutomation,
   stagePipelineAsDraft,
 } from "../threadPipelineActions";
 import { Button } from "../ui/button";
@@ -25,6 +26,8 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { composerFloatingLayerProps } from "./composerEventScope";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /** The thread's pipeline stage, shown above the composer while the thread is in a pipeline. */
 export function useComposerPipelineBanner(
@@ -69,7 +72,7 @@ export function useComposerPipelineBanner(
   const startButton =
     stage === null ? null : next === null ? (
       <Button size="xs" variant="outline" disabled={!canOperate || pending} onClick={leavePipeline}>
-        Finish
+        <T>Finish</T>
       </Button>
     ) : (
       <Button
@@ -78,10 +81,14 @@ export function useComposerPipelineBanner(
         disabled={startBlockedReason !== null || pending}
         onClick={() => runStage(next)}
       >
-        Next: {next.name}
+        <T>Next: </T>
+        {next.name}
       </Button>
     );
   const pipelineName = pipeline?.name ?? state.pipelineId;
+  // The thread's own override wins over the pipeline definition's mode.
+  const automation = state.automation ?? pipeline?.automation ?? "manual";
+  const automationTarget = automation === "auto" ? "manual" : "auto";
 
   return {
     id: `pipeline:${thread.environmentId}:${thread.id}`,
@@ -90,12 +97,17 @@ export function useComposerPipelineBanner(
     title: `${pipelineName}: ${stage?.name ?? state.stageId}`,
     description:
       pipeline === null
-        ? "pipelines.json no longer has this pipeline."
+        ? m(msg("pipelines.json no longer has this pipeline."))
         : stage === null
-          ? "pipelines.json no longer has this stage."
+          ? m(msg("pipelines.json no longer has this stage."))
           : state.status === "waiting_input"
-            ? `Waiting — ${state.detail ?? "no reason given"}`
-            : `Stage ${progress.position} of ${pipeline.stages.length}`,
+            ? m(msg("Waiting: {detail}", { detail: state.detail ?? m(msg("no reason given")) }))
+            : m(
+                msg("Stage {position} of {total}", {
+                  position: progress.position,
+                  total: pipeline.stages.length,
+                }),
+              ),
     actions: (
       <>
         {startButton !== null && next !== null && startBlockedReason !== null ? (
@@ -109,14 +121,16 @@ export function useComposerPipelineBanner(
         <Menu>
           <MenuTrigger
             disabled={!canOperate || pending}
-            render={<Button size="icon-xs" variant="ghost" aria-label="Pipeline actions" />}
+            render={<Button size="icon-xs" variant="ghost" aria-label={msg("Pipeline actions")} />}
           >
             <EllipsisIcon />
           </MenuTrigger>
           <MenuPopup {...composerFloatingLayerProps} side="top" align="end" width="content">
             {pipeline === null ? null : (
               <MenuSub>
-                <MenuSubTrigger disabled={busy}>Run another stage</MenuSubTrigger>
+                <MenuSubTrigger disabled={busy}>
+                  <T>Run another stage</T>
+                </MenuSubTrigger>
                 <MenuSubPopup {...composerFloatingLayerProps}>
                   {pipeline.stages.map((entry, index) => (
                     <MenuItem key={entry.id} onClick={() => runStage(entry)}>
@@ -126,7 +140,22 @@ export function useComposerPipelineBanner(
                 </MenuSubPopup>
               </MenuSub>
             )}
-            <MenuItem onClick={leavePipeline}>Leave pipeline</MenuItem>
+            {pipeline === null ? null : (
+              <MenuItem
+                disabled={!canOperate || pending}
+                onClick={() =>
+                  void run(() => setThreadPipelineAutomation(thread, automationTarget))
+                }
+              >
+                <T>Automation: </T>
+                {automation} <T>(switch to </T>
+                {automationTarget}
+                <T>)</T>
+              </MenuItem>
+            )}
+            <MenuItem onClick={leavePipeline}>
+              <T>Leave pipeline</T>
+            </MenuItem>
           </MenuPopup>
         </Menu>
       </>

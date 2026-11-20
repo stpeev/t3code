@@ -1,4 +1,5 @@
 import type {
+  PipelineAutomation,
   PipelineDefinition,
   PipelineId,
   PipelineStage,
@@ -39,6 +40,13 @@ export function resolveThreadPipelineProgress(
 }
 
 const PIPELINE_COMMAND = /^\/pipeline(?=\s|$)\s*(\S*)\s*([\s\S]*)$/;
+const PIPELINE_AUTOMATION_COMMAND = /^\/pipeline-automation\s+(auto|manual)\s*$/i;
+
+/** Reads `/pipeline-automation <auto|manual>`; null for any other prompt. */
+export function planPipelineAutomationCommand(prompt: string): PipelineAutomation | null {
+  const match = PIPELINE_AUTOMATION_COMMAND.exec(prompt.trim());
+  return match === null ? null : (match[1]!.toLowerCase() as PipelineAutomation);
+}
 
 export type PipelineCommandPlan =
   | {

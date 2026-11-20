@@ -14,6 +14,7 @@ import {
 import {
   type ContextMenuItem,
   type EnvironmentId,
+  type PipelineAutomation,
   type PipelineDefinition,
   type PipelineId,
   type PipelinesSnapshot,
@@ -183,6 +184,21 @@ export function leaveThreadPipeline(
       appAtomRegistry,
       serverEnvironment.leavePipeline,
       { environmentId: thread.environmentId, input: { threadId: thread.id } },
+      { reportFailure: false },
+    ),
+  );
+}
+
+export function setThreadPipelineAutomation(
+  thread: Pick<EnvironmentThreadShell, "environmentId" | "id">,
+  automation: PipelineAutomation,
+): Promise<boolean> {
+  return reportFailure(
+    "Could not switch the pipeline's automation mode",
+    runAtomCommand(
+      appAtomRegistry,
+      serverEnvironment.setPipelineAutomation,
+      { environmentId: thread.environmentId, input: { threadId: thread.id, automation } },
       { reportFailure: false },
     ),
   );

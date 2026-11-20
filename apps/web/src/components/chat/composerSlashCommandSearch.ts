@@ -12,7 +12,7 @@ type SlashSearchItem = Extract<
   { type: "slash-command" | "provider-slash-command" | "skill" | "pipeline" }
 >;
 
-/** Provider commands, `/side`, `/btw`, `/clear` and `/pipeline` work only at the message start. */
+/** Provider commands, `/side`, `/btw`, `/clear`, `/pipeline` and `/pipeline-automation` work only at the message start. */
 export function slashCommandItemsForPromptPosition(
   items: ReadonlyArray<SlashSearchItem>,
   isAtPromptStart: boolean,
@@ -28,7 +28,8 @@ export function slashCommandItemsForPromptPosition(
         (item.type === "slash-command" &&
           item.command !== "side" &&
           item.command !== "btw" &&
-          item.command !== "clear")),
+          item.command !== "clear" &&
+          item.command !== "pipeline-automation")),
   );
 }
 
