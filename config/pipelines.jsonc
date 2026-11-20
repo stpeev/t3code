@@ -15,12 +15,6 @@
           "approval": false,
         },
         {
-          "id": "arch-review",
-          "name": "Architectural review",
-          "prompt": "/arch-review of the spec written by the previos stage",
-          "approval": false,
-        },
-        {
           "id": "design-review",
           "name": "Design review",
           "prompt": "/review-spec of the same spec",
