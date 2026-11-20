@@ -67,6 +67,21 @@ describe("resolveThreadPipelineProgress", () => {
         .color,
     ).toBe("hsl(35 70% 45%)");
     expect(labelThreadPipelineStage(review!).color).toBe("hsl(290 70% 45%)");
+  });
+
+  it("speaks the waiting reason when a stage is waiting for a person", () => {
+    const snapshot = savedAt("ticket", "develop");
+    const waiting = {
+      ...snapshot,
+      threads: snapshot.threads.map((t) => ({
+        ...t,
+        status: "waiting_input" as const,
+        detail: "waiting for PR #12 review",
+      })),
+    };
+    const labels = labelThreadPipelineStage(resolveThreadPipelineProgress(waiting, threadId)!);
+    expect(labels.detail).toBe("waiting for PR #12 review");
+    expect(labels.spoken).toBe("pipeline Ticket, stage Develop, waiting: waiting for PR #12 review");
     expect(resolveThreadPipelineProgress(savedAt("ticket", "plan"), ThreadId.make("other"))).toBe(
       null,
     );

@@ -142,6 +142,9 @@ export function labelThreadPipelineStage(progress: ThreadPipelineProgress): Pipe
   return {
     ...base,
     short: `${stage.name} ${progress.position}/${count}`,
-    spoken: `pipeline ${pipelineName}, stage ${stage.name}, ${progress.position} of ${count}`,
+    spoken:
+      state.status === "waiting_input" && state.detail !== null
+        ? `pipeline ${pipelineName}, stage ${stage.name}, waiting: ${state.detail}`
+        : `pipeline ${pipelineName}, stage ${stage.name}, ${progress.position} of ${count}`,
   };
 }

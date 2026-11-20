@@ -93,7 +93,9 @@ export function useComposerPipelineBanner(
         ? "pipelines.json no longer has this pipeline."
         : stage === null
           ? "pipelines.json no longer has this stage."
-          : `Stage ${progress.position} of ${pipeline.stages.length}`,
+          : state.status === "waiting_input"
+            ? `Waiting — ${state.detail ?? "no reason given"}`
+            : `Stage ${progress.position} of ${pipeline.stages.length}`,
     actions: (
       <>
         {startButton !== null && next !== null && startBlockedReason !== null ? (

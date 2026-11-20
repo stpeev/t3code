@@ -250,8 +250,9 @@ export function renderPipelineStagePrompt(
     "decisions, open questions, how to verify). End your final reply with exactly one of these " +
     "lines:\n`PIPELINE: DONE` (all of it is finished and verified)\n" +
     "`PIPELINE: FAILED: <why>` (it can't be finished)\n" +
-    "`PIPELINE: WAITING` (it can't go on until someone acts: my answer to a question, or a " +
-    "reviewer, an author or a merge)";
+    "`PIPELINE: WAITING: <what you're waiting for, and who or what must act first>` (only when " +
+    "someone or something outside this session must act: my answer to a question, a reviewer, " +
+    "an author or a merge — always say which)";
   return `${body}\n${rule}`;
 }
 
@@ -283,7 +284,8 @@ export function renderPipelineContinuationPrompt(stageName: string): string {
     "Continue where you left off: don't repeat work that already took effect, finish what " +
     "remains (running tests, builds and checks in the foreground), and end your final reply " +
     "with exactly one of these lines:\n`PIPELINE: DONE`\n`PIPELINE: FAILED: <why>`\n" +
-    "`PIPELINE: WAITING` (only if a person or something outside this session must act first)"
+    "`PIPELINE: WAITING: <what you're waiting for, and who or what must act first>` (only if a " +
+    "person or something outside this session must act first)"
   );
 }
 
@@ -298,7 +300,7 @@ export type PipelineVerdict = typeof PipelineVerdict.Type;
 
 export interface PipelineVerdictReading {
   readonly verdict: PipelineVerdict;
-  /** The text after `FAILED:` / `REJECTED:`, empty for the others. */
+  /** The text after `FAILED:` / `REJECTED:` / `WAITING:`, empty for DONE / VERIFIED. */
   readonly detail: string;
 }
 

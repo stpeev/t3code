@@ -542,8 +542,10 @@ const make = Effect.gen(function* () {
         input: state.input,
         status: "waiting_input",
         detail:
-          reading?.detail ??
-          (runStatus === "completed" ? "No PIPELINE: verdict line in the final reply." : null),
+          reading?.verdict === "waiting" && reading.detail === ""
+            ? "PIPELINE: WAITING without a reason — name what it waits for and who or what must act."
+            : (reading?.detail ??
+              (runStatus === "completed" ? "No PIPELINE: verdict line in the final reply." : null)),
         history: state.history,
         continuations: state.continuations,
       });
