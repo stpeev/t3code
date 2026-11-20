@@ -45,6 +45,12 @@
           "approval": false,
         },
         {
+          "id": "testing-done",
+          "name": "Testing done",
+          "prompt": "/pr-testing-done",
+          "approval": false,
+        },
+        {
           "id": "screenshots",
           "name": "Screenshots",
           "prompt": "/annotated-screenshots",
@@ -160,6 +166,11 @@
           "id": "pr",
           "name": "PR",
           "prompt": "/pr-push with the PR's base set to the base branch named in \"{input}\", so a stacked story's PR shows only its own changes.",
+        },
+        {
+          "id": "testing-done",
+          "name": "Testing done",
+          "prompt": "/pr-testing-done",
         },
         {
           "id": "ready",
