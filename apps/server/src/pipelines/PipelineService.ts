@@ -2,10 +2,12 @@ import {
   CommandId,
   MessageId,
   PipelineError,
+  type PipelineAutomation,
   type PipelineDefinition,
   type PipelineId,
   type PipelinesLeaveInput,
   type PipelinesRecordStageInput,
+  type PipelinesSetAutomationInput,
   type PipelinesSnapshot,
   type PipelinesStartStageInput,
   type PipelineStage,
@@ -56,6 +58,10 @@ export class PipelineService extends Context.Service<
       input: PipelinesRecordStageInput,
     ) => Effect.Effect<ThreadPipelineState, PipelineError>;
     readonly leave: (input: PipelinesLeaveInput) => Effect.Effect<void, PipelineError>;
+    /** Switches the thread's pipeline between auto and manual while it runs. */
+    readonly setAutomation: (
+      input: PipelinesSetAutomationInput,
+    ) => Effect.Effect<ThreadPipelineState, PipelineError>;
   }
 >()("t3/pipelines/PipelineService") {}
 
@@ -138,6 +144,13 @@ const make = Effect.gen(function* () {
   ) {
     const states = yield* SubscriptionRef.get(statesRef);
     const previous = states.get(fields.threadId);
+    // Switching pipelines resets the automation override; staying in one keeps it.
+    const { automation: requested, ...rest } = fields;
+    const automation =
+      requested ??
+      (previous !== undefined && previous.pipelineId === fields.pipelineId
+        ? previous.automation
+        : undefined);
     // Switching pipelines starts a fresh set; staying in one accumulates, so a
     // skipped stage stays unentered.
     const entered =
@@ -145,7 +158,8 @@ const make = Effect.gen(function* () {
         ? new Set([...previous.enteredStages, fields.stageId])
         : new Set([fields.stageId]);
     const state: ThreadPipelineState = {
-      ...fields,
+      ...rest,
+      ...(automation === undefined ? {} : { automation }),
       enteredStages: [...entered],
       updatedAt: DateTime.formatIso(yield* DateTime.now),
     };
@@ -170,6 +184,7 @@ const make = Effect.gen(function* () {
     readonly input: string;
     readonly creationSource: PipelinesStartStageInput["creationSource"];
     readonly modelSelection?: PipelinesStartStageInput["modelSelection"];
+    readonly automation?: PipelineAutomation;
   }) {
     const previous = (yield* SubscriptionRef.get(statesRef)).get(input.threadId);
     yield* threadManagement
@@ -195,6 +210,7 @@ const make = Effect.gen(function* () {
       detail: null,
       history: historyOf(previous, input.pipelineId),
       continuations: 0,
+      ...(input.automation === undefined ? {} : { automation: input.automation }),
     });
   });
 
@@ -232,6 +248,7 @@ const make = Effect.gen(function* () {
       input: pipelineInput,
       creationSource: input.creationSource,
       ...(input.modelSelection === undefined ? {} : { modelSelection: input.modelSelection }),
+      ...(input.automation === undefined ? {} : { automation: input.automation }),
     });
   }, lock.withPermits(1));
 
@@ -343,7 +360,9 @@ const make = Effect.gen(function* () {
       return;
     }
     const pipeline = pipelines.find((entry) => entry.id === state.pipelineId);
-    if (pipeline === undefined || (pipeline.automation ?? "manual") !== "auto") return;
+    // The thread's own override wins over the pipeline definition's mode.
+    if (pipeline === undefined || (state.automation ?? pipeline.automation ?? "manual") !== "auto")
+      return;
     const index = pipeline.stages.findIndex((entry) => entry.id === state.stageId);
     const stage = index === -1 ? undefined : pipeline.stages[index];
     if (stage === undefined) return;
@@ -647,7 +666,18 @@ const make = Effect.gen(function* () {
   );
   const current = Effect.zipWith(definitions.current, SubscriptionRef.get(statesRef), snapshotOf);
 
-  return PipelineService.of({ subscribe, current, startStage, recordStage, leave });
+  const setAutomation: PipelineService["Service"]["setAutomation"] = Effect.fn(
+    "PipelineService.setAutomation",
+  )(function* (input) {
+    const previous = (yield* SubscriptionRef.get(statesRef)).get(input.threadId);
+    if (previous === undefined) {
+      return yield* failure("This thread is not in a pipeline.");
+    }
+    const { updatedAt: _updatedAt, enteredStages: _enteredStages, ...rest } = previous;
+    return yield* save({ ...rest, automation: input.automation });
+  }, lock.withPermits(1));
+
+  return PipelineService.of({ subscribe, current, startStage, recordStage, leave, setAutomation });
 });
 
 export const layer = Layer.effect(PipelineService, make);

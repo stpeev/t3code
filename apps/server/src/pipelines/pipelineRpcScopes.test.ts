@@ -28,6 +28,7 @@ describe("pipeline RPC authorization scopes", () => {
       WS_METHODS.pipelinesStartStage,
       WS_METHODS.pipelinesRecordStage,
       WS_METHODS.pipelinesLeave,
+      WS_METHODS.pipelinesSetAutomation,
     ]) {
       expect(requiredScopeForRpcMethod(method)).toBe(AuthOrchestrationOperateScope);
     }

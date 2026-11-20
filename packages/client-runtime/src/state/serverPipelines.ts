@@ -58,6 +58,10 @@ export function createPipelinesAtoms<R, E>(
       label: "environment-data:server:pipelines:leave",
       tag: WS_METHODS.pipelinesLeave,
     }),
+    setPipelineAutomation: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:pipelines:set-automation",
+      tag: WS_METHODS.pipelinesSetAutomation,
+    }),
     // A command, not the cached query, so copying and pushing to other machines read them live.
     readPipelinesConfigText: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:pipelines:read-config-text",

@@ -100,7 +100,10 @@ import { environmentServerConfigsAtom, serverEnvironment } from "../../state/ser
 import { useEnvironmentQuery } from "../../state/query";
 import { threadEnvironment } from "../../state/threads";
 import { recordThreadPipelineStage } from "../threadPipelineActions";
-import { resolveComposerPipeline } from "./composerPipelineSend";
+import {
+  resolveComposerPipeline,
+  resolveComposerPipelineAutomation,
+} from "./composerPipelineSend";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { useClientSettingsHydrated } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -620,6 +623,15 @@ export function useComposerSend(input: ComposerSendInput) {
       setDraftPrompt: setComposerDraftPrompt,
     });
     if (pipelineResolution.type === "handled") return;
+    // `/pipeline-automation <auto|manual>` switches the thread's pipeline mode; like `/pipeline` it only works at the prompt start.
+    const automationResolution = await resolveComposerPipelineAutomation({
+      skip: Boolean(directAnnotation) || queuedRunEdit.isEditing,
+      snapshot: pipelinesSnapshot,
+      isServerThread,
+      activeThread,
+      promptRef,
+    });
+    if (automationResolution === "handled") return;
     const pipelineStart = pipelineResolution.type === "outgoing" ? pipelineResolution.start : null;
     const {
       images: sendContextImages,

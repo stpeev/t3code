@@ -10,6 +10,7 @@ import { serverEnvironment } from "../../state/server";
 import {
   isThreadPipelineBusy,
   leaveThreadPipeline,
+  setThreadPipelineAutomation,
   stagePipelineAsDraft,
 } from "../threadPipelineActions";
 import { Button } from "../ui/button";
@@ -82,6 +83,9 @@ export function useComposerPipelineBanner(
       </Button>
     );
   const pipelineName = pipeline?.name ?? state.pipelineId;
+  // The thread's own override wins over the pipeline definition's mode.
+  const automation = state.automation ?? pipeline?.automation ?? "manual";
+  const automationTarget = automation === "auto" ? "manual" : "auto";
 
   return {
     id: `pipeline:${thread.environmentId}:${thread.id}`,
@@ -125,6 +129,16 @@ export function useComposerPipelineBanner(
                   ))}
                 </MenuSubPopup>
               </MenuSub>
+            )}
+            {pipeline === null ? null : (
+              <MenuItem
+                disabled={!canOperate || pending}
+                onClick={() =>
+                  void run(() => setThreadPipelineAutomation(thread, automationTarget))
+                }
+              >
+                Automation: {automation} (switch to {automationTarget})
+              </MenuItem>
             )}
             <MenuItem onClick={leavePipeline}>Leave pipeline</MenuItem>
           </MenuPopup>

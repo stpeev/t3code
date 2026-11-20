@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   labelThreadPipelineStage,
+  planPipelineAutomationCommand,
   planPipelineCommand,
   resolveThreadPipelineProgress,
 } from "./pipelines.ts";
@@ -109,6 +110,17 @@ describe("resolveThreadPipelineProgress", () => {
       expect([progress?.stage, progress?.next]).toEqual([null, null]);
       expect(progress && labelThreadPipelineStage(progress).short).toBe(stageId);
     }
+  });
+});
+
+describe("planPipelineAutomationCommand", () => {
+  it("reads auto and manual, case-insensitively, and leaves other prompts alone", () => {
+    expect(planPipelineAutomationCommand("/pipeline-automation auto")).toBe("auto");
+    expect(planPipelineAutomationCommand("  /pipeline-automation MANUAL  ")).toBe("manual");
+    expect(planPipelineAutomationCommand("/pipeline-automation")).toBe(null);
+    expect(planPipelineAutomationCommand("/pipeline-automation sometimes")).toBe(null);
+    expect(planPipelineAutomationCommand("/pipeline ticket do it")).toBe(null);
+    expect(planPipelineAutomationCommand("/pipeline-automation auto extra")).toBe(null);
   });
 });
 

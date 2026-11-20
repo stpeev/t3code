@@ -302,6 +302,17 @@ export function useComposerMenuItems({
               },
             ] as const)
           : []),
+        ...(pipelines !== undefined && pipelines.length > 0
+          ? ([
+              {
+                id: "slash:pipeline-automation",
+                type: "slash-command",
+                command: "pipeline-automation",
+                label: "/pipeline-automation",
+                description: "Set this thread's pipeline mode: /pipeline-automation auto|manual",
+              },
+            ] as const)
+          : []),
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
       const slashMenuSkills = getProviderSkillsForSlashMenu(
         selectedProviderSkills,

@@ -1,4 +1,5 @@
 import {
+  planPipelineAutomationCommand,
   planPipelineCommand,
   resolveThreadPipelineProgress,
 } from "@t3tools/client-runtime/pipelines";
@@ -11,7 +12,10 @@ import {
 } from "@t3tools/contracts";
 
 import type { ComposerThreadTarget } from "../../composerDraftStore";
-import { recordThreadPipelineStage } from "../threadPipelineActions";
+import {
+  recordThreadPipelineStage,
+  setThreadPipelineAutomation,
+} from "../threadPipelineActions";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 
 export interface ComposerPipelineStart {
@@ -96,4 +100,52 @@ export async function resolveComposerPipeline(input: {
     return { type: "handled" };
   }
   return { type: "outgoing", start };
+}
+
+/**
+ * The `/pipeline-automation <auto|manual>` interception: switches the open
+ * thread's pipeline mode and stops the send. Anything else passes through.
+ */
+export async function resolveComposerPipelineAutomation(input: {
+  readonly skip: boolean;
+  readonly snapshot: PipelinesSnapshot | null | undefined;
+  readonly isServerThread: boolean;
+  readonly activeThread: EnvironmentThreadShell;
+  readonly promptRef: { current: string };
+}): Promise<"handled" | "none"> {
+  if (input.skip || input.snapshot === undefined || input.snapshot === null) return "none";
+  const automation = planPipelineAutomationCommand(input.promptRef.current);
+  if (automation === null) return "none";
+  if (!input.isServerThread) {
+    toastManager.add(
+      stackedThreadToast({
+        type: "warning",
+        title: "Automation is per thread",
+        description: "Run /pipeline-automation in a thread that is in a pipeline.",
+      }),
+    );
+    return "handled";
+  }
+  const progress = resolveThreadPipelineProgress(input.snapshot, input.activeThread.id);
+  if (progress === null) {
+    toastManager.add(
+      stackedThreadToast({
+        type: "warning",
+        title: "Not in a pipeline",
+        description: "Start one first: /pipeline <id> <task>",
+      }),
+    );
+    return "handled";
+  }
+  const switched = await setThreadPipelineAutomation(input.activeThread, automation);
+  if (switched) {
+    toastManager.add(
+      stackedThreadToast({
+        type: "success",
+        title: `Pipeline automation: ${automation}`,
+        description: `This thread's pipeline now runs ${automation}.`,
+      }),
+    );
+  }
+  return "handled";
 }
