@@ -489,6 +489,10 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
         const states = yield* savedStages(service);
         assert.equal(states[0]?.status, "done");
         assert.lengthOf(sent, 1);
+        assert.ok(
+          sent[0]?.text.includes("auto mode"),
+          "an auto pipeline's stage prompt carries the autonomy instruction",
+        );
       }),
     ).pipe(Effect.provide(layerConfig())),
   );
@@ -520,9 +524,7 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
           payload: { status: "completed" },
         } as never);
         yield* service.subscribe.pipe(
-          Stream.filter(
-            (snapshot) => snapshot.threads[0]?.detail === "waiting for PR #12 review",
-          ),
+          Stream.filter((snapshot) => snapshot.threads[0]?.detail === "waiting for PR #12 review"),
           Stream.runHead,
         );
 
@@ -534,74 +536,86 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
     ).pipe(Effect.provide(layerConfig())),
   );
 
-  it.effect("the automation override chosen at start applies, and setAutomation flips it on the fly", () =>
-    withService(makeThread(), (service, sent, publish) =>
-      Effect.gen(function* () {
-        // Started with an explicit manual override: an auto pipeline's DONE does not advance.
-        yield* service.startStage({
-          pipelineId: goal,
-          stageId: work,
-          commandId: CommandId.make("command:work"),
-          threadId,
-          expected: null,
-          creationSource: "web",
-          automation: "manual",
-        });
-        let states = yield* savedStages(service);
-        assert.equal(states[0]?.automation, "manual");
-        const turn = (text: string) =>
-          publish({
-            type: "message.updated",
+  it.effect(
+    "the automation override chosen at start applies, and setAutomation flips it on the fly",
+    () =>
+      withService(makeThread(), (service, sent, publish) =>
+        Effect.gen(function* () {
+          // Started with an explicit manual override: an auto pipeline's DONE does not advance.
+          yield* service.startStage({
+            pipelineId: goal,
+            stageId: work,
+            commandId: CommandId.make("command:work"),
             threadId,
-            payload: { threadId, role: "assistant", streaming: false, text },
-          } as never).pipe(
-            Effect.andThen(
-              publish({ type: "run.updated", threadId, payload: { status: "completed" } } as never),
-            ),
+            expected: null,
+            creationSource: "web",
+            automation: "manual",
+          });
+          let states = yield* savedStages(service);
+          assert.equal(states[0]?.automation, "manual");
+          const turn = (text: string) =>
+            publish({
+              type: "message.updated",
+              threadId,
+              payload: { threadId, role: "assistant", streaming: false, text },
+            } as never).pipe(
+              Effect.andThen(
+                publish({
+                  type: "run.updated",
+                  threadId,
+                  payload: { status: "completed" },
+                } as never),
+              ),
+            );
+          yield* turn("finished.\nPIPELINE: DONE");
+          states = yield* savedStages(service);
+          assert.equal(states[0]?.status, "running");
+          assert.lengthOf(sent, 1);
+          assert.ok(
+            !sent[0]?.text.includes("auto mode"),
+            "a manual override drops the autonomy instruction from the stage prompt",
           );
-        yield* turn("finished.\nPIPELINE: DONE");
-        states = yield* savedStages(service);
-        assert.equal(states[0]?.status, "running");
-        assert.lengthOf(sent, 1);
 
-        // Flipped to auto mid-run: the next DONE finishes the single-stage pipeline.
-        yield* service.setAutomation({ threadId, automation: "auto" });
-        states = yield* savedStages(service);
-        assert.equal(states[0]?.automation, "auto");
-        yield* turn("finished.\nPIPELINE: DONE");
-        yield* service.subscribe.pipe(
-          Stream.filter((snapshot) => snapshot.threads[0]?.status === "done"),
-          Stream.runHead,
-        );
-        states = yield* savedStages(service);
-        assert.equal(states[0]?.status, "done");
-        assert.equal(states[0]?.automation, "auto");
-        assert.lengthOf(sent, 1);
-      }),
-    ).pipe(Effect.provide(layerConfig())),
+          // Flipped to auto mid-run: the next DONE finishes the single-stage pipeline.
+          yield* service.setAutomation({ threadId, automation: "auto" });
+          states = yield* savedStages(service);
+          assert.equal(states[0]?.automation, "auto");
+          yield* turn("finished.\nPIPELINE: DONE");
+          yield* service.subscribe.pipe(
+            Stream.filter((snapshot) => snapshot.threads[0]?.status === "done"),
+            Stream.runHead,
+          );
+          states = yield* savedStages(service);
+          assert.equal(states[0]?.status, "done");
+          assert.equal(states[0]?.automation, "auto");
+          assert.lengthOf(sent, 1);
+        }),
+      ).pipe(Effect.provide(layerConfig())),
   );
 
-  it.effect("a start without an override inherits the pipeline's mode, and setAutomation refuses threads outside pipelines", () =>
-    withService(makeThread(), (service) =>
-      Effect.gen(function* () {
-        yield* service.startStage({
-          pipelineId: goal,
-          stageId: work,
-          commandId: CommandId.make("command:work"),
-          threadId,
-          expected: null,
-          creationSource: "web",
-        });
-        const states = yield* savedStages(service);
-        assert.equal(states[0]?.automation, undefined);
+  it.effect(
+    "a start without an override inherits the pipeline's mode, and setAutomation refuses threads outside pipelines",
+    () =>
+      withService(makeThread(), (service) =>
+        Effect.gen(function* () {
+          yield* service.startStage({
+            pipelineId: goal,
+            stageId: work,
+            commandId: CommandId.make("command:work"),
+            threadId,
+            expected: null,
+            creationSource: "web",
+          });
+          const states = yield* savedStages(service);
+          assert.equal(states[0]?.automation, undefined);
 
-        const otherThread = ThreadId.make("thread-other");
-        const exit = yield* Effect.exit(
-          service.setAutomation({ threadId: otherThread, automation: "manual" }),
-        );
-        assert.isTrue(Exit.isFailure(exit));
-      }),
-    ).pipe(Effect.provide(layerConfig())),
+          const otherThread = ThreadId.make("thread-other");
+          const exit = yield* Effect.exit(
+            service.setAutomation({ threadId: otherThread, automation: "manual" }),
+          );
+          assert.isTrue(Exit.isFailure(exit));
+        }),
+      ).pipe(Effect.provide(layerConfig())),
   );
 
   it.effect("a bare WAITING verdict is recorded as waiting without a reason", () =>

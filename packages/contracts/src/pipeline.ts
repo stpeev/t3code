@@ -249,26 +249,33 @@ export function renderPipelineStagePrompt(
   prompt: string,
   input: string,
   stageId?: PipelineStageId,
+  auto?: boolean,
 ): string {
   const body = prompt.replaceAll("{input}", input);
   const reportLine =
     stageId === undefined
-      ? "write a short report of this stage to pipeline-reports/"
-      : `write a short report of this stage to pipeline-reports/${stageId}.md`;
+      ? "write a short report of this stage to .pipeline-reports/"
+      : `write a short report of this stage to .pipeline-reports/${stageId}.md`;
   // Appended to every stage prompt so the server can read the stage's outcome
   // from the final reply (see pipelineVerdictOf) in both manual and auto modes.
   const rule =
     "\n\nPipeline rule: this stage is finished only when its work is complete and verified, " +
     "not when it has been started. Don't end your turn while anything it depends on still runs: " +
     "run tests, builds and checks in the foreground and wait for their result. Before your " +
-    `verdict, read the earlier reports in pipeline-reports/ and ${reportLine} (what you did, ` +
+    `verdict, read the earlier reports in .pipeline-reports/ and ${reportLine} (what you did, ` +
     "decisions, open questions, how to verify). End your final reply with exactly one of these " +
     "lines:\n`PIPELINE: DONE` (all of it is finished and verified)\n" +
     "`PIPELINE: FAILED: <why>` (it can't be finished)\n" +
     "`PIPELINE: WAITING: <what you're waiting for, and who or what must act first>` (only when " +
     "someone or something outside this session must act: my answer to a question, a reviewer, " +
-    "an author or a merge — always say which)";
-  return `${body}\n${rule}`;
+    "an author or a merge: always say which)";
+  // In auto mode the server advances on DONE without a human, so the stage must not park on questions it can answer itself.
+  const autoRule =
+    auto === true
+      ? "\nThis pipeline runs in auto mode: work as autonomously as possible. Decide and act on " +
+        "your own instead of asking, and only wait when a person or something outside this session must act."
+      : "";
+  return `${body}\n${rule}${autoRule}`;
 }
 
 /** The verifier turn sent after a stage reports DONE on a stage with verifyPrompt. */
@@ -280,9 +287,9 @@ export function renderPipelineVerifyPrompt(
 ): string {
   return (
     `Verify the "${stageName}" stage of this pipeline, which just reported DONE. ` +
-    "Read pipeline-reports/ (especially the stage's own report and any earlier ones) and the " +
+    "Read .pipeline-reports/ (especially the stage's own report and any earlier ones) and the " +
     `diff this stage produced. Acceptance criteria: ${verifyPrompt.replaceAll("{input}", input)}\n\n` +
-    `Append your verdict to pipeline-reports/${stageId}.verify.md. End your final reply with ` +
+    `Append your verdict to .pipeline-reports/${stageId}.verify.md. End your final reply with ` +
     "exactly one of these lines:\n`PIPELINE: VERIFIED` (the stage meets the criteria)\n" +
     "`PIPELINE: REJECTED: <what is missing or wrong>`"
   );

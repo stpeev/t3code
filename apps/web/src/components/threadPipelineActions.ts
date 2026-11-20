@@ -28,6 +28,8 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { serverEnvironment } from "../state/server";
 import type { ThreadActionMenuId } from "./threadActionMenu.logic";
 import { stackedThreadToast, toastManager } from "./ui/toast";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export interface PipelineMenuEntry {
   readonly id: string;
@@ -56,7 +58,7 @@ export function pipelineMenuItems(
       ? [
           {
             id: "pipeline-next" as const,
-            label: `Start ${current.next.name}`,
+            label: m(msg("Start {arg0}", { arg0: current.next.name })),
             icon: "workflow",
             disabled: busy,
           },
@@ -66,7 +68,7 @@ export function pipelineMenuItems(
       ? [
           {
             id: "pipeline-stage" as const,
-            label: "Run stage",
+            label: m(msg("Run stage")),
             icon: "workflow",
             disabled: busy,
             children: current.stages.map((stage, index) => ({
@@ -80,7 +82,7 @@ export function pipelineMenuItems(
       ? [
           {
             id: "pipeline-start" as const,
-            label: "Start pipeline",
+            label: m(msg("Start pipeline")),
             icon: "workflow",
             disabled: busy,
             children: pipeline.pipelines.map((entry) => ({
@@ -91,7 +93,7 @@ export function pipelineMenuItems(
         ]
       : []),
     ...(current
-      ? [{ id: "pipeline-leave" as const, label: "Leave pipeline", icon: "workflow" }]
+      ? [{ id: "pipeline-leave" as const, label: m(msg("Leave pipeline")), icon: "workflow" }]
       : []),
   ];
   return items.map((item, index) => (index === 0 ? { ...item, separatorBefore: true } : item));
@@ -148,7 +150,7 @@ async function reportFailure(
     stackedThreadToast({
       type: "error",
       title,
-      description: error instanceof Error ? error.message : "An error occurred.",
+      description: error instanceof Error ? error.message : m(msg("An error occurred.")),
     }),
   );
   return false;
@@ -162,7 +164,7 @@ export function recordThreadPipelineStage(
   input: string,
 ): Promise<boolean> {
   return reportFailure(
-    `Could not save the thread's ${stage.name} stage`,
+    m(msg("Could not save the thread's {arg0} stage", { arg0: stage.name })),
     runAtomCommand(
       appAtomRegistry,
       serverEnvironment.recordPipelineStage,
@@ -179,7 +181,7 @@ export function leaveThreadPipeline(
   thread: Pick<EnvironmentThreadShell, "environmentId" | "id">,
 ): Promise<boolean> {
   return reportFailure(
-    "Could not leave the pipeline",
+    m(msg("Could not leave the pipeline")),
     runAtomCommand(
       appAtomRegistry,
       serverEnvironment.leavePipeline,
@@ -194,7 +196,7 @@ export function setThreadPipelineAutomation(
   automation: PipelineAutomation,
 ): Promise<boolean> {
   return reportFailure(
-    "Could not switch the pipeline's automation mode",
+    m(msg("Could not switch the pipeline's automation mode")),
     runAtomCommand(
       appAtomRegistry,
       serverEnvironment.setPipelineAutomation,
@@ -219,8 +221,8 @@ export async function stagePipelineAsDraft(
     toastManager.add(
       stackedThreadToast({
         type: "warning",
-        title: "Wait for the current turn to end",
-        description: "The server refuses a stage while a turn runs.",
+        title: m(msg("Wait for the current turn to end")),
+        description: m(msg("The server refuses a stage while a turn runs.")),
       }),
     );
     return false;
@@ -232,7 +234,14 @@ export async function stagePipelineAsDraft(
     .getState()
     .setPrompt(
       { environmentId: thread.environmentId, threadId: thread.id },
-      renderPipelineStagePrompt(stage.prompt, input, stage.id),
+      renderPipelineStagePrompt(
+        stage.prompt,
+        input,
+        stage.id,
+        ((progress?.state.pipelineId === pipeline.id ? progress.state.automation : undefined) ??
+          pipeline.automation ??
+          "manual") === "auto",
+      ),
     );
   onDrafted?.();
   return true;

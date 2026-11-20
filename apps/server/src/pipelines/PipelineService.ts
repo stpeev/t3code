@@ -187,13 +187,28 @@ const make = Effect.gen(function* () {
     readonly automation?: PipelineAutomation;
   }) {
     const previous = (yield* SubscriptionRef.get(statesRef)).get(input.threadId);
+    const { pipelines } = yield* definitions.current;
+    const pipeline = pipelines.find((entry) => entry.id === input.pipelineId);
+    // Effective mode: the per-thread override wins, then the pipeline's own default.
+    const effectiveAutomation =
+      input.automation ??
+      (previous !== undefined && previous.pipelineId === input.pipelineId
+        ? previous.automation
+        : undefined) ??
+      pipeline?.automation ??
+      "manual";
     yield* threadManagement
       .sendToThread({
         projectId: input.projectId,
         commandId: input.commandId,
         threadId: input.threadId,
         messageId: MessageId.make(`pipeline-message:${input.commandId}`),
-        text: renderPipelineStagePrompt(input.stage.prompt, input.input, input.stage.id),
+        text: renderPipelineStagePrompt(
+          input.stage.prompt,
+          input.input,
+          input.stage.id,
+          effectiveAutomation === "auto",
+        ),
         attachments: [],
         ...(input.modelSelection === undefined ? {} : { modelSelection: input.modelSelection }),
         mode: "queue",

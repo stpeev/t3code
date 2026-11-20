@@ -25,6 +25,19 @@ describe("renderPipelineStagePrompt", () => {
   it("replaces every {input} occurrence", () => {
     expect(renderPipelineStagePrompt("{input} then {input}", "X")).toContain("X then X");
   });
+
+  it("appends the autonomy instruction only in auto mode", () => {
+    const manual = renderPipelineStagePrompt("Plan {input}.", "X", PipelineStageId.make("plan"));
+    expect(manual).not.toContain("autonomously");
+    const auto = renderPipelineStagePrompt(
+      "Plan {input}.",
+      "X",
+      PipelineStageId.make("plan"),
+      true,
+    );
+    expect(auto).toContain("auto mode");
+    expect(auto).toContain("autonomously");
+  });
 });
 
 describe("renderPipelineVerifyPrompt", () => {
