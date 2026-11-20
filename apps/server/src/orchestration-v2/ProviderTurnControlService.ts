@@ -11,7 +11,6 @@ import {
   ProviderTurnId,
   RunAttemptId,
   ThreadId,
-  withMessageSenderNote,
 } from "@t3tools/contracts";
 import type * as DateTime from "effect/DateTime";
 import * as Context from "effect/Context";
@@ -478,20 +477,10 @@ export const layer: Layer.Layer<
                 : { modelSelection: input.modelSelection }),
               message: {
                 messageId: message.id,
-<<<<<<< HEAD
-                text: withMessageSenderNote(
-                  message,
-                  projectComposerContextForProvider({
-                    text: message.text,
-                    records: message.context?.records ?? [],
-                  }),
-                ),
-=======
                 text: projectComposerContextForProvider({
                   text: message.text,
                   records: contextRecords,
                 }),
->>>>>>> fd0398aa56 (feat(web): comment on mermaid diagram sections and text selected in file previews)
                 attachments: message.attachments,
                 createdBy: message.createdBy,
                 creationSource: message.creationSource,

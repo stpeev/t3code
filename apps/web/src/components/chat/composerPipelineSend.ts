@@ -12,10 +12,7 @@ import {
 } from "@t3tools/contracts";
 
 import type { ComposerThreadTarget } from "../../composerDraftStore";
-import {
-  recordThreadPipelineStage,
-  setThreadPipelineAutomation,
-} from "../threadPipelineActions";
+import { recordThreadPipelineStage, setThreadPipelineAutomation } from "../threadPipelineActions";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 
 export interface ComposerPipelineStart {

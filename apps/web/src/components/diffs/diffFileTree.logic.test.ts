@@ -2,16 +2,12 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { preloadFileTree } from "@pierre/trees";
 import { describe, expect, it } from "vite-plus/test";
 
-<<<<<<< HEAD
-import { buildDiffFileTreeUpdates, diffFileTreeEntries } from "./diffFileTree.logic";
-=======
 import {
   buildDiffFileTreeUpdates,
   countDiffFileTreeRows,
   diffFileTreeEntries,
   orderDiffFilesLikeTree,
 } from "./diffFileTree.logic";
->>>>>>> 3c4cce1525 (fix(web): changes list file tree no longer leaves empty rows under flattened folders)
 
 function file(type: FileDiffMetadata["type"], name: string, prevName = name): FileDiffMetadata {
   return { type, name, prevName } as FileDiffMetadata;
@@ -34,8 +30,6 @@ describe("diffFileTreeEntries", () => {
   });
 });
 
-<<<<<<< HEAD
-=======
 describe("orderDiffFilesLikeTree", () => {
   it("pulls a test listed last into its directory, keeping the first-seen order", () => {
     expect(
@@ -78,7 +72,6 @@ describe("countDiffFileTreeRows", () => {
   });
 });
 
->>>>>>> 3c4cce1525 (fix(web): changes list file tree no longer leaves empty rows under flattened folders)
 describe("buildDiffFileTreeUpdates", () => {
   it("adds a new file's directories before the file", () => {
     expect(buildDiffFileTreeUpdates(["README.md"], ["README.md", "src/lib/a.ts"])).toEqual([

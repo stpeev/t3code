@@ -85,8 +85,6 @@ export function collectDirectoryPaths(paths: ReadonlyArray<string>): ReadonlyArr
   return [...directories];
 }
 
-<<<<<<< HEAD
-=======
 /** Rows the tree draws with every folder open; a folder whose only child is a folder shares its row. */
 export function countDiffFileTreeRows(paths: ReadonlyArray<string>): number {
   const children = new Map<string, Set<string>>();
@@ -150,7 +148,6 @@ export function orderDiffFilesLikeTree(
     .map(({ file }) => file);
 }
 
->>>>>>> 3c4cce1525 (fix(web): changes list file tree no longer leaves empty rows under flattened folders)
 export function compareDiffFileTreeEntries(
   getPositions: () => ReadonlyMap<string, number>,
 ): FileTreeSortComparator {

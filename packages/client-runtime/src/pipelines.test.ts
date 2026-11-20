@@ -82,7 +82,9 @@ describe("resolveThreadPipelineProgress", () => {
     };
     const labels = labelThreadPipelineStage(resolveThreadPipelineProgress(waiting, threadId)!);
     expect(labels.detail).toBe("waiting for PR #12 review");
-    expect(labels.spoken).toBe("pipeline Ticket, stage Develop, waiting: waiting for PR #12 review");
+    expect(labels.spoken).toBe(
+      "pipeline Ticket, stage Develop, waiting: waiting for PR #12 review",
+    );
     expect(resolveThreadPipelineProgress(savedAt("ticket", "plan"), ThreadId.make("other"))).toBe(
       null,
     );

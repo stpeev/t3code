@@ -267,7 +267,7 @@ export function renderPipelineStagePrompt(
     "`PIPELINE: FAILED: <why>` (it can't be finished)\n" +
     "`PIPELINE: WAITING: <what you're waiting for, and who or what must act first>` (only when " +
     "someone or something outside this session must act: my answer to a question, a reviewer, " +
-    "an author or a merge — always say which)";
+    "an author or a merge: always say which)";
   return `${body}\n${rule}`;
 }
 

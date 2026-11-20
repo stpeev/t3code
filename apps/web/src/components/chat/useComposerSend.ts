@@ -100,10 +100,7 @@ import { environmentServerConfigsAtom, serverEnvironment } from "../../state/ser
 import { useEnvironmentQuery } from "../../state/query";
 import { threadEnvironment } from "../../state/threads";
 import { recordThreadPipelineStage } from "../threadPipelineActions";
-import {
-  resolveComposerPipeline,
-  resolveComposerPipelineAutomation,
-} from "./composerPipelineSend";
+import { resolveComposerPipeline, resolveComposerPipelineAutomation } from "./composerPipelineSend";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { useClientSettingsHydrated } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
