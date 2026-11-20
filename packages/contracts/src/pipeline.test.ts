@@ -19,7 +19,7 @@ describe("renderPipelineStagePrompt", () => {
     expect(rendered).toContain("pipeline-reports/plan.md");
     expect(rendered).toContain("PIPELINE: DONE");
     expect(rendered).toContain("PIPELINE: FAILED: <why>");
-    expect(rendered).toContain("PIPELINE: WAITING");
+    expect(rendered).toContain("PIPELINE: WAITING: <what you're waiting for");
   });
 
   it("replaces every {input} occurrence", () => {
@@ -49,7 +49,7 @@ describe("renderPipelineContinuationPrompt", () => {
     expect(rendered).toContain('"Work" stage is not finished');
     expect(rendered).toContain("Continue where you left off");
     expect(rendered).toContain("PIPELINE: DONE");
-    expect(rendered).toContain("PIPELINE: WAITING");
+    expect(rendered).toContain("PIPELINE: WAITING: <what you're waiting for");
   });
 });
 
@@ -77,6 +77,10 @@ describe("pipelineVerdictOf", () => {
       detail: "",
     });
     expect(pipelineVerdictOf("PIPELINE: WAITING")).toEqual({ verdict: "waiting", detail: "" });
+    expect(pipelineVerdictOf("PIPELINE: WAITING: waiting for PR #12 review")).toEqual({
+      verdict: "waiting",
+      detail: "waiting for PR #12 review",
+    });
   });
 
   it("returns null when the reply has no verdict line", () => {

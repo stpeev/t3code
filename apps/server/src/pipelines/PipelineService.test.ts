@@ -18,6 +18,7 @@ import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Path from "effect/Path";
+import * as Exit from "effect/Exit";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 

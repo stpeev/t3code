@@ -117,6 +117,9 @@ export function PipelineStageChip(props: {
           {statusWord}
         </span>
       )}
+      {compact || !waiting || labels.detail === null ? null : (
+        <span className="max-w-40 truncate opacity-70">{labels.detail}</span>
+      )}
       {compact || count === 0 ? null : (
         <span className={`flex ${DOTS_WRAP_WIDTH} flex-wrap items-center gap-0.5`}>
           {Array.from({ length: count }, (_, index) => (
