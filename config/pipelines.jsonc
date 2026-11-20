@@ -15,6 +15,12 @@
           "approval": false,
         },
         {
+          "id": "challenge-design",
+          "name": "Challenge design",
+          "prompt": "/challenge-design on the spec written by the previous stage",
+          "approval": true,
+        },
+        {
           "id": "design-review",
           "name": "Design review",
           "prompt": "/review-spec of the same spec",
