@@ -232,7 +232,14 @@ export async function stagePipelineAsDraft(
     .getState()
     .setPrompt(
       { environmentId: thread.environmentId, threadId: thread.id },
-      renderPipelineStagePrompt(stage.prompt, input, stage.id),
+      renderPipelineStagePrompt(
+        stage.prompt,
+        input,
+        stage.id,
+        ((progress?.state.pipelineId === pipeline.id ? progress.state.automation : undefined) ??
+          pipeline.automation ??
+          "manual") === "auto",
+      ),
     );
   onDrafted?.();
   return true;

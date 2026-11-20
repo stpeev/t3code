@@ -943,6 +943,7 @@ export function useComposerSend(input: ComposerSendInput) {
               pipelineStart.stage.prompt,
               pipelineStart.task,
               pipelineStart.stage.id,
+              (pipelineStart.pipeline.automation ?? "manual") === "auto",
             )
           : messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
     });

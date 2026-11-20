@@ -489,6 +489,10 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
         const states = yield* savedStages(service);
         assert.equal(states[0]?.status, "done");
         assert.lengthOf(sent, 1);
+        assert.ok(
+          sent[0]?.text.includes("auto mode"),
+          "an auto pipeline's stage prompt carries the autonomy instruction",
+        );
       }),
     ).pipe(Effect.provide(layerConfig())),
   );
@@ -567,6 +571,10 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
           states = yield* savedStages(service);
           assert.equal(states[0]?.status, "running");
           assert.lengthOf(sent, 1);
+          assert.ok(
+            !sent[0]?.text.includes("auto mode"),
+            "a manual override drops the autonomy instruction from the stage prompt",
+          );
 
           // Flipped to auto mid-run: the next DONE finishes the single-stage pipeline.
           yield* service.setAutomation({ threadId, automation: "auto" });

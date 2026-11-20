@@ -249,6 +249,7 @@ export function renderPipelineStagePrompt(
   prompt: string,
   input: string,
   stageId?: PipelineStageId,
+  auto?: boolean,
 ): string {
   const body = prompt.replaceAll("{input}", input);
   const reportLine =
@@ -268,7 +269,13 @@ export function renderPipelineStagePrompt(
     "`PIPELINE: WAITING: <what you're waiting for, and who or what must act first>` (only when " +
     "someone or something outside this session must act: my answer to a question, a reviewer, " +
     "an author or a merge: always say which)";
-  return `${body}\n${rule}`;
+  // In auto mode the server advances on DONE without a human, so the stage must not park on questions it can answer itself.
+  const autoRule =
+    auto === true
+      ? "\nThis pipeline runs in auto mode: work as autonomously as possible — decide and act on " +
+        "your own instead of asking, and only wait when a person or something outside this session must act."
+      : "";
+  return `${body}\n${rule}${autoRule}`;
 }
 
 /** The verifier turn sent after a stage reports DONE on a stage with verifyPrompt. */

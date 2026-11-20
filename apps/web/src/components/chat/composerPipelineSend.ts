@@ -91,7 +91,14 @@ export async function resolveComposerPipeline(input: {
     if (recorded) {
       input.setDraftPrompt(
         input.draftTarget,
-        renderPipelineStagePrompt(start.stage.prompt, task, start.stage.id),
+        renderPipelineStagePrompt(
+          start.stage.prompt,
+          task,
+          start.stage.id,
+          ((progress?.state.pipelineId === start.pipeline.id ? progress.state.automation : undefined) ??
+            start.pipeline.automation ??
+            "manual") === "auto",
+        ),
       );
     }
     return { type: "handled" };
