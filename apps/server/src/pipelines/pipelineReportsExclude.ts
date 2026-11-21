@@ -7,8 +7,8 @@ import * as Path from "effect/Path";
 
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 
-/** Matches a pipeline-reports/ directory at any depth in any repo (no inner slash). */
-export const PIPELINE_REPORTS_EXCLUDE = "pipeline-reports/";
+/** Matches a .pipeline-reports/ directory at any depth in any repo (no inner slash). */
+export const PIPELINE_REPORTS_EXCLUDE = ".pipeline-reports/";
 
 /** Pure: the exclude line is present (exact line, trailing whitespace tolerated), else appended. */
 export const ensureExcludeLine = (contents: string): string => {
@@ -53,7 +53,7 @@ const ensure = Effect.fn("PipelineReportsExclude.ensure")(function* (deps: {
     Effect.provideService(FileSystem.FileSystem, fs),
     Effect.provideService(Path.Path, path),
   );
-  yield* Effect.logInfo("added pipeline-reports/ to the global git excludes file", { filePath });
+  yield* Effect.logInfo("added .pipeline-reports/ to the global git excludes file", { filePath });
 });
 
 /** Never fails: a best-effort housekeeping step, so pipelines work even when it cannot run. */

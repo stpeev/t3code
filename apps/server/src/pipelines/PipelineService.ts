@@ -671,7 +671,7 @@ const make = Effect.gen(function* () {
     threads: [...states.values()],
   });
 
-  // Stage reports land in pipeline-reports/ inside whatever repo the thread
+  // Stage reports land in .pipeline-reports/ inside whatever repo the thread
   // works in; make sure git ignores them machine-wide without any .gitignore edit.
   const reportsExclude = yield* PipelineReportsExclude.PipelineReportsExclude;
   yield* Effect.forkDetach(reportsExclude.ensure);

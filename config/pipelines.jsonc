@@ -115,18 +115,18 @@
           "id": "breakdown",
           "name": "Breakdown",
           "approval": true,
-          "prompt": "Epic: {input}. Read the epic and its stories in Jira, explore the code, and split the epic into stories that each ship as one reviewable PR. Write pipeline-reports/epic.json: [{ \"key\", \"title\", \"acceptance\", \"dependsOn\": [keys], \"base\": \"main\" or the key of the story it stacks on }]. Prefer independent stories; stack only when a story can't build without another. Change no code.",
-          "verifyPrompt": "Each story in pipeline-reports/epic.json is one PR in size with testable acceptance criteria, dependsOn has no cycles, and together the stories cover all of {input}.",
+          "prompt": "Epic: {input}. Read the epic and its stories in Jira, explore the code, and split the epic into stories that each ship as one reviewable PR. Write .pipeline-reports/epic.json: [{ \"key\", \"title\", \"acceptance\", \"dependsOn\": [keys], \"base\": \"main\" or the key of the story it stacks on }]. Prefer independent stories; stack only when a story can't build without another. Change no code.",
+          "verifyPrompt": "Each story in .pipeline-reports/epic.json is one PR in size with testable acceptance criteria, dependsOn has no cycles, and together the stories cover all of {input}.",
         },
         {
           "id": "dispatch",
           "name": "Dispatch",
-          "prompt": "Read pipeline-reports/epic.json. Get this thread's id from t3_thread_list, which marks your own thread. A story can start when its base story (if any) is ready or merged, and every other story in its dependsOn is merged. A story is ready when it has reported its branch: its PR is open and green, but not necessarily merged. For each story that can start: t3_thread_launch a worktree thread (title \"<key> <title>\", no message) from origin/main, or from its base story's branch when the base isn't merged yet. Then pipeline_start it with pipelineId \"epic-story\" and input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>)\". Record key -> threadId, worktree, branch, base branch in pipeline-reports/epic-state.json. Don't wait for the stories; this stage is done once the startable ones are started.",
+          "prompt": "Read .pipeline-reports/epic.json. Get this thread's id from t3_thread_list, which marks your own thread. A story can start when its base story (if any) is ready or merged, and every other story in its dependsOn is merged. A story is ready when it has reported its branch: its PR is open and green, but not necessarily merged. For each story that can start: t3_thread_launch a worktree thread (title \"<key> <title>\", no message) from origin/main, or from its base story's branch when the base isn't merged yet. Then pipeline_start it with pipelineId \"epic-story\" and input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>)\". Record key -> threadId, worktree, branch, base branch in .pipeline-reports/epic-state.json. Don't wait for the stories; this stage is done once the startable ones are started.",
         },
         {
           "id": "track",
           "name": "Track",
-          "prompt": "Read pipeline-reports/epic-state.json. Call pipeline_status for the story threads and check each story PR (gh pr view --json state,reviewDecision,statusCheckRollup,baseRefName). A story is finished when it is ready (it reported its branch, worktree and PR, and its PR is open and green) or merged; merging isn't required. Record each finished story's branch, worktree and PR in epic-state.json, then start every story that just became startable, as in Dispatch. Reply with a table: key, stage, status, branch, base, PR state. DONE only when every story is ready or merged; FAILED if a story failed and can't be recovered; otherwise WAITING. Story threads message you when they're ready: on each such message, run this check again and end with a verdict line again.",
+          "prompt": "Read .pipeline-reports/epic-state.json. Call pipeline_status for the story threads and check each story PR (gh pr view --json state,reviewDecision,statusCheckRollup,baseRefName). A story is finished when it is ready (it reported its branch, worktree and PR, and its PR is open and green) or merged; merging isn't required. Record each finished story's branch, worktree and PR in epic-state.json, then start every story that just became startable, as in Dispatch. Reply with a table: key, stage, status, branch, base, PR state. DONE only when every story is ready or merged; FAILED if a story failed and can't be recovered; otherwise WAITING. Story threads message you when they're ready: on each such message, run this check again and end with a verdict line again.",
         },
         {
           "id": "integrate",
@@ -137,7 +137,7 @@
         {
           "id": "close",
           "name": "Close",
-          "prompt": "Gather follow-ups from every story's pipeline-reports and PR threads; file each as a Jira ticket or drop it with a reason. Post a summary of {input} on the epic in Jira: each story with its PR, state and base branch, and the order to merge the stacked PRs (a PR's base must merge first, then rebase the PRs on top of it). Transition the epic only if every story PR is merged.",
+          "prompt": "Gather follow-ups from every story's .pipeline-reports and PR threads; file each as a Jira ticket or drop it with a reason. Post a summary of {input} on the epic in Jira: each story with its PR, state and base branch, and the order to merge the stacked PRs (a PR's base must merge first, then rebase the PRs on top of it). Transition the epic only if every story PR is merged.",
         },
       ],
     },

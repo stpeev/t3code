@@ -16,7 +16,7 @@ describe("renderPipelineStagePrompt", () => {
       PipelineStageId.make("plan"),
     );
     expect(rendered.startsWith("Plan Fix the login bug.\n")).toBe(true);
-    expect(rendered).toContain("pipeline-reports/plan.md");
+    expect(rendered).toContain(".pipeline-reports/plan.md");
     expect(rendered).toContain("PIPELINE: DONE");
     expect(rendered).toContain("PIPELINE: FAILED: <why>");
     expect(rendered).toContain("PIPELINE: WAITING: <what you're waiting for");
@@ -50,7 +50,7 @@ describe("renderPipelineVerifyPrompt", () => {
     );
     expect(rendered).toContain('"Review"');
     expect(rendered).toContain("check the login bug is covered by tests");
-    expect(rendered).toContain("pipeline-reports/review.verify.md");
+    expect(rendered).toContain(".pipeline-reports/review.verify.md");
     expect(rendered).toContain("PIPELINE: VERIFIED");
     expect(rendered).toContain("PIPELINE: REJECTED: <what is missing or wrong>");
   });

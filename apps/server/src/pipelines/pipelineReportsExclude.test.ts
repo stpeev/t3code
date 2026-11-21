@@ -39,7 +39,7 @@ it("ensureExcludeLine leaves contents alone when the exclude is already there", 
     `${PIPELINE_REPORTS_EXCLUDE}  \n`,
   );
   // An anchored pattern is a different rule and must not count as present.
-  assert.notStrictEqual(ensureExcludeLine("foo/pipeline-reports/\n"), "foo/pipeline-reports/\n");
+  assert.notStrictEqual(ensureExcludeLine("foo/.pipeline-reports/\n"), "foo/.pipeline-reports/\n");
 });
 
 it("defaultExcludesPath follows XDG_CONFIG_HOME, then HOME", () => {
