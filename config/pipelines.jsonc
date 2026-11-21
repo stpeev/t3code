@@ -97,7 +97,7 @@
         {
           "id": "work",
           "name": "Work",
-          "prompt": "Goal: {input}\n\nWork on this goal until it is fully achieved and verified. Run tests, builds and checks in the foreground and wait for their result; don't stop early.",
+          "prompt": "Goal: {input}\n\nWork on this goal until it is fully achieved and verified. When part of the delivarables, run tests, builds and checks in the foreground and wait for their result; don't stop early.",
           "verifyPrompt": "Is the goal fully achieved: {input}? Check the actual outcome (code, tests, PR state), not just the plan. If anything is missing, REJECT with what is left.",
           "approval": true,
         },
@@ -187,6 +187,11 @@
           "id": "report",
           "name": "Report",
           "prompt": "t3_thread_send the epic thread named in \"{input}\" this message, filled in: \"Story <key> is ready. PR: <url> (<state>). Branch: <branch>, base: <base branch>. Worktree: <absolute path>. Thread: <this thread's id>. Stories that depend on it can stack on this branch. Run the Track check again and end with a PIPELINE verdict line.\" Keep watching the PR: if it gets new comments or checks fail later, fix them and push.",
+        },
+        {
+          "id": "done",
+          "name": "Done",
+          "prompt": "Nothing to do here — every stage before this one is finished. Just end your reply with `PIPELINE: DONE` and stop.",
         },
       ],
     },
