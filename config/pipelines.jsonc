@@ -97,9 +97,15 @@
         {
           "id": "work",
           "name": "Work",
-          "prompt": "Goal: {input}\n\nWork on this goal until it is fully achieved and verified. When part of the delivarables, run tests, builds and checks in the foreground and wait for their result; don't stop early.",
+          "prompt": "Goal: {input}\n\nWork on this goal until it is fully achieved and verified. Run tests, builds and checks in the foreground and wait for their result; don't stop early.",
           "verifyPrompt": "Is the goal fully achieved: {input}? Check the actual outcome (code, tests, PR state), not just the plan. If anything is missing, REJECT with what is left.",
           "approval": true,
+        },
+        {
+          "id": "done",
+          "name": "Done",
+          "prompt": "Nothing to do here — every stage before this one is finished. Just end your reply with `PIPELINE: DONE` and stop.",
+          "approval": false,
         },
       ],
     },
