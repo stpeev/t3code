@@ -272,7 +272,7 @@ export function renderPipelineStagePrompt(
   // In auto mode the server advances on DONE without a human, so the stage must not park on questions it can answer itself.
   const autoRule =
     auto === true
-      ? "\nThis pipeline runs in auto mode: work as autonomously as possible — decide and act on " +
+      ? "\nThis pipeline runs in auto mode: work as autonomously as possible. Decide and act on " +
         "your own instead of asking, and only wait when a person or something outside this session must act."
       : "";
   return `${body}\n${rule}${autoRule}`;

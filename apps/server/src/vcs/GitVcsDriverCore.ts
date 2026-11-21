@@ -2406,7 +2406,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     ),
   );
 
-  const resolveBaseBranchForNoUpstream = Effect.fn("resolveBaseBranchForNoUpstream")(function* (
+  const findBaseBranchForNoUpstream = Effect.fn("resolveBaseBranchForNoUpstream")(function* (
     cwd: string,
     refName: string,
     options?: {
@@ -2478,7 +2478,6 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         if (trace) trace.degraded = true;
         return null;
       }),
-    );
     );
     const candidates = [
       Effect.succeed(configuredBaseBranch),
@@ -2638,7 +2637,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     function* (
       cwd: string,
       refName: string,
-      options?: { readonly allowRemoteOfCurrent?: boolean },
+      options?: {
+        readonly allowRemoteOfCurrent?: boolean;
+        readonly knownOriginDefaultBranch?: string | null;
+        readonly inferClosest?: boolean;
+      },
     ) {
       const gitCommonDir = (yield* resolveRepositoryPaths(cwd).pipe(
         Effect.orElseSucceed(() => null),
@@ -4474,6 +4477,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     cwd: string,
     branch: string | null,
     explicitBaseRef?: string,
+    knownOriginDefaultBranch: string | null = null,
   ) {
     const base =
       explicitBaseRef !== undefined

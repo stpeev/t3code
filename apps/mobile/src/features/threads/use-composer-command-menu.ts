@@ -22,6 +22,7 @@ import {
   formatComposerContextReference,
   threadContextRecord,
 } from "@t3tools/shared/composerContextReferences";
+import { useMessages } from "gt-react-native";
 import { environmentComposerContext, pullRequestComposerContext } from "../../lib/composerContext";
 import { uuidv4 } from "../../lib/uuid";
 import {
@@ -306,6 +307,7 @@ export function useComposerCommandMenu({
   readonly onContextUsage?: () => void;
 }) {
   const offersContextUsage = hasThread && onContextUsage !== undefined;
+  const messages = useMessages();
   const [localSelection, setLocalSelection] = useState(() => ({
     ownerKey,
     ...composerSelectionAtEnd(draftMessage),

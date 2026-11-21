@@ -201,19 +201,11 @@ export function threadReadTargetId(entry: Pick<WorkLogEntry, "structuredPayload"
   return typeof threadId === "string" && threadId.trim().length > 0 ? threadId.trim() : null;
 }
 
-const THREAD_READ_OBJECT = " a T3 thread";
-
 export function threadReadTargetTitle(
   shell: Pick<ThreadShell, "title" | "archivedAt" | "deletedAt"> | null,
 ) {
   if (!shell || shell.archivedAt !== null || shell.deletedAt !== null) return null;
   return shell.title.trim() || null;
-}
-
-export function threadReadLabelPrefix(label: string) {
-  return label.endsWith(THREAD_READ_OBJECT)
-    ? `${label.slice(0, -THREAD_READ_OBJECT.length)} thread`
-    : null;
 }
 
 export function workEntryReadOutput(
@@ -269,15 +261,15 @@ export function liveWorkEntryLabel(
     }
     return resolve(
       status === "inProgress"
-        ? "Running"
+        ? msg("Running {program}", { program })
         : status === "failed"
-          ? "Failed"
+          ? msg("Failed {program}", { program })
           : status === "declined"
-            ? "Declined"
+            ? msg("Declined {program}", { program })
             : status === "stopped"
-              ? "Stopped"
-              : "Ran";
-    return `${verb} ${commandProgramName(command) ?? "command"}`;
+              ? msg("Stopped {program}", { program })
+              : msg("Ran {program}", { program }),
+    );
   }
   return (
     commandlessCommandLabel(entry, status, resolve) ??

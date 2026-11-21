@@ -105,7 +105,7 @@ export function countDiffFileTreeRows(paths: ReadonlyArray<string>): number {
   return paths.length + directoryRows;
 }
 
-export function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap<string, number> {
+function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap<string, number> {
   const positions = new Map<string, number>();
   paths.forEach((path, index) => {
     positions.set(path, index);

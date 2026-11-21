@@ -158,7 +158,7 @@ export function isActiveRun(run: OrchestrationV2Run): boolean {
  * Providers that key forks on native turn ids can only fork a busy source from a turn with one;
  * a synthetic or missing boundary would fork the live conversation, including the running turn.
  */
-export function canForkBusySourceNatively(
+function canForkBusySourceNatively(
   capabilities: OrchestrationV2ProviderCapabilities,
   hasNativeTurnBoundary: boolean,
 ): boolean {

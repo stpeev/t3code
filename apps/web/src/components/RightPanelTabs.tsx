@@ -1649,3 +1649,36 @@ function DeviceTabTooltip(props: {
     </div>
   );
 }
+function IssueSurfaceIcon({
+  surface,
+  environmentId,
+}: {
+  surface: Extract<RightPanelSurface, { kind: "issue" }>;
+  environmentId: EnvironmentId | null;
+}) {
+  const resolvedEnvironmentId =
+    (surface.environmentId as EnvironmentId | undefined) ?? environmentId;
+  const detail = useEnvironmentQuery(
+    resolvedEnvironmentId === null
+      ? null
+      : issueEnvironment.detail({
+          environmentId: resolvedEnvironmentId,
+          input: {
+            projectId: surface.projectId as ProjectId,
+            tracker: surface.tracker as IssueTrackerKind,
+            ...(surface.host ? { host: surface.host } : {}),
+            scope: surface.scope,
+            key: surface.key,
+          },
+        }),
+  ).data;
+  if (detail === null) return <CircleDotIcon className="size-3 shrink-0" />;
+  const presentation = issueStatePresentation(detail.state);
+  return (
+    <presentation.Icon
+      role="img"
+      aria-label={presentation.label}
+      className={cn("size-3 shrink-0", presentation.toneClassName)}
+    />
+  );
+}

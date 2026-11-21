@@ -137,7 +137,6 @@ import {
 import { useOpenLink } from "../browser/useOpenLink";
 
 type DiffThemeType = "light" | "dark";
-const AUTOMATIC_BASE_REF = "__automatic_base_ref__";
 const ALL_REPOSITORIES = "__all_repositories__";
 const THREAD_FOLDER = "__thread_folder__";
 const NO_GIT_REPOSITORIES: ReturnType<typeof threadChangedRepositories> = Object.freeze([]);
@@ -308,7 +307,6 @@ export default function DiffPanel({
   const [hideTestFiles, setHideTestFiles] = useHideTestFiles();
   // The open commit menu keeps the list it opened with, so rows do not move under the pointer.
   const [openCommitMenu, setOpenCommitMenu] = useState<ReviewBranchCommitsResult | null>(null);
-  const [baseRefQuery] = useState("");
   const [changesFilesFolded, setChangesFilesFolded] = useLocalStorage(
     DIFF_CHANGES_FILES_FOLDED_STORAGE_KEY,
     false,
@@ -331,7 +329,6 @@ export default function DiffPanel({
   // Subscribing to a draft's id gets a 404 that parks the shared thread state as deleted,
   // which then outlives the draft's promotion to a server thread.
   const activeThread = useQuietThreadShell(threadRef);
-  const isServerThread = activeThread != null;
   const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
   const activeProject = useProject(
@@ -452,7 +449,7 @@ export default function DiffPanel({
       threadRef,
       orderedTurnDiffSummaries.map((summary) => summary.runId),
     );
-  }, [storedDiffSelection, orderedTurnDiffSummaries, routeThreadRef]);
+  }, [storedDiffSelection, orderedTurnDiffSummaries, routeThreadRef, threadRef]);
 
   const selectedRunId = diffSelection.kind === "turn" ? diffSelection.turnId : null;
   const selectedGitScope =
@@ -763,20 +760,6 @@ export default function DiffPanel({
     }
     return loadDiffFilesOrToast(currentLoadDiffFiles, fileDiff);
   });
-  const localBranchRefs = useEnvironmentQuery(
-    canSelectBranchBase && activeThread && branchRefsCwd
-      ? vcsEnvironment.listRefs({
-          environmentId: activeThread.environmentId,
-          input: {
-            cwd: branchRefsCwd,
-            includeMatchingRemoteRefs: true,
-            refKind: "local",
-            ...(baseRefQuery.trim().length > 0 ? { query: baseRefQuery.trim() } : {}),
-            limit: 100,
-          },
-        })
-      : null,
-  );
   const {
     scope: filePatchScope,
     isPending: areFilePatchesPending,

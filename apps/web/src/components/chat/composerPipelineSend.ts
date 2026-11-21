@@ -95,7 +95,9 @@ export async function resolveComposerPipeline(input: {
           start.stage.prompt,
           task,
           start.stage.id,
-          ((progress?.state.pipelineId === start.pipeline.id ? progress.state.automation : undefined) ??
+          ((progress?.state.pipelineId === start.pipeline.id
+            ? progress.state.automation
+            : undefined) ??
             start.pipeline.automation ??
             "manual") === "auto",
         ),

@@ -740,16 +740,6 @@ function poolWindows(accounts: readonly LimitAccount[], now: number): readonly L
   return pools.sort((left, right) => WINDOW_KIND_ORDER[left.kind] - WINDOW_KIND_ORDER[right.kind]);
 }
 
-export function limitsNotice(limits: ServerProviderUsageLimits): string | null {
-  if (limits.unavailable?.reason === "unsupported") {
-    return limits.unavailable.message ?? "This account has no subscription limits.";
-  }
-  if (limits.unavailable?.reason === "probeFailed") {
-    return limits.unavailable.message ?? "Could not read limits.";
-  }
-  return limits.windows.length === 0 ? "No limits reported." : null;
-}
-
 export function remainingPercent(window: ServerProviderUsageWindow): number {
   return Math.round(100 - Math.max(0, Math.min(100, window.usedPercent)));
 }
@@ -1094,5 +1084,3 @@ export function collectProviderUsageLimits(
   }
   return { createdAt: DateTime.formatIso(DateTime.makeUnsafe(now)), accounts, notices };
 }
-
-export { formatDuration } from "./orchestrationTiming.js";
