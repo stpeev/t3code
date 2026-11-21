@@ -23,7 +23,7 @@ import {
 } from "@t3tools/contracts";
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
 import { fromJsonStringPretty } from "@t3tools/shared/schemaJson";
-import * as NodeCrypto from "node:crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -346,7 +346,7 @@ const make = Effect.gen(function* () {
     yield* sendStage({
       pipelineId: pipeline.id,
       stage: next,
-      commandId: CommandId.make(`pipeline-auto:${NodeCrypto.randomUUID()}`),
+      commandId: CommandId.make(`pipeline-auto:${SecureRandom.uuidV4Unsafe()}`),
       threadId: input.threadId,
       projectId: input.projectId,
       input: state.input,
@@ -462,7 +462,7 @@ const make = Effect.gen(function* () {
     if (reading?.verdict === "done") {
       // Verify before asking for approval, so the person approves work the verifier passed.
       if (stage.verifyPrompt !== undefined) {
-        const commandId = CommandId.make(`pipeline-verify:${NodeCrypto.randomUUID()}`);
+        const commandId = CommandId.make(`pipeline-verify:${SecureRandom.uuidV4Unsafe()}`);
         yield* threadManagement
           .sendToThread({
             projectId: thread.projectId,
@@ -541,7 +541,7 @@ const make = Effect.gen(function* () {
         runStatus === "completed" &&
         state.continuations < (pipeline.maxContinuations ?? 0);
       if (canContinue) {
-        const commandId = CommandId.make(`pipeline-continue:${NodeCrypto.randomUUID()}`);
+        const commandId = CommandId.make(`pipeline-continue:${SecureRandom.uuidV4Unsafe()}`);
         yield* threadManagement
           .sendToThread({
             projectId: thread.projectId,
@@ -577,7 +577,7 @@ const make = Effect.gen(function* () {
         status: "waiting_input",
         detail:
           reading?.verdict === "waiting" && reading.detail === ""
-            ? "PIPELINE: WAITING without a reason — name what it waits for and who or what must act."
+            ? "PIPELINE: WAITING without a reason: name what it waits for and who or what must act."
             : (reading?.detail ??
               (runStatus === "completed" ? "No PIPELINE: verdict line in the final reply." : null)),
         history: state.history,
@@ -671,7 +671,7 @@ const make = Effect.gen(function* () {
     threads: [...states.values()],
   });
 
-  // Stage reports land in pipeline-reports/ inside whatever repo the thread
+  // Stage reports land in .pipeline-reports/ inside whatever repo the thread
   // works in; make sure git ignores them machine-wide without any .gitignore edit.
   const reportsExclude = yield* PipelineReportsExclude.PipelineReportsExclude;
   yield* Effect.forkDetach(reportsExclude.ensure);
