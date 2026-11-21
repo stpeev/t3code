@@ -59,7 +59,7 @@
         {
           "id": "screenshots",
           "name": "Screenshots",
-          "prompt": "/annotated-screenshots",
+          "prompt": "/annotated-screenshots, then upload the PNGs and add them to this PR's description (the command itself only writes files; update the PR body here)",
           "approval": false,
         },
         {
