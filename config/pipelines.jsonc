@@ -29,7 +29,7 @@
         {
           "id": "in-progress",
           "name": "In progress",
-          "prompt": "The plan is approved now. Implement it in a worktree following the with /create-branch instructions. Commit locally; don't push or open a PR yet. Work as autonomosly as possible.",
+          "prompt": "The plan is approved now. Implement it in a worktree following the with /create-branch instructions. Commit locally; don't push or open a PR yet.",
           "approval": false,
         },
         {
@@ -162,7 +162,7 @@
         {
           "id": "develop",
           "name": "Develop",
-          "prompt": "The plan is approved now. Implement it in a worktree following the with /create-branch instructions. Commit locally; don't push or open a PR yet. Work as autonomosly as possible. Tests first, then the change, then run the tests you added.",
+          "prompt": "The plan is approved now. Implement it in a worktree following the with /create-branch instructions. Commit locally; don't push or open a PR yet. Tests first, then the change, then run the tests you added.",
         },
         {
           "id": "code-review",
