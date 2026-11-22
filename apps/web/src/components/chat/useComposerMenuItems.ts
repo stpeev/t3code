@@ -1,4 +1,5 @@
-import { useGT, useMessages } from "gt-react";
+import { m } from "~/i18n/messages";
+import { useGT, useMessages, msg } from "gt-react";
 import {
   legacyThreadPullRequestKey,
   threadPullRequestKeyOf,
@@ -145,7 +146,6 @@ export function useComposerMenuItems({
     ...identity,
     machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
   }));
-<<<<<<< HEAD
   const workspaceEntries = useComposerPathSearch(
     {
       environmentId,
@@ -154,18 +154,11 @@ export function useComposerMenuItems({
     },
     messages,
   );
-=======
-  const workspaceEntries = useComposerPathSearch({
-    environmentId,
-    cwd: isPathTrigger ? gitCwd : null,
-    query: isPathTrigger ? pathTriggerQuery : null,
-  });
   const pipelines = useEnvironmentQuery(
     composerTriggerKind === "slash-command"
       ? serverEnvironment.pipelinesLive({ environmentId, input: {} })
       : null,
   ).data?.pipelines;
->>>>>>> 0f5346df34 (feat: thread pipelines — stages run in one thread, defined in pipelines.json)
 
   const pullRequestListTargets =
     composerTriggerKind !== "pull-request" ||
@@ -326,7 +319,11 @@ export function useComposerMenuItems({
                 type: "slash-command",
                 command: "pipeline-automation",
                 label: "/pipeline-automation",
-                description: "Set this thread's pipeline mode: /pipeline-automation auto|manual",
+                description: m(
+                  msg(
+                    "Set this thread's pipeline mode: /pipeline-automation auto|manual (or true|false)",
+                  ),
+                ),
               },
             ] as const)
           : []),

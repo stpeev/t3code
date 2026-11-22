@@ -12,11 +12,10 @@ import {
 } from "@t3tools/contracts";
 
 import type { ComposerThreadTarget } from "../../composerDraftStore";
-import {
-  recordThreadPipelineStage,
-  setThreadPipelineAutomation,
-} from "../threadPipelineActions";
+import { recordThreadPipelineStage, setThreadPipelineAutomation } from "../threadPipelineActions";
 import { stackedThreadToast, toastManager } from "../ui/toast";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export interface ComposerPipelineStart {
   readonly pipeline: PipelineDefinition;
@@ -36,7 +35,7 @@ function blockPipeline(reason: string): ComposerPipelineResolution {
   toastManager.add(
     stackedThreadToast({
       type: "warning",
-      title: "Pipeline not started",
+      title: m(msg("Pipeline not started")),
       description: reason,
     }),
   );
@@ -98,7 +97,9 @@ export async function resolveComposerPipeline(input: {
           start.stage.prompt,
           task,
           start.stage.id,
-          ((progress?.state.pipelineId === start.pipeline.id ? progress.state.automation : undefined) ??
+          ((progress?.state.pipelineId === start.pipeline.id
+            ? progress.state.automation
+            : undefined) ??
             start.pipeline.automation ??
             "manual") === "auto",
         ),
@@ -110,7 +111,7 @@ export async function resolveComposerPipeline(input: {
 }
 
 /**
- * The `/pipeline-automation <auto|manual>` interception: switches the open
+ * The `/pipeline-automation <auto|manual>` interception (true/false also work): switches the open
  * thread's pipeline mode and stops the send. Anything else passes through.
  */
 export async function resolveComposerPipelineAutomation(input: {
@@ -127,8 +128,8 @@ export async function resolveComposerPipelineAutomation(input: {
     toastManager.add(
       stackedThreadToast({
         type: "warning",
-        title: "Automation is per thread",
-        description: "Run /pipeline-automation in a thread that is in a pipeline.",
+        title: m(msg("Automation is per thread")),
+        description: m(msg("Run /pipeline-automation in a thread that is in a pipeline.")),
       }),
     );
     return "handled";
@@ -138,8 +139,8 @@ export async function resolveComposerPipelineAutomation(input: {
     toastManager.add(
       stackedThreadToast({
         type: "warning",
-        title: "Not in a pipeline",
-        description: "Start one first: /pipeline <id> <task>",
+        title: m(msg("Not in a pipeline")),
+        description: m(msg("Start one first: /pipeline <id> <task>")),
       }),
     );
     return "handled";
@@ -149,8 +150,10 @@ export async function resolveComposerPipelineAutomation(input: {
     toastManager.add(
       stackedThreadToast({
         type: "success",
-        title: `Pipeline automation: ${automation}`,
-        description: `This thread's pipeline now runs ${automation}.`,
+        title: m(msg("Pipeline automation: {automation}", { automation: automation })),
+        description: m(
+          msg("This thread's pipeline now runs {automation}.", { automation: automation }),
+        ),
       }),
     );
   }

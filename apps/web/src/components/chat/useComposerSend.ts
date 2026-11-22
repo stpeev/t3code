@@ -22,7 +22,6 @@ import {
 } from "../ChatView.logic";
 import { isUsageLimitsCommand } from "@t3tools/shared/usageLimits";
 import { isContextUsageCommand } from "@t3tools/client-runtime/context-window";
-import { deriveThreadTitleSeed } from "@t3tools/client-runtime/operations";
 import {
   AuthOrchestrationOperateScope,
   DEFAULT_MODEL,
@@ -105,10 +104,7 @@ import { environmentServerConfigsAtom, serverEnvironment } from "../../state/ser
 import { useEnvironmentQuery } from "../../state/query";
 import { threadEnvironment } from "../../state/threads";
 import { recordThreadPipelineStage } from "../threadPipelineActions";
-import {
-  resolveComposerPipeline,
-  resolveComposerPipelineAutomation,
-} from "./composerPipelineSend";
+import { resolveComposerPipeline, resolveComposerPipelineAutomation } from "./composerPipelineSend";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { useClientSettingsHydrated } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -401,7 +397,6 @@ export function useComposerSend(input: ComposerSendInput) {
   const handleNewThread = useNewThreadHandler();
   const navigate = useNavigate();
   const clientSettingsHydrated = useClientSettingsHydrated();
-  const planModeEnabled = useEnvironmentSettings(environmentId, selectPlanModeEnabled);
   const pipelinesSnapshot = useEnvironmentQuery(
     serverEnvironment.pipelinesLive({ environmentId, input: {} }),
   ).data;
@@ -838,7 +833,7 @@ export function useComposerSend(input: ComposerSendInput) {
       setDraftPrompt: setComposerDraftPrompt,
     });
     if (pipelineResolution.type === "handled") return;
-    // `/pipeline-automation <auto|manual>` switches the thread's pipeline mode; like `/pipeline` it only works at the prompt start.
+    // `/pipeline-automation <auto|manual>` (or true/false) switches the thread's pipeline mode; like `/pipeline` it only works at the prompt start.
     const automationResolution = await resolveComposerPipelineAutomation({
       skip: Boolean(directAnnotation) || queuedRunEdit.isEditing,
       snapshot: pipelinesSnapshot,
@@ -1080,10 +1075,14 @@ export function useComposerSend(input: ComposerSendInput) {
       toastManager.add(
         stackedThreadToast({
           type: "warning",
-          title: "Dropped an invalid review comment",
-          description: `${droppedReviewComments
-            .map((comment) => `${comment.filePath} ${comment.rangeLabel}`)
-            .join(", ")} failed validation and was removed from this message.`,
+          title: m(msg("Dropped an invalid review comment")),
+          description: m(
+            msg("{arg0} failed validation and was removed from this message.", {
+              arg0: droppedReviewComments
+                .map((comment) => `${comment.filePath} ${comment.rangeLabel}`)
+                .join(", "),
+            }),
+          ),
         }),
       );
     }
@@ -1564,11 +1563,9 @@ export function useComposerSend(input: ComposerSendInput) {
       composerRef.current?.resetCursorState();
     }
 
-    const title = deriveThreadTitleSeed({
-      text: pipelineStart?.task ?? messageTextForSend,
-      attachments: composerAttachmentsSnapshot,
-      fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
-    });
+    const title = deriveComposerSendTitle(
+      pipelineStart ? { ...sendSnapshot, messageText: pipelineStart.task } : sendSnapshot,
+    );
 
     const threadCreateModelSelection = createModelSelection(
       ctxSelectedModelSelection.instanceId,

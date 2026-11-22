@@ -36,6 +36,7 @@ const savedAt = (pipelineId: string, stageId: string, entered: ReadonlyArray<str
       status: "running" as const,
       detail: null,
       history: [],
+      continuations: 0,
       updatedAt: "2026-10-29T00:00:00.000Z",
     },
   ],
@@ -81,7 +82,9 @@ describe("resolveThreadPipelineProgress", () => {
     };
     const labels = labelThreadPipelineStage(resolveThreadPipelineProgress(waiting, threadId)!);
     expect(labels.detail).toBe("waiting for PR #12 review");
-    expect(labels.spoken).toBe("pipeline Ticket, stage Develop, waiting: waiting for PR #12 review");
+    expect(labels.spoken).toBe(
+      "pipeline Ticket, stage Develop, waiting: waiting for PR #12 review",
+    );
     expect(resolveThreadPipelineProgress(savedAt("ticket", "plan"), ThreadId.make("other"))).toBe(
       null,
     );
@@ -116,6 +119,12 @@ describe("planPipelineAutomationCommand", () => {
   it("reads auto and manual, case-insensitively, and leaves other prompts alone", () => {
     expect(planPipelineAutomationCommand("/pipeline-automation auto")).toBe("auto");
     expect(planPipelineAutomationCommand("  /pipeline-automation MANUAL  ")).toBe("manual");
+    expect(planPipelineAutomationCommand("/pipeline-automation true")).toBe("auto");
+    expect(planPipelineAutomationCommand("/pipeline-automation ON")).toBe("auto");
+    expect(planPipelineAutomationCommand("/pipeline-automation 1")).toBe("auto");
+    expect(planPipelineAutomationCommand("/pipeline-automation false")).toBe("manual");
+    expect(planPipelineAutomationCommand("/pipeline-automation Off")).toBe("manual");
+    expect(planPipelineAutomationCommand("/pipeline-automation 0")).toBe("manual");
     expect(planPipelineAutomationCommand("/pipeline-automation")).toBe(null);
     expect(planPipelineAutomationCommand("/pipeline-automation sometimes")).toBe(null);
     expect(planPipelineAutomationCommand("/pipeline ticket do it")).toBe(null);

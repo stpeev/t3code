@@ -1,3 +1,4 @@
+import { mFallback, msg } from "gt-i18n";
 import type {
   PipelineAutomation,
   PipelineDefinition,
@@ -40,12 +41,23 @@ export function resolveThreadPipelineProgress(
 }
 
 const PIPELINE_COMMAND = /^\/pipeline(?=\s|$)\s*(\S*)\s*([\s\S]*)$/;
-const PIPELINE_AUTOMATION_COMMAND = /^\/pipeline-automation\s+(auto|manual)\s*$/i;
+const PIPELINE_AUTOMATION_COMMAND =
+  /^\/pipeline-automation\s+(auto|manual|true|false|on|off|1|0)\s*$/i;
+const PIPELINE_AUTOMATION_ALIASES: Record<string, PipelineAutomation> = {
+  auto: "auto",
+  true: "auto",
+  on: "auto",
+  "1": "auto",
+  manual: "manual",
+  false: "manual",
+  off: "manual",
+  "0": "manual",
+};
 
-/** Reads `/pipeline-automation <auto|manual>`; null for any other prompt. */
+/** Reads `/pipeline-automation <auto|manual>` (true/false, on/off, 1/0 work too); null for any other prompt. */
 export function planPipelineAutomationCommand(prompt: string): PipelineAutomation | null {
   const match = PIPELINE_AUTOMATION_COMMAND.exec(prompt.trim());
-  return match === null ? null : (match[1]!.toLowerCase() as PipelineAutomation);
+  return match === null ? null : (PIPELINE_AUTOMATION_ALIASES[match[1]!.toLowerCase()] ?? null);
 }
 
 export type PipelineCommandPlan =
@@ -67,16 +79,22 @@ export function planPipelineCommand(input: {
   if (match === null) return null;
   const pipelineId = match[1] ?? "";
   const task = (match[2] ?? "").trim();
-  if (pipelineId === "") return { ok: false, message: "Name a pipeline: /pipeline <id> <task>" };
+  if (pipelineId === "")
+    return { ok: false, message: mFallback(msg("Name a pipeline: /pipeline <id> <task>")) };
   const pipeline = input.pipelines.find((entry) => entry.id === pipelineId);
   const stage = pipeline?.stages[0];
   if (pipeline === undefined || stage === undefined) {
-    return { ok: false, message: `There is no pipeline "${pipelineId}" in pipelines.json.` };
+    return {
+      ok: false,
+      message: mFallback(msg('There is no pipeline "{id}" in pipelines.json.', { id: pipelineId })),
+    };
   }
   if (input.newThread && task === "") {
     return {
       ok: false,
-      message: `Add the task after the pipeline: /pipeline ${pipelineId} <task>`,
+      message: mFallback(
+        msg("Add the task after the pipeline: /pipeline {id} '<task>'", { id: pipelineId }),
+      ),
     };
   }
   return { ok: true, pipeline, stage, task };
