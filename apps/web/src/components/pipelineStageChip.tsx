@@ -107,18 +107,16 @@ export function PipelineStageChip(props: {
     <span
       aria-hidden
       data-testid={testId}
-      className={`inline-flex max-w-48 shrink-0 flex-wrap items-center gap-x-1 gap-y-0.5 rounded-sm border bg-sidebar px-1 font-medium text-2xs${extraClass}`}
+      // One line only: the sidebar's title line is a fixed h-5, so a taller chip spills over the row.
+      className={`inline-flex max-w-48 shrink-0 items-center gap-1 rounded-sm border bg-sidebar px-1 font-medium text-2xs${extraClass}`}
       style={style}
     >
       <WorkflowIcon className="size-3 shrink-0 opacity-70" />
-      <span className="truncate">{labels.stageName}</span>
+      <span className="min-w-0 truncate">{labels.stageName}</span>
       {compact || statusWord === null ? null : (
         <span className={`shrink-0 opacity-70 ${waiting ? "animate-pulse" : ""}`}>
           {statusWord}
         </span>
-      )}
-      {compact || !waiting || labels.detail === null ? null : (
-        <span className="max-w-40 truncate opacity-70">{labels.detail}</span>
       )}
       {compact || count === 0 ? null : (
         <span className={`flex ${DOTS_WRAP_WIDTH} flex-wrap items-center gap-0.5`}>
