@@ -3530,7 +3530,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     const { messages } = projection;
     const unattended = new Set(
       messages
-        .filter((message) => message.createdBy !== "user" || message.scheduledTaskId !== undefined)
+        .filter(
+          (message) =>
+            message.createdBy !== "user" ||
+            message.scheduledTaskId !== undefined ||
+            // The server's own sends (pipeline stage prompts, continuations) carry
+            // createdBy "user" so they use the thread's model pick, but no person
+            // queued them for review.
+            message.creationSource === "server",
+        )
         .map((message) => message.id),
     );
     const now = yield* DateTime.now;

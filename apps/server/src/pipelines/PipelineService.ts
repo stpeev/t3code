@@ -298,13 +298,20 @@ const make = Effect.gen(function* () {
   /** Last finished assistant reply per pipeline thread, tracked from events. */
   const lastAssistantText = yield* Ref.make(new Map<ThreadId, string>());
 
-  const TERMINAL_RUN_STATUSES = new Set([
-    "completed",
-    "failed",
-    "interrupted",
-    "cancelled",
-    "rolled_back",
-  ]);
+  /**
+   * Run statuses whose end finishes a stage turn. A pause (`interrupted`) or a
+   * dropped run (`cancelled`) is not a finished turn: the stage stays as it was
+   * and the resumed run's own end is evaluated.
+   */
+  const TURN_END_RUN_STATUSES = new Set(["completed", "failed", "rolled_back"]);
+
+  /**
+   * Highest run ordinal already evaluated per pipeline thread. One run's
+   * terminal `run.updated` can arrive twice (the turn-end checkpoint capture
+   * repeats it); evaluating each run once keeps the repeat from consuming the
+   * verdict a second time and queueing a phantom continuation.
+   */
+  const evaluatedRunOrdinal = yield* Ref.make(new Map<ThreadId, number>());
 
   /** Sends the next stage's prompt, or marks the pipeline done / waits for approval. */
   const advanceOrWait = Effect.fn("PipelineService.advanceOrWait")(function* (input: {
@@ -614,10 +621,18 @@ const make = Effect.gen(function* () {
       }
       return;
     }
-    if (event.type === "run.updated" && TERMINAL_RUN_STATUSES.has(event.payload.status)) {
+    if (event.type === "run.updated" && TURN_END_RUN_STATUSES.has(event.payload.status)) {
       const states = yield* SubscriptionRef.get(statesRef);
       if (states.has(event.threadId)) {
-        yield* Effect.forkDetach(evaluate(event.threadId, event.payload.status));
+        const already = yield* Ref.modify(evaluatedRunOrdinal, (map) => {
+          const rest = new Map(map);
+          const seen = (rest.get(event.threadId) ?? 0) >= event.payload.ordinal;
+          if (!seen) rest.set(event.threadId, event.payload.ordinal);
+          return [seen, rest] as const;
+        });
+        if (!already) {
+          yield* Effect.forkDetach(evaluate(event.threadId, event.payload.status));
+        }
       }
     }
   });

@@ -11,7 +11,9 @@ import {
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -39,6 +41,9 @@ const work = PipelineStageId.make("work");
 const epic = PipelineId.make("epic");
 const breakdown = PipelineStageId.make("breakdown");
 const dispatch = PipelineStageId.make("dispatch");
+const autoFlow = PipelineId.make("auto-flow");
+const stepA = PipelineStageId.make("step-a");
+const stepB = PipelineStageId.make("step-b");
 const definitions: PipelineDefinitions.PipelineDefinitionsState = {
   pipelines: [
     {
@@ -70,6 +75,15 @@ const definitions: PipelineDefinitions.PipelineDefinitionsState = {
           approval: true,
         },
         { id: dispatch, name: "Dispatch", prompt: "Start {input}." },
+      ],
+    },
+    {
+      id: autoFlow,
+      name: "Auto flow",
+      automation: "auto",
+      stages: [
+        { id: stepA, name: "Step A", prompt: "Do A {input}." },
+        { id: stepB, name: "Step B", prompt: "Do B {input}." },
       ],
     },
   ],
@@ -696,6 +710,93 @@ it.layer(NodeServices.layer)("PipelineService", (it) => {
           [{ stageId: breakdown, outcome: "done" }],
         );
         assert.lengthOf(sent, 2);
+      }),
+    ).pipe(Effect.provide(layerConfig())),
+  );
+
+  it.effect("a paused (interrupted) run does not end the stage turn", () =>
+    withService(makeThread(), (service, sent, publish) =>
+      Effect.gen(function* () {
+        yield* service.startStage({
+          pipelineId: autoFlow,
+          stageId: stepA,
+          commandId: CommandId.make("command:a"),
+          threadId,
+          expected: null,
+          creationSource: "web",
+        });
+        const assistant = (text: string) =>
+          publish({
+            type: "message.updated",
+            threadId,
+            payload: { threadId, role: "assistant", streaming: false, text },
+          } as never);
+        const runEnd = (status: string, ordinal: number) =>
+          publish({ type: "run.updated", threadId, payload: { status, ordinal } } as never);
+        const sawStepB = yield* Deferred.make<void>();
+        const collector = yield* service.subscribe.pipe(
+          Stream.filter((snapshot) => snapshot.threads[0]?.stageId === stepB),
+          Stream.runForEach(() => Deferred.succeed(sawStepB, void 0)),
+          Effect.forkScoped,
+        );
+
+        yield* assistant("plan done.\nPIPELINE: DONE");
+        yield* runEnd("interrupted", 1);
+        // The resumed run ends normally and carries the stage forward.
+        yield* runEnd("completed", 2);
+        yield* Deferred.await(sawStepB);
+        // Let any (buggy) extra evaluation of the interrupted run finish before reading state.
+        for (let i = 0; i < 20; i++) yield* Effect.yieldNow;
+        yield* Fiber.interrupt(collector);
+
+        const states = yield* savedStages(service);
+        assert.equal(states[0]?.stageId, stepB);
+        assert.equal(states[0]?.status, "running");
+        assert.lengthOf(sent, 2);
+        assert.isTrue(sent[1]?.text.includes("Do B") ?? false);
+      }),
+    ).pipe(Effect.provide(layerConfig())),
+  );
+
+  it.effect("a repeated terminal run.updated for the same run is evaluated only once", () =>
+    withService(makeThread(), (service, sent, publish, takeSent) =>
+      Effect.gen(function* () {
+        yield* service.startStage({
+          pipelineId: goal,
+          stageId: work,
+          commandId: CommandId.make("command:work"),
+          threadId,
+          expected: null,
+          creationSource: "web",
+        });
+        const assistant = (text: string) =>
+          publish({
+            type: "message.updated",
+            threadId,
+            payload: { threadId, role: "assistant", streaming: false, text },
+          } as never);
+        const runEnd = (status: string, ordinal: number) =>
+          publish({ type: "run.updated", threadId, payload: { status, ordinal } } as never);
+
+        yield* assistant("working on it");
+        yield* runEnd("completed", 1);
+        // The turn-end checkpoint capture repeats the terminal update for the same run.
+        yield* runEnd("completed", 1);
+        yield* takeSent; // the stage prompt
+        yield* takeSent; // the one continuation the single evaluation sends
+        yield* service.subscribe.pipe(
+          Stream.filter((snapshot) => snapshot.threads[0]?.continuations === 1),
+          Stream.runHead,
+        );
+        yield* Effect.yieldNow;
+        yield* Effect.yieldNow;
+        yield* Effect.yieldNow;
+
+        const states = yield* savedStages(service);
+        assert.equal(states[0]?.status, "running");
+        assert.equal(states[0]?.continuations, 1);
+        assert.lengthOf(sent, 2);
+        assert.isTrue(sent[1]?.text.includes("Continue where you left off") ?? false);
       }),
     ).pipe(Effect.provide(layerConfig())),
   );

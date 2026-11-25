@@ -11970,6 +11970,19 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       yield* send(2, "First background task completed.", "provider");
       yield* send(3, "Background task completed.", "provider");
       yield* send(4, "Continue after the command completed.", "server");
+      // A pipeline send: createdBy "user" so it uses the thread's model pick, but made by the server.
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        createdBy: "user",
+        creationSource: "server",
+        commandId: CommandId.make(`${threadId}:message:5`),
+        threadId,
+        messageId: MessageId.make(`${threadId}:message:5`),
+        text: "The previous turn ended without a verdict.",
+        attachments: [],
+        modelSelection,
+        dispatchMode: { type: "queue_after_active" },
+      });
       const queued = yield* orchestrator.getThreadProjection(threadId);
       const [held, active, wake] = [queued.runs[1]!, queued.runs[2]!, queued.runs[3]!];
       assert.equal(active.status, "starting");
@@ -11978,6 +11991,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.notEqual(wake.queueHeld, true);
       const textContinuation = queued.runs[4]!;
       assert.isTrue(textContinuation.queueHeld);
+      const pipelineContinuation = queued.runs[5]!;
+      assert.isTrue(pipelineContinuation.queueHeld);
       const now = yield* DateTime.now;
       yield* events.write({
         events: [
@@ -12002,6 +12017,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.deepEqual(
         after.runs.find((run) => run.id === textContinuation.id),
         { ...textContinuation, queueHeld: false },
+      );
+      // Same for a server send marked createdBy "user" (a pipeline continuation).
+      assert.deepEqual(
+        after.runs.find((run) => run.id === pipelineContinuation.id),
+        { ...pipelineContinuation, queueHeld: false },
       );
     }),
   );
