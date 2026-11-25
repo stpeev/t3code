@@ -127,12 +127,7 @@
         {
           "id": "dispatch",
           "name": "Dispatch",
-          "prompt": "Read .pipeline-reports/epic.json; get this thread's id and projectId from t3_thread_list (it marks your own thread). A story can start when its base (if any) is ready or merged and all other dependsOn stories are merged (ready = PR open and green). For each startable story, name a branch as /create-branch would, then t3_thread_launch in this project a worktree thread (workspaceStrategy { type: \"worktree\", baseRef: \"origin/main\" with startFromOrigin: true, or the base story's branch, branch: <name> }, title \"<key> <title>\", no message) and pipeline_start it with pipelineId \"epic-story\", input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>)\". Set `git config branch.<branch>.gh-merge-base <baseRef>` — the worktree lands under the configured worktrees location (repo-local .claude/worktrees/<branch> when the setting is relative). Record key -> threadId, worktree, branch, base branch in .pipeline-reports/epic-state.json; done once the startable ones are started.",
-        },
-        {
-          "id": "track",
-          "name": "Track",
-          "prompt": "Read .pipeline-reports/epic-state.json. Call pipeline_status for the story threads and check each story PR (gh pr view --json state,reviewDecision,statusCheckRollup,baseRefName). A story is finished when it is ready (it reported its branch, worktree and PR, and its PR is open and green) or merged; merging isn't required. Record each finished story's branch, worktree and PR in epic-state.json, then start every story that just became startable, as in Dispatch. Reply with a table: key, stage, status, branch, base, PR state. DONE only when every story is ready or merged; FAILED if a story failed and can't be recovered; otherwise WAITING. Story threads message you when they're ready: on each such message, run this check again and end with a verdict line again.",
+          "prompt": "Read .pipeline-reports/epic.json; get this thread's id and projectId from t3_thread_list (it marks your own thread). A story is local-done when its thread reported local-done, finished when it reported DONE — record both in epic-state.json; no PR approval/merge needed, and a local-done story frees its maxConcurrent slot. A story can start when its base (if any) and all other dependsOn are local-done — stack on the base story's local branch. For each startable story (while the count of started-but-not-local-done stories is below maxConcurrent, no limit if unset): name a branch as /create-branch would; t3_thread_launch in this project a worktree thread (type \"worktree\", baseRef \"origin/main\" or the base story's branch, branch <name>, title \"<key> <title>\", no message); pipeline_start it as pipelineId \"epic-story\" with input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or base story's branch>)\"; set `git config branch.<branch>.gh-merge-base <baseRef>`; record maxConcurrent and key -> threadId, worktree, branch, base in epic-state.json (the worktree auto-lands repo-locally at .claude/worktrees/<branch> when the worktree location setting is relative). Call pipeline_status for all story threads; reply with a table (key, stage, status, branch, base, PR). End DONE only when every story's thread is DONE, FAILED if one failed unrecoverably, else WAITING; on each story message, record it, start newly startable ones, re-check, end with a verdict line.",
         },
         {
           "id": "integrate",
@@ -175,6 +170,11 @@
           "prompt": "Run all affected tests of every module this change touches in the foreground and wait for each to finish. Fix what fails and run them again until all pass, then give the passed, failed and skipped counts per suite.",
         },
         {
+          "id": "local-done",
+          "name": "Local done",
+          "prompt": "All local deliverables are done (code reviewed, tests green). t3_thread_send the epic thread named in \"{input}\": \"Story <key> local-done. Branch: <branch>. Worktree: <absolute path>. Thread: <this thread's id>. Stories depending on or stacked on it can start on this branch now. Run the Dispatch check again.\" Then end your reply with `PIPELINE: DONE`.",
+        },
+        {
           "id": "pr",
           "name": "PR",
           "prompt": "/pr-push with the PR's base set to the base branch named in \"{input}\", so a stacked story's PR shows only its own changes.",
@@ -187,12 +187,12 @@
         {
           "id": "ready",
           "name": "Ready",
-          "prompt": "Call watch_pull_request on this story's PR. Handle each failed check and review comment, pushing fixes. The story is ready when the PR is open, every check is green and every review comment is handled; it doesn't need to be merged. DONE once it's ready (or merged); until then end with WAITING, and T3 Code wakes you on the next change.",
+          "prompt": "Call watch_pull_request on this story's PR. The story is ready as soon as the PR is open — end with DONE then; checks don't need to be green, approved, or merged first. Keep watching afterwards: on each wake-up handle failed checks and review comments, pushing fixes. Until the PR is open, end with WAITING.",
         },
         {
           "id": "report",
           "name": "Report",
-          "prompt": "t3_thread_send the epic thread named in \"{input}\" this message, filled in: \"Story <key> is ready. PR: <url> (<state>). Branch: <branch>, base: <base branch>. Worktree: <absolute path>. Thread: <this thread's id>. Stories that depend on it can stack on this branch. Run the Track check again and end with a PIPELINE verdict line.\" Keep watching the PR: if it gets new comments or checks fail later, fix them and push.",
+          "prompt": "t3_thread_send the epic thread named in \"{input}\" this message, filled in: \"Story <key> is ready. PR: <url> (<state>). Branch: <branch>, base: <base branch>. Worktree: <absolute path>. Thread: <this thread's id>. Stories that depend on it can stack on this branch. Run the Dispatch check again and end with a PIPELINE verdict line.\" Keep watching the PR: if it gets new comments or checks fail later, fix them and push.",
         },
         {
           "id": "done",
