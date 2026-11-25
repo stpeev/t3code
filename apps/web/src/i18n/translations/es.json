@@ -11098,7 +11098,7 @@
   "189c753a02fed5f2": "Cambios sin commit",
   "8ccc880c41e5e646": "Archivos con seguimiento editados",
   "dde724d790183148": "{counts} en todas las máquinas",
-  "96fde8cda73aa873": "Carpeta donde se crean los nuevos worktrees, en cualquier unidad, como D:\\worktrees o ~/worktrees. Los worktrees existentes se quedan donde están. Déjalo vacío para usar la carpeta de inicio de T3.",
+  "101ea5e06bcbab05": "Carpeta donde se crean los nuevos worktrees, en cualquier unidad, como D:\\worktrees o ~/worktrees. Los worktrees existentes se quedan donde están. Déjalo vacío para usar la carpeta de inicio de T3.",
   "c7d07d2bed742b25": "Restablecer la ubicación de los worktrees al valor predeterminado",
   "da6138080e9709f7": "Ubicación de los worktrees",
   "8711a1de99862971": "Reducir {label}",

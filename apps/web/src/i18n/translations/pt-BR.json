@@ -11103,7 +11103,7 @@
   "189c753a02fed5f2": "Alterações sem commit",
   "8ccc880c41e5e646": "Arquivos rastreados editados",
   "dde724d790183148": "{counts} em todas as máquinas",
-  "96fde8cda73aa873": "Pasta onde os novos worktrees são criados, em qualquer unidade, como D:\\worktrees ou ~/worktrees. Os worktrees existentes ficam onde estão. Deixe vazio para usar a pasta T3 home.",
+  "101ea5e06bcbab05": "Pasta onde os novos worktrees são criados, em qualquer unidade, como D:\\worktrees ou ~/worktrees. Os worktrees existentes ficam onde estão. Deixe vazio para usar a pasta T3 home.",
   "c7d07d2bed742b25": "Redefinir o local dos worktrees para o padrão",
   "da6138080e9709f7": "Local dos worktrees",
   "8711a1de99862971": "Diminuir {label}",

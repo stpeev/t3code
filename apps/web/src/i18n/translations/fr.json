@@ -11103,7 +11103,7 @@
   "189c753a02fed5f2": "Modifications non commitées",
   "8ccc880c41e5e646": "Fichiers suivis modifiés",
   "dde724d790183148": "{counts} sur chaque machine",
-  "96fde8cda73aa873": "Dossier où les nouveaux worktrees sont créés, sur n’importe quel disque, comme D:\\worktrees ou ~/worktrees. Les worktrees existants restent où ils sont. Laissez vide pour utiliser le dossier T3 home.",
+  "101ea5e06bcbab05": "Dossier où les nouveaux worktrees sont créés, sur n’importe quel disque, comme D:\\worktrees ou ~/worktrees. Les worktrees existants restent où ils sont. Laissez vide pour utiliser le dossier T3 home.",
   "c7d07d2bed742b25": "Réinitialiser l’emplacement des worktrees à la valeur par défaut",
   "da6138080e9709f7": "Emplacement des worktrees",
   "8711a1de99862971": "Diminuer {label}",

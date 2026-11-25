@@ -55,7 +55,7 @@ import { VcsAutomaticFetchInterval } from "./VcsAutomaticFetchInterval.ts";
 import { gitConfigEnv, serverGitConfigEnv, unsetInheritedRepositoryEnv } from "./VcsProcess.ts";
 import { makeWorktreeCheckoutCache } from "./worktreeCheckoutCache.ts";
 import { removeLinkedWorktree } from "./worktreeRemoval.ts";
-import { resolveWorktreesDirectory } from "../worktreesDirectory.ts";
+import { isWithinRoot, resolveWorktreesDirectory } from "../worktreesDirectory.ts";
 import {
   parseRemoteNames,
   parseRemoteNamesInGitOrder,
@@ -6851,29 +6851,42 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const repoName = path.basename(path.resolve(input.cwd));
     let worktreePath = input.path;
     if (worktreePath == null) {
+      const gitCommonDir = yield* readGitCommonDir(input.cwd);
+      const repoRoot =
+        (yield* readWorktreeRoot(input.cwd)) ??
+        (gitCommonDir !== null ? path.dirname(gitCommonDir) : null);
       const parentDir = resolveWorktreesDirectory(
         options?.worktreesDirectory ?? "",
         worktreesDir,
         path,
         yield* HostProcess.HomeDirectory,
+        repoRoot,
       );
       if (parentDir === null) {
         return yield* new GitCommandError({
           operation: "GitVcsDriver.createWorktree",
           command: "git worktree add",
           cwd: input.cwd,
-          detail: `The worktree location "${options?.worktreesDirectory}" must be an absolute folder on this machine, not a drive root. Change it in Settings → Worktrees.`,
+          detail: `The worktree location "${options?.worktreesDirectory}" must be an absolute folder on this machine or a subfolder of the project's root folder, not a drive root. Change it in Settings → Worktrees.`,
         });
       }
-      const identity = `${yield* readGitCommonDir(input.cwd)}\0${targetBranch}`;
-      const hash = yield* digest.digest(Digest.sha256, new TextEncoder().encode(identity));
-      // UTF-8 bytes bound UTF-16 length too, leaving room for files on Windows.
-      let prefix = "";
-      for (const character of targetBranch.replace(/\//g, "-")) {
-        if (Buffer.byteLength(prefix + character) > 23) break;
-        prefix += character;
+      let basePath: string;
+      if (repoRoot !== null && isWithinRoot(path, parentDir, repoRoot)) {
+        // Repo-local locations name the folder after the branch, like /create-branch does.
+        basePath = path.join(parentDir, targetBranch.replaceAll("/", "+"));
+      } else {
+        // A shared location keeps the repo/hash form so same-named branches in different
+        // repos stay apart.
+        const identity = `${gitCommonDir}\0${targetBranch}`;
+        const hash = yield* digest.digest(Digest.sha256, new TextEncoder().encode(identity));
+        // UTF-8 bytes bound UTF-16 length too, leaving room for files on Windows.
+        let prefix = "";
+        for (const character of targetBranch.replace(/\//g, "-")) {
+          if (Buffer.byteLength(prefix + character) > 23) break;
+          prefix += character;
+        }
+        basePath = path.join(parentDir, repoName, `${prefix}-${Hex.encode(hash).slice(0, 16)}`);
       }
-      const basePath = path.join(parentDir, repoName, `${prefix}-${Hex.encode(hash).slice(0, 16)}`);
       // The name is stable per branch, so a folder left by an earlier worktree must not block it.
       worktreePath = basePath;
       for (

@@ -8831,13 +8831,15 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         );
         assert.deepEqual(yield* fileSystem.readDirectory(created.worktree.path), ["notes.txt"]);
 
-        const error = yield* driver
-          .createWorktree(
-            { cwd, path: null, refName: initialBranch, newRefName: "feature/relative-dir" },
-            { worktreesDirectory: "relative/worktrees" },
-          )
-          .pipe(Effect.flip);
-        assert.match(error.detail, /must be an absolute folder on this machine/);
+        const relative = yield* driver.createWorktree(
+          { cwd, path: null, refName: initialBranch, newRefName: "feature/relative-dir" },
+          { worktreesDirectory: "relative/worktrees" },
+        );
+        assert.equal(
+          relative.worktree.path,
+          pathService.join(cwd, "relative", "worktrees", "feature+relative-dir"),
+        );
+        assert.equal(yield* fileSystem.exists(relative.worktree.path), true);
 
         const rootError = yield* driver
           .createWorktree(
@@ -8846,6 +8848,43 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           )
           .pipe(Effect.flip);
         assert.match(rootError.detail, /not a drive root/);
+      }),
+    );
+
+    it.effect("names repo-local worktree folders after the branch, like /create-branch", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const pathService = yield* Path.Path;
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const created = yield* driver.createWorktree(
+          { cwd, path: null, refName: initialBranch, newRefName: "feat/speev/260929-ABC-1-thing" },
+          { worktreesDirectory: ".claude/worktrees" },
+        );
+        assert.equal(
+          created.worktree.path,
+          pathService.join(cwd, ".claude", "worktrees", "feat+speev+260929-ABC-1-thing"),
+        );
+        assert.equal(yield* fileSystem.exists(created.worktree.path), true);
+        assert.equal(
+          yield* git(created.worktree.path, ["branch", "--show-current"]),
+          "feat/speev/260929-ABC-1-thing",
+        );
+
+        // A leftover folder on the same branch gets a suffix instead of blocking creation.
+        yield* git(cwd, ["worktree", "remove", "--force", created.worktree.path]);
+        yield* git(cwd, ["branch", "-D", "feat/speev/260929-ABC-1-thing"]);
+        yield* fileSystem.makeDirectory(created.worktree.path, { recursive: true });
+        const recreated = yield* driver.createWorktree(
+          { cwd, path: null, refName: initialBranch, newRefName: "feat/speev/260929-ABC-1-thing" },
+          { worktreesDirectory: ".claude/worktrees" },
+        );
+        assert.equal(
+          recreated.worktree.path,
+          `${created.worktree.path}-2`,
+        );
       }),
     );
 

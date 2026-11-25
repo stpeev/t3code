@@ -8,23 +8,42 @@ import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as ServerConfig from "./config.ts";
 import * as ServerSettings from "./serverSettings.ts";
 
-/** Null for filesystem roots or settings not absolute on this host, including synced foreign-platform paths. */
+/**
+ * Null for filesystem roots, foreign-platform absolute paths, and relative settings when no
+ * project root is known. A relative setting resolves under `projectRoot`: it is project-local
+ * and deliberately stays out of the global managed set (managedWorktreesDirectories resolves
+ * absolute values only), so those worktrees are known but not auto-restored or cleaned up.
+ */
 export function resolveWorktreesDirectory(
   setting: string,
   defaultDir: string,
   path: Path.Path,
   home: string,
+  projectRoot?: string | null,
 ): string | null {
   if (setting === "") return defaultDir;
   const expanded = expandHomePath(setting, home);
-  if (!path.isAbsolute(expanded)) return null;
-  const resolved = path.resolve(expanded);
+  if (path.isAbsolute(expanded)) {
+    const resolved = path.resolve(expanded);
+    return isFilesystemRoot(resolved, path) ? null : resolved;
+  }
+  if (projectRoot == null) return null;
+  const resolved = path.resolve(projectRoot, expanded);
   return isFilesystemRoot(resolved, path) ? null : resolved;
 }
 
 /** Callers re-check after resolving symlinks: a link can point at a root. */
 export function isFilesystemRoot(directory: string, path: Path.Path): boolean {
   return path.dirname(directory) === directory;
+}
+
+/** True when candidate equals root or sits below it, without resolving symlinks. */
+export function isWithinRoot(path: Path.Path, candidate: string, root: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
 }
 
 export function managedWorktreesDirectories(

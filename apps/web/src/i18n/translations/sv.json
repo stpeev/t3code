@@ -11111,7 +11111,7 @@
   "189c753a02fed5f2": "Ej committade ändringar",
   "8ccc880c41e5e646": "Redigerade spårade filer",
   "dde724d790183148": "{counts} på alla datorer",
-  "96fde8cda73aa873": "Mapp där nya worktrees skapas, på valfri enhet, till exempel D:\\worktrees eller ~/worktrees. Befintliga worktrees ligger kvar där de är. Lämna tomt för att använda T3-hemmappen.",
+  "101ea5e06bcbab05": "Mapp där nya worktrees skapas, på valfri enhet, till exempel D:\\worktrees eller ~/worktrees. Befintliga worktrees ligger kvar där de är. Lämna tomt för att använda T3-hemmappen.",
   "c7d07d2bed742b25": "Återställ plats för worktrees till standard",
   "da6138080e9709f7": "Plats för worktrees",
   "8711a1de99862971": "Minska {label}",

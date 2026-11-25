@@ -11113,7 +11113,7 @@
   "189c753a02fed5f2": "Uncommitted changes",
   "8ccc880c41e5e646": "Edited tracked files",
   "dde724d790183148": "{counts} on every machine",
-  "96fde8cda73aa873": "Folder where new worktrees are created, on any drive, such as D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder.",
+  "101ea5e06bcbab05": "Folder where new worktrees are created: an absolute path on any drive, such as D:\\worktrees or ~/worktrees, or a relative subfolder of each project's root, such as .claude/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder.",
   "c7d07d2bed742b25": "Reset worktree location to default",
   "da6138080e9709f7": "Worktree location",
   "8711a1de99862971": "Decrease {label}",

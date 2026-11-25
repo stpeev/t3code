@@ -815,29 +815,36 @@ const make = Effect.gen(function* () {
       config.worktreesDir,
       path,
       yield* HostProcess.HomeDirectory,
+      taskPlan.projectRoot,
     );
     if (parent === null) {
       return yield* new TaskFolderError({
         operation: "create",
         detail:
-          "The worktree location must be an absolute folder on this machine, not a drive root. Change it in Settings → Worktrees.",
+          "The worktree location must be an absolute folder on this machine or a subfolder of the project's root folder, not a drive root. Change it in Settings → Worktrees.",
       });
     }
-    const hash = yield* digest.digest(
-      Digest.sha256,
-      new TextEncoder().encode(`${taskPlan.projectId}\0${taskPlan.anchor}\0${branch}`),
-    );
-    // UTF-8 bytes bound UTF-16 length too, leaving room for files on Windows.
-    let prefix = "";
-    for (const character of branch.replace(/\//g, "-")) {
-      if (Buffer.byteLength(prefix + character) > 23) break;
-      prefix += character;
+    let base: string;
+    if (isWithinRoot(path, parent, taskPlan.projectRoot)) {
+      // Repo-local locations name the folder after the branch, like /create-branch does.
+      base = path.join(parent, branch.replaceAll("/", "+"));
+    } else {
+      const hash = yield* digest.digest(
+        Digest.sha256,
+        new TextEncoder().encode(`${taskPlan.projectId}\0${taskPlan.anchor}\0${branch}`),
+      );
+      // UTF-8 bytes bound UTF-16 length too, leaving room for files on Windows.
+      let prefix = "";
+      for (const character of branch.replace(/\//g, "-")) {
+        if (Buffer.byteLength(prefix + character) > 23) break;
+        prefix += character;
+      }
+      base = path.join(
+        parent,
+        path.basename(taskPlan.anchor) || "workspace",
+        `${prefix}-${Hex.encode(hash).slice(0, 16)}`,
+      );
     }
-    const base = path.join(
-      parent,
-      path.basename(taskPlan.anchor) || "workspace",
-      `${prefix}-${Hex.encode(hash).slice(0, 16)}`,
-    );
     const allocateFailed = fail("create", "Could not create the worktree folder");
     yield* fileSystem
       .makeDirectory(path.dirname(base), { recursive: true })

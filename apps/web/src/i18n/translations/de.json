@@ -11104,7 +11104,7 @@
   "189c753a02fed5f2": "Nicht committete Änderungen",
   "8ccc880c41e5e646": "Bearbeitete versionierte Dateien",
   "dde724d790183148": "{counts} auf jedem Rechner",
-  "96fde8cda73aa873": "Ordner, in dem neue Worktrees erstellt werden, auf einem beliebigen Laufwerk, etwa D:\\worktrees oder ~/worktrees. Bestehende Worktrees bleiben, wo sie sind. Leer lassen, um den T3-Home-Ordner zu verwenden.",
+  "101ea5e06bcbab05": "Ordner, in dem neue Worktrees erstellt werden, auf einem beliebigen Laufwerk, etwa D:\\worktrees oder ~/worktrees. Bestehende Worktrees bleiben, wo sie sind. Leer lassen, um den T3-Home-Ordner zu verwenden.",
   "c7d07d2bed742b25": "Worktree-Speicherort auf Standard zurücksetzen",
   "da6138080e9709f7": "Worktree-Speicherort",
   "8711a1de99862971": "{label} verringern",

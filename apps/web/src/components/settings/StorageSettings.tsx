@@ -73,7 +73,7 @@ export function WorktreesDirectoryRow() {
     <SettingsRow
       {...setting("storage-worktrees-location")}
       description={gt(
-        "Folder where new worktrees are created, on any drive, such as D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder.",
+        "Folder where new worktrees are created: an absolute path on any drive, such as D:\\worktrees or ~/worktrees, or a relative subfolder of each project's root, such as .claude/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder.",
       )}
       serverScoped
       settingKeys={["worktreesDirectory"]}

@@ -29,7 +29,7 @@
         {
           "id": "in-progress",
           "name": "In progress",
-          "prompt": "The plan is approved now. Implement it in a worktree following the with /create-branch instructions. Commit locally; don't push or open a PR yet.",
+          "prompt": "The plan is approved now. Implement it in a worktree following the /create-branch instructions. Commit locally; don't push or open a PR yet.",
           "approval": false,
         },
         {
@@ -127,7 +127,7 @@
         {
           "id": "dispatch",
           "name": "Dispatch",
-          "prompt": "Read .pipeline-reports/epic.json. Get this thread's id from t3_thread_list, which marks your own thread. A story can start when its base story (if any) is ready or merged, and every other story in its dependsOn is merged. A story is ready when it has reported its branch: its PR is open and green, but not necessarily merged. For each story that can start: t3_thread_launch a worktree thread (title \"<key> <title>\", no message) from origin/main, or from its base story's branch when the base isn't merged yet. Then pipeline_start it with pipelineId \"epic-story\" and input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>)\". Record key -> threadId, worktree, branch, base branch in .pipeline-reports/epic-state.json. Don't wait for the stories; this stage is done once the startable ones are started.",
+          "prompt": "Read .pipeline-reports/epic.json; get this thread's id and projectId from t3_thread_list (it marks your own thread). A story can start when its base (if any) is ready or merged and all other dependsOn stories are merged (ready = PR open and green). For each startable story, name a branch as /create-branch would, then t3_thread_launch in this project a worktree thread (workspaceStrategy { type: \"worktree\", baseRef: \"origin/main\" with startFromOrigin: true, or the base story's branch, branch: <name> }, title \"<key> <title>\", no message) and pipeline_start it with pipelineId \"epic-story\", input \"<key>: <title> (epic thread: <this thread's id>; base branch: <main or the base story's branch>)\". Set `git config branch.<branch>.gh-merge-base <baseRef>` — the worktree lands under the configured worktrees location (repo-local .claude/worktrees/<branch> when the setting is relative). Record key -> threadId, worktree, branch, base branch in .pipeline-reports/epic-state.json; done once the startable ones are started.",
         },
         {
           "id": "track",
@@ -162,7 +162,7 @@
         {
           "id": "develop",
           "name": "Develop",
-          "prompt": "The plan is approved now. Implement it in a worktree following the with /create-branch instructions. Commit locally; don't push or open a PR yet. Tests first, then the change, then run the tests you added.",
+          "prompt": "The plan is approved now. Dispatch normally launches this thread in its own worktree already on the story's branch — implement there; only if this thread is still at the project root, run /create-branch with 'Worktree + enter' first (create the branch from the base branch named in \"{input}\", not from HEAD) and continue in that worktree. Commit locally; don't push or open a PR yet. Tests first, then the change, then run the tests you added.",
         },
         {
           "id": "code-review",

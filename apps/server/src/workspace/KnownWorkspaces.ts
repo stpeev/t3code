@@ -13,7 +13,9 @@ import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
-import { isFilesystemRoot, managedWorktreesDirectories } from "../worktreesDirectory.ts";
+import { isFilesystemRoot, isWithinRoot, managedWorktreesDirectories } from "../worktreesDirectory.ts";
+
+export { isWithinRoot };
 
 export class UnknownWorkspaceError extends Schema.TaggedError<UnknownWorkspaceError>()(
   "UnknownWorkspaceError",
@@ -26,15 +28,6 @@ export class UnknownWorkspaceError extends Schema.TaggedError<UnknownWorkspaceEr
     return `'${this.cwd}' is not a registered project, a tracked folder, a managed worktree, or a thread's worktree.`;
   }
 }
-
-/** Resolve candidate and root consistently before checking containment. */
-export const isWithinRoot = (path: Path.Path, candidate: string, root: string) => {
-  const relative = path.relative(root, candidate);
-  return (
-    relative === "" ||
-    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
-  );
-};
 
 export class KnownWorkspaces extends Context.Service<
   KnownWorkspaces,
