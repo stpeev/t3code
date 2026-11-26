@@ -138,7 +138,7 @@
         {
           "id": "close",
           "name": "Close",
-          "prompt": "Gather follow-ups from every story's .pipeline-reports and PR threads; file each as a Jira ticket or drop it with a reason. Post a summary of {input} on the epic in Jira: each story with its PR, state and base branch, and the order to merge the stacked PRs (a PR's base must merge first, then rebase the PRs on top of it). Transition the epic only if every story PR is merged.",
+          "prompt": "Gather follow-ups from every story's .pipeline-reports and PR threads; Suggest to file each as a Jira ticket or drop it with a reason. Post a summary of {input} on the epic in Jira: each story with its PR, state and base branch, and the order to merge the stacked PRs (a PR's base must merge first, then rebase the PRs on top of it). Transition the epic only if every story PR is merged.",
         },
       ],
     },
