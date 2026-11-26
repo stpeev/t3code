@@ -1519,3 +1519,18 @@ export function selectSelectedRightPanelSurface(
   const state = selectThreadRightPanelState(byThreadKey, ref);
   return state.surfaces.find((surface) => surface.id === state.activeSurfaceId) ?? null;
 }
+
+/**
+ * The surface Ctrl+Tab cycling lands on, wrapping around the panel's tab order.
+ * Null when the panel is closed or has fewer than two tabs, so the key falls through.
+ */
+export function cycleRightPanelSurface(
+  panel: ThreadRightPanelState,
+  direction: 1 | -1,
+): RightPanelSurface | null {
+  if (!panel.isOpen || panel.surfaces.length < 2) return null;
+  const index = panel.surfaces.findIndex((surface) => surface.id === panel.activeSurfaceId);
+  const base = index === -1 ? (direction === 1 ? -1 : 0) : index;
+  const next = panel.surfaces[(base + direction + panel.surfaces.length) % panel.surfaces.length];
+  return next && next.id !== panel.activeSurfaceId ? next : null;
+}

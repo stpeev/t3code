@@ -188,6 +188,7 @@ import {
   useRightPanelStore,
 } from "../rightPanelStore";
 import { useRightPanelPopoutStore } from "../rightPanelPopoutStore";
+import { useFocusedRightPanelPopout } from "../rightPanelPopoutWindow";
 import { getLatestThreadForProject, sortThreads } from "@t3tools/client-runtime/state/thread-sort";
 import { effectiveSnoozed } from "@t3tools/client-runtime/state/thread-settled";
 import {
@@ -394,8 +395,11 @@ function CommandPaletteDialog(props: {
 }) {
   const gt = useGT();
   const composerHandleRef = useComposerHandleContext();
+  // While the popped-out panel window has focus, the overlay is that window's child, not the main one's.
+  const focusedPopout = useFocusedRightPanelPopout();
   return (
     <CommandDialogPopup
+      container={focusedPopout?.window.document.body ?? null}
       aria-label={
         props.mode === "files"
           ? gt("File picker")
@@ -408,6 +412,8 @@ function CommandPaletteDialog(props: {
       data-palette-mode={props.mode}
       data-testid="command-palette"
       finalFocus={() => {
+        // An overlay opened from the popout must not pull focus back to the main window.
+        if (focusedPopout) return true;
         if (restoreWorkspaceFocusFromPalette()) return false;
         const returnFocus = getCommandPaletteReturnFocus();
         if (returnFocus === false) return false;

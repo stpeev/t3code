@@ -5,7 +5,7 @@ import { formatFilePathForClipboard } from "@t3tools/client-runtime/media-action
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { writeTextToClipboard } from "../../hooks/useCopyToClipboard";
-import { type ScopedThreadRef, type RunId, type PreviewSessionSnapshot } from "@t3tools/contracts";
+import { type ScopedThreadRef, type PreviewSessionSnapshot } from "@t3tools/contracts";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { sideThreadComposer, sideThreadKindOf } from "@t3tools/client-runtime/side-thread";
 import { readThreadShell } from "../../state/entities";
@@ -18,8 +18,9 @@ import {
 import { useDiffPanelStore } from "../../diffPanelStore";
 import { type ThreadPanelPresentation } from "../../rightPanelLayout";
 import {
-  selectSelectedRightPanelSurface,
+  cycleRightPanelSurface,
   selectThreadPanelOpen,
+  selectThreadRightPanelState,
   type RightPanelSurface,
   useRightPanelStore,
 } from "../../rightPanelStore";
@@ -103,7 +104,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     pullRequestsSurfaceAvailable,
     gitCwd,
     activeProjectCwd,
-    explicitDiffOpenRef,
     onDiffPanelOpen,
   } = input;
 
@@ -244,6 +244,17 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     }
   };
   const activateRightPanelSurfaceStable = useStableCallback(activateRightPanelSurface);
+  // Ctrl+Tab cycling, also while the panel is popped out: its window forwards the chord here.
+  const cycleRightPanelTab = (direction: 1 | -1): boolean => {
+    if (!activeThreadRef) return false;
+    const next = cycleRightPanelSurface(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, activeThreadRef),
+      direction,
+    );
+    if (!next) return false;
+    activateRightPanelSurface(next);
+    return true;
+  };
   const toggleRightPanel = () => {
     if (!activeThreadRef) return;
     if (rightPanelPoppedOut && rightPanelOpen) {
@@ -321,16 +332,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     useRightPanelStore.getState().openPullRequest(activeThreadRef, pullRequestPanelTarget);
   };
   const addPullRequestSurfaceStable = useStableCallback(addPullRequestSurface);
-  const onOpenTurnDiff = (runId: RunId, filePath?: string) => {
-    if (!isServerThread || !activeThreadRef) return;
-    const diffSelected =
-      selectSelectedRightPanelSurface(useRightPanelStore.getState().byThreadKey, activeThreadRef)
-        ?.kind === "diff";
-    explicitDiffOpenRef.current = diffSelected ? null : activeThreadRef;
-    useDiffPanelStore.getState().selectTurn(activeThreadRef, runId, filePath);
-    useRightPanelStore.getState().open(activeThreadRef, "diff");
-    onDiffPanelOpen?.();
-  };
   const onOpenToolDiffStable = useStableCallback((target: ToolCallDiffTarget) => {
     if (!isServerThread || !activeThreadRef) return;
     useDiffPanelStore.getState().selectToolCall(activeThreadRef, target);
@@ -358,6 +359,8 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       if (!activeRightPanelSurface) return false;
       if (!event.repeat) closeRightPanelSurface(activeRightPanelSurface);
     },
+    "rightPanel.nextTab": () => cycleRightPanelTab(1),
+    "rightPanel.previousTab": () => cycleRightPanelTab(-1),
     "diff.toggle": () => onToggleDiff(),
   } satisfies ChatShortcutCommands;
 

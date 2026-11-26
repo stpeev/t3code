@@ -6,6 +6,7 @@ import { useClosedViewStore } from "./closedViewStore";
 import { linkedThreadTitle } from "./linkedThreadSurface";
 import { reopenClosedView } from "./reopenClosedView";
 import {
+  cycleRightPanelSurface,
   hostRightPanel,
   migratePersistedRightPanelState,
   pullRequestSurface,
@@ -1417,5 +1418,31 @@ describe("rightPanelStore", () => {
     store.reconcileBrowserSurfaces(refA, ["tab-a", "tab-b"]);
     expect(surfaceIds()).toEqual(["browser:tab-a", "terminal:term-1", "diff", "browser:tab-b"]);
     expect(store.getUserActionRevision(refA)).toBe(revision);
+  });
+
+  it("cycles tabs with Ctrl+Tab in both directions, wrapping around", () => {
+    const store = useRightPanelStore.getState();
+    store.openTerminal(refA, "term-1");
+    store.openBrowser(refA, "tab-a");
+    store.open(refA, "diff");
+    const panel = () =>
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    expect(panel().activeSurfaceId).toBe("diff");
+
+    // Forward wraps from the last tab back to the first.
+    expect(cycleRightPanelSurface(panel(), 1)?.id).toBe("terminal:term-1");
+    store.activateSurface(refA, "terminal:term-1");
+    expect(cycleRightPanelSurface(panel(), 1)?.id).toBe("browser:tab-a");
+    store.activateSurface(refA, "browser:tab-a");
+    expect(cycleRightPanelSurface(panel(), 1)?.id).toBe("diff");
+    // Backward wraps from the first tab to the last.
+    store.activateSurface(refA, "terminal:term-1");
+    expect(cycleRightPanelSurface(panel(), -1)?.id).toBe("diff");
+    // A single tab or a closed panel has nothing to cycle to.
+    store.closeSurface(refA, "browser:tab-a");
+    store.closeSurface(refA, "diff");
+    expect(cycleRightPanelSurface(panel(), 1)).toBeNull();
+    store.toggleVisibility(refA);
+    expect(cycleRightPanelSurface(panel(), 1)).toBeNull();
   });
 });

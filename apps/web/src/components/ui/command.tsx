@@ -58,14 +58,17 @@ function CommandDialogViewport({ className, ...props }: CommandDialogPrimitive.V
 function CommandDialogPopup({
   className,
   children,
+  container,
   onBackdropPointerDown,
   ...props
 }: CommandDialogPrimitive.Popup.Props & {
   onBackdropPointerDown?: React.PointerEventHandler<HTMLDivElement>;
+  /** Where the portal renders; the focused popout's body while the panel window has focus. */
+  container?: HTMLElement | null;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
   return (
-    <CommandDialogPortal>
+    <CommandDialogPortal container={container ?? undefined}>
       <CommandDialogBackdrop onPointerDown={onBackdropPointerDown} />
       <CommandDialogViewport>
         <CommandDialogPrimitive.Popup

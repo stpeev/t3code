@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { isEditableFocused } from "./lib/editableFocus";
 import type { RightPanelPopoutBounds } from "./rightPanelPopoutStore";
 
@@ -41,6 +42,41 @@ export function getRightPanelPopout(): RightPanelPopout | null {
 export function getFocusedRightPanelPopout(): RightPanelPopout | null {
   if (!current || current.window.closed || !current.window.document.hasFocus()) return null;
   return current;
+}
+
+const popoutFocusListeners = new Set<() => void>();
+let popoutFocusListenersInstalled = false;
+
+function notifyPopoutFocusListeners(): void {
+  for (const listener of popoutFocusListeners) listener();
+}
+
+/**
+ * Notifies on anything that can move focus between the main window and the popout. The main
+ * window's own focus and blur cover the popout gaining or losing focus, and the popout's
+ * open/close covers it appearing or disappearing while focused.
+ */
+function subscribeRightPanelPopoutFocus(listener: () => void): () => void {
+  if (!popoutFocusListenersInstalled) {
+    popoutFocusListenersInstalled = true;
+    window.addEventListener("focus", notifyPopoutFocusListeners);
+    window.addEventListener("blur", notifyPopoutFocusListeners);
+  }
+  const unsubscribePopout = subscribeRightPanelPopout(listener);
+  popoutFocusListeners.add(listener);
+  return () => {
+    unsubscribePopout();
+    popoutFocusListeners.delete(listener);
+  };
+}
+
+/** The popout while it has focus, re-rendering on focus changes so overlays can follow it. */
+export function useFocusedRightPanelPopout(): RightPanelPopout | null {
+  const focused = useSyncExternalStore(
+    subscribeRightPanelPopoutFocus,
+    () => getFocusedRightPanelPopout() !== null,
+  );
+  return focused ? getFocusedRightPanelPopout() : null;
 }
 
 /** Whether the user is in the app, in either the main window or the popout. */

@@ -78,6 +78,9 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "ctrl+alt+[", command: "terminal.previous", when: "terminalFocus && !isMac" },
   { key: "ctrl+alt+]", command: "terminal.next", when: "terminalFocus && !isMac" },
   { key: "mod+w", command: "rightPanel.close", when: "!terminalFocus" },
+  // Chorded keys reach the renderer even from the popped-out panel window and its terminal.
+  { key: "ctrl+tab", command: "rightPanel.nextTab" },
+  { key: "ctrl+shift+tab", command: "rightPanel.previousTab" },
   { key: "mod+shift+t", command: "view.reopenClosed" },
   { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },
   { key: "mod+f", command: "diff.find", when: "diffFocus" },

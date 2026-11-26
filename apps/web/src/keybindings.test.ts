@@ -747,6 +747,36 @@ describe("resolveShortcutCommand", () => {
     }
   });
 
+  it("routes Ctrl+Tab to right-panel tab cycling with and without Shift", () => {
+    for (const platform of ["MacIntel", "Win32", "Linux"]) {
+      assert.strictEqual(
+        resolveShortcutCommand(
+          event({ key: "Tab", code: "Tab", ctrlKey: true }),
+          DEFAULT_RESOLVED_KEYBINDINGS,
+          { platform },
+        ),
+        "rightPanel.nextTab",
+      );
+      assert.strictEqual(
+        resolveShortcutCommand(
+          event({ key: "Tab", code: "Tab", ctrlKey: true, shiftKey: true }),
+          DEFAULT_RESOLVED_KEYBINDINGS,
+          { platform },
+        ),
+        "rightPanel.previousTab",
+      );
+      // The chords stay panel cycling even while a terminal owns focus.
+      assert.strictEqual(
+        resolveShortcutCommand(
+          event({ key: "Tab", code: "Tab", ctrlKey: true }),
+          DEFAULT_RESOLVED_KEYBINDINGS,
+          { platform, context: { terminalFocus: true } },
+        ),
+        "rightPanel.nextTab",
+      );
+    }
+  });
+
   it("matches punctuation shortcuts by physical key across keyboard layouts", () => {
     const keybindings = compile([
       { shortcut: modShortcut("'", { shiftKey: true }), command: "diff.toggle" },
