@@ -31,3 +31,22 @@ Runbook for syncing the fork branch with `upstream` (`pingdotgg/t3code`; `origin
    git log --format=%s main..HEAD | grep -ci 'repair\|re-port\|fixup!'   # must be 0
    ```
 5. Push: `git push --force-with-lease=main-fork:<old-origin-sha> origin main-fork`
+
+## Cross-porting onto main-fork after a sync
+
+A rebase changes the APIs the tree is written against, so never cherry-pick or
+copy files from a branch based on the previous generation — that mixes API
+generations inside one file (half-updated files fail to compile, e.g. an old
+`fileLineReveal(...)` call next to its renamed `onFilePostRender`, or a test
+missing newly required props) and silently drops fork features (props, guards,
+hooks). That is what broke 15 files in one cross-port, leaving the repairs
+only in an uncommitted working tree.
+
+- Rebase the source branch onto the current `main-fork` first, then
+  cherry-pick/merge; resolve per-hunk with the conflict rules above (keep both
+  sides on additive changes, adopt upstream's renames), never take a whole
+  stale file.
+- Run `command vp run typecheck` (and `build`) BEFORE committing the port, and
+  commit it atomically — do not leave the working tree dirty mid-port.
+- Afterwards `git status` must be clean and
+  `git log --format=%s origin/main-fork..HEAD | grep -ci 'repair\|re-port\|fixup!'` must be 0.
