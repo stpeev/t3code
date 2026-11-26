@@ -16,6 +16,7 @@ import {
   formatShortcutLabel,
   isDiffFindShortcut,
   isRichTextBoldShortcut,
+  isRightPanelTabCycleShortcut,
   isSidebarToggleShortcut,
   isTerminalNewShortcut,
   isTerminalSplitShortcut,
@@ -775,6 +776,38 @@ describe("resolveShortcutCommand", () => {
         "rightPanel.nextTab",
       );
     }
+  });
+
+  it("lets the terminal key handler pass Ctrl+Tab through instead of sending it to the shell", () => {
+    const options = { platform: "MacIntel", context: { terminalFocus: true, terminalOpen: true } };
+    assert.isTrue(
+      isRightPanelTabCycleShortcut(
+        event({ key: "Tab", code: "Tab", ctrlKey: true }),
+        DEFAULT_RESOLVED_KEYBINDINGS,
+        options,
+      ),
+    );
+    assert.isTrue(
+      isRightPanelTabCycleShortcut(
+        event({ key: "Tab", code: "Tab", ctrlKey: true, shiftKey: true }),
+        DEFAULT_RESOLVED_KEYBINDINGS,
+        options,
+      ),
+    );
+    assert.isFalse(
+      isRightPanelTabCycleShortcut(
+        event({ key: "Tab", code: "Tab" }),
+        DEFAULT_RESOLVED_KEYBINDINGS,
+        options,
+      ),
+    );
+    assert.isFalse(
+      isRightPanelTabCycleShortcut(
+        event({ key: "b", code: "KeyB", ctrlKey: true }),
+        DEFAULT_RESOLVED_KEYBINDINGS,
+        options,
+      ),
+    );
   });
 
   it("matches punctuation shortcuts by physical key across keyboard layouts", () => {

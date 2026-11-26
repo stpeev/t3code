@@ -86,6 +86,7 @@ import { isTerminalFocused } from "~/lib/terminalFocus";
 import { usePanelAnimationSettings, usePanelPresence } from "~/panelAnimations";
 import {
   ISSUES_PANEL_REF,
+  cycleRightPanelSurface,
   selectActiveRightPanelSurface,
   selectSelectedRightPanelSurface,
   selectThreadRightPanelState,
@@ -488,12 +489,27 @@ export function IssuesPage() {
       context: { ...getShortcutContext(), rightPanelOpen: rightPanelState.isOpen },
     });
     if (command === "rightPanel.close" && !rightPanelState.isOpen) return;
-    if (command !== "rightPanel.toggle" && command !== "rightPanel.close") return;
+    if (
+      command !== "rightPanel.toggle" &&
+      command !== "rightPanel.close" &&
+      command !== "rightPanel.nextTab" &&
+      command !== "rightPanel.previousTab"
+    )
+      return;
     event.preventDefault();
     event.stopPropagation();
     if (event.repeat) return;
     if (command === "rightPanel.close") closeSurface(panelSurface);
-    else toggleRightPanel();
+    else if (command === "rightPanel.nextTab" || command === "rightPanel.previousTab") {
+      const next = cycleRightPanelSurface(
+        rightPanelState,
+        command === "rightPanel.nextTab" ? 1 : -1,
+      );
+      if (next && rightPanelRef !== null) {
+        useRightPanelStore.getState().activateSurface(rightPanelRef, next.id);
+        selectSurfaceInUrl(next.kind === "issue" || next.kind === "pull-request" ? next : null);
+      }
+    } else toggleRightPanel();
   });
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to the document right panel shortcut

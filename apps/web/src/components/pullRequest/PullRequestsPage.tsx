@@ -112,6 +112,7 @@ import { toastManager } from "../ui/toast";
 import { usePanelAnimationSettings, usePanelPresence } from "~/panelAnimations";
 import {
   PULL_REQUESTS_PANEL_REF,
+  cycleRightPanelSurface,
   selectActiveRightPanelSurface,
   selectSelectedRightPanelSurface,
   selectThreadRightPanelState,
@@ -1547,6 +1548,15 @@ export function PullRequestsPage() {
     event.stopPropagation();
     if (!event.repeat) closeSurface(activePullRequestSurface);
   });
+  const cyclePanelTabFromShortcut = useEffectEvent((event: KeyboardEvent, direction: 1 | -1) => {
+    if (!rightPanelState.isOpen || rightPanelRef === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = cycleRightPanelSurface(rightPanelState, direction);
+    if (!next) return;
+    useRightPanelStore.getState().activateSurface(rightPanelRef, next.id);
+    selectSurfaceInUrl(next.kind === "pull-request" ? next : null);
+  });
   const toggleRightPanelFromShortcut = useEffectEvent((event: KeyboardEvent) => {
     if (!rightPanelAvailable) return;
     event.preventDefault();
@@ -1567,6 +1577,8 @@ export function PullRequestsPage() {
         context: getShortcutContext(),
       });
       if (command === "rightPanel.close") closeActiveSurfaceFromShortcut(event);
+      if (command === "rightPanel.nextTab") cyclePanelTabFromShortcut(event, 1);
+      if (command === "rightPanel.previousTab") cyclePanelTabFromShortcut(event, -1);
       if (command === "rightPanel.toggle") toggleRightPanelFromShortcut(event);
       if (command === "rightPanel.toggleMaximized") toggleRightPanelMaximizedFromShortcut(event);
       if (command === "thread.copyReference") copyPullRequestFromShortcut(event);

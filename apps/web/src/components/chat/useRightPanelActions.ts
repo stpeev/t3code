@@ -69,7 +69,6 @@ interface RightPanelActionsInput {
   readonly pullRequestsSurfaceAvailable: boolean;
   readonly gitCwd: string | null;
   readonly activeProjectCwd: string | null;
-  readonly explicitDiffOpenRef: { current: ScopedThreadRef | null };
   readonly onDiffPanelOpen: (() => void) | undefined;
   readonly closeRightPanelSurface: (surface: RightPanelSurface) => void;
 }
@@ -255,6 +254,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     activateRightPanelSurface(next);
     return true;
   };
+  const cycleRightPanelTabStable = useStableCallback(cycleRightPanelTab);
   const toggleRightPanel = () => {
     if (!activeThreadRef) return;
     if (rightPanelPoppedOut && rightPanelOpen) {
@@ -376,6 +376,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     copyRightPanelFilePathStable,
     createBrowserSurface,
     createBrowserSurfaceStable,
+    cycleRightPanelTabStable,
     duplicateBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
     onOpenToolDiffStable,

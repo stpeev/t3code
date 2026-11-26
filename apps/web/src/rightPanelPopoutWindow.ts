@@ -46,15 +46,30 @@ export function getFocusedRightPanelPopout(): RightPanelPopout | null {
 
 const popoutFocusListeners = new Set<() => void>();
 let popoutFocusListenersInstalled = false;
+let listenedPopoutWindow: Window | null = null;
 
 function notifyPopoutFocusListeners(): void {
   for (const listener of popoutFocusListeners) listener();
 }
 
+// The popout's own focus events, so a blur that fires before the popout reports focus is not missed.
+function bindPopoutWindowFocus(): void {
+  const popoutWindow = current?.window ?? null;
+  if (listenedPopoutWindow === popoutWindow) return;
+  if (listenedPopoutWindow !== null) {
+    listenedPopoutWindow.removeEventListener("focus", notifyPopoutFocusListeners);
+    listenedPopoutWindow.removeEventListener("blur", notifyPopoutFocusListeners);
+  }
+  listenedPopoutWindow = popoutWindow;
+  if (popoutWindow !== null) {
+    popoutWindow.addEventListener("focus", notifyPopoutFocusListeners);
+    popoutWindow.addEventListener("blur", notifyPopoutFocusListeners);
+  }
+}
+
 /**
- * Notifies on anything that can move focus between the main window and the popout. The main
- * window's own focus and blur cover the popout gaining or losing focus, and the popout's
- * open/close covers it appearing or disappearing while focused.
+ * Notifies on anything that can move focus between the main window and the popout: both windows'
+ * own focus and blur, plus the popout appearing or disappearing while focused.
  */
 function subscribeRightPanelPopoutFocus(listener: () => void): () => void {
   if (!popoutFocusListenersInstalled) {
@@ -62,7 +77,11 @@ function subscribeRightPanelPopoutFocus(listener: () => void): () => void {
     window.addEventListener("focus", notifyPopoutFocusListeners);
     window.addEventListener("blur", notifyPopoutFocusListeners);
   }
-  const unsubscribePopout = subscribeRightPanelPopout(listener);
+  bindPopoutWindowFocus();
+  const unsubscribePopout = subscribeRightPanelPopout(() => {
+    bindPopoutWindowFocus();
+    listener();
+  });
   popoutFocusListeners.add(listener);
   return () => {
     unsubscribePopout();

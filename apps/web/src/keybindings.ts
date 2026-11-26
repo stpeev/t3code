@@ -413,6 +413,16 @@ export function isTerminalCycleShortcut(
   return command === "terminal.previous" || command === "terminal.next";
 }
 
+/** Ctrl+Tab panel-tab cycling stays an app shortcut even while a terminal owns focus. */
+export function isRightPanelTabCycleShortcut(
+  event: ShortcutEventLike,
+  keybindings: ResolvedKeybindingsConfig,
+  options?: ShortcutMatchOptions,
+): boolean {
+  const command = resolveShortcutCommand(event, keybindings, options);
+  return command === "rightPanel.nextTab" || command === "rightPanel.previousTab";
+}
+
 export function isTerminalCloseShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,

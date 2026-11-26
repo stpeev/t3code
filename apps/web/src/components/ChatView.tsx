@@ -1,6 +1,9 @@
 import { useGT, useMessages } from "gt-react";
 import { ChildThreadApprovals } from "./chat/ChildThreadApprovals";
-import { draftSupportedRuntimeModes } from "./chat/runtimeModeConfig";
+import {
+  draftRuntimeModeLimitsInstance,
+  draftSupportedRuntimeModes,
+} from "./chat/runtimeModeConfig";
 import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { resolveNewThreadModelSelection } from "@t3tools/shared/usageLimits";
@@ -1180,12 +1183,9 @@ export default function ChatView(props: ChatViewProps) {
   const diffSelected = useRightPanelStore(
     (state) => selectSelectedRightPanelSurface(state.byThreadKey, activeThreadRef)?.kind === "diff",
   );
-  const explicitDiffOpenRef = useRef<ScopedThreadRef | null>(null);
   const previousDiffSelectedRef = useRef<{ threadKey: string; diffSelected: boolean } | null>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- resets the diff panel store to branch scope when the diff opens without an explicit request
   useLayoutEffect(() => {
-    const explicitThreadRef = explicitDiffOpenRef.current;
-    explicitDiffOpenRef.current = null;
     if (!activeThreadRef) return;
     const threadKey = scopedThreadKey(activeThreadRef);
     const previous = previousDiffSelectedRef.current;
@@ -1193,12 +1193,10 @@ export default function ChatView(props: ChatViewProps) {
     // A thread keeps its persisted selection across reloads and thread switches. Switching to the diff
     // tab shows Changes, unless a timeline click asked for a specific turn/file.
     const switchedToDiff = previous?.threadKey === threadKey && !previous.diffSelected;
-    if (explicitThreadRef !== activeThreadRef) {
-      if (diffOpen && !useDiffPanelStore.getState().consumeKeepSelectionOnOpen(activeThreadRef)) {
-        useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
-      } else if (diffSelected && switchedToDiff) {
-        useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
-      }
+    if (diffOpen && !useDiffPanelStore.getState().consumeKeepSelectionOnOpen(activeThreadRef)) {
+      useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
+    } else if (diffSelected && switchedToDiff) {
+      useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
     }
   }, [activeThreadRef, diffOpen, diffSelected]);
   const rightPanelState = useRightPanelStore((state) =>
@@ -2633,6 +2631,7 @@ export default function ChatView(props: ChatViewProps) {
     copyRightPanelFilePathStable,
     createBrowserSurface,
     createBrowserSurfaceStable,
+    cycleRightPanelTabStable,
     duplicateBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
     onOpenToolDiffStable,
@@ -2667,7 +2666,6 @@ export default function ChatView(props: ChatViewProps) {
     pullRequestsSurfaceAvailable,
     gitCwd,
     activeProjectCwd,
-    explicitDiffOpenRef,
     onDiffPanelOpen,
     closeRightPanelSurface,
   });
@@ -3160,6 +3158,8 @@ export default function ChatView(props: ChatViewProps) {
       if (action === "rightPanel.toggle") toggleRightPanelStable();
       else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximizedStable();
       else if (action === "rightPanel.close") closeActiveRightPanelSurfaceStable();
+      else if (action === "rightPanel.nextTab") cycleRightPanelTabStable(1);
+      else if (action === "rightPanel.previousTab") cycleRightPanelTabStable(-1);
     });
   }, [
     embedded,
@@ -3167,6 +3167,7 @@ export default function ChatView(props: ChatViewProps) {
     toggleRightPanelStable,
     toggleRightPanelMaximizedStable,
     closeActiveRightPanelSurfaceStable,
+    cycleRightPanelTabStable,
   ]);
 
   usePasteToFocusComposer(embedded ? null : activeThreadId, composerRef);
@@ -4263,6 +4264,11 @@ export default function ChatView(props: ChatViewProps) {
                                             multipleModelSelections,
                                             providerStatuses,
                                           )}
+                                          instanceId={draftRuntimeModeLimitsInstance(
+                                            activeProviderStatus?.instanceId,
+                                            multipleModelSelections,
+                                          )}
+                                          cwd={gitCwd}
                                           onRuntimeModeChange={handleRuntimeModeChangeStable}
                                         />
                                       ),
