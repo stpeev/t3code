@@ -38,6 +38,20 @@ describe("renderPipelineStagePrompt", () => {
     expect(auto).toContain("auto mode");
     expect(auto).toContain("autonomously");
   });
+
+  it("tells auto-mode stages to skip inapplicable steps instead of failing, never in manual mode", () => {
+    const manual = renderPipelineStagePrompt("Plan {input}.", "X", PipelineStageId.make("plan"));
+    expect(manual).not.toContain("fair judgement");
+    const auto = renderPipelineStagePrompt(
+      "Plan {input}.",
+      "X",
+      PipelineStageId.make("plan"),
+      true,
+    );
+    expect(auto).toContain("fair judgement");
+    expect(auto).toContain("skip it");
+    expect(auto).toContain("PIPELINE: DONE");
+  });
 });
 
 describe("renderPipelineVerifyPrompt", () => {

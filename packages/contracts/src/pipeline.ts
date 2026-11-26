@@ -273,7 +273,11 @@ export function renderPipelineStagePrompt(
   const autoRule =
     auto === true
       ? "\nThis pipeline runs in auto mode: work as autonomously as possible. Decide and act on " +
-        "your own instead of asking, and only wait when a person or something outside this session must act."
+        "your own instead of asking, and only wait when a person or something outside this session must act. " +
+        "Use your fair judgement to decide whether each instruction in this stage applies to the task, " +
+        "code or change at hand: if a step is irrelevant (for example there is no UI to screenshot), skip it, " +
+        "note the skip in the stage report, and don't mark the stage FAILED just because a step didn't apply — " +
+        "end with `PIPELINE: DONE` when the rest is finished."
       : "";
   return `${body}\n${rule}${autoRule}`;
 }
